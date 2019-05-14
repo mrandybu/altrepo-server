@@ -447,5 +447,46 @@ def conflict_packages():
                                   result_packages)
 
 
+@app.route('/package_by_file')
+def package_by_file():
+    server = LogicServer()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    input_params = {
+        'file': {
+            'rname': 'f.filename',
+            'type': 's',
+            'action': None,
+            'notempty': True,
+        },
+        'branch': {
+            'rname': 'an.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+    }
+
+    params_values = server.get_values_by_params(input_params)
+    if params_values is False:
+        return 'Request params error..('
+
+    server.request_line = \
+        "SELECT DISTINCT p.name, p.version, an.name FROM Package p " \
+        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE {args}".format(args=" ".join(params_values))
+
+    response = server.send_request()
+    if response is False:
+        return "Request error..("
+
+    return server.convert_to_json(['name', 'version', 'branch'], response)
+
+
 if __name__ == '__main__':
     app.run()
