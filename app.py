@@ -349,8 +349,8 @@ def conflict_packages():
 
     # packages with ident files
     server.request_line = \
-        "SELECT DISTINCT p.name, p.version, p.release, p.arch, p.sha1header FROM Package p " \
-        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "SELECT DISTINCT p.name, p.version, p.release, p.arch, p.sha1header " \
+        "FROM Package p INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE (f.filename, p.arch) IN {files} " \
@@ -574,6 +574,11 @@ def dependent_packages():
     server.add_extra_package_params(['packager', 'branch', 'date'])
 
     return server.convert_to_json(server.package_params, response)
+
+
+@app.errorhandler(404)
+def page_404(e):
+    return "Page not found\n"
 
 
 if __name__ == '__main__':
