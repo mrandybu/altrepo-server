@@ -299,5 +299,153 @@ def package_info():
     return json.dumps(json_retval)
 
 
+@app.route('/misconflict_packages')
+def conflict_packages():
+    server = LogicServer()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    pname = server.get_one_value('name')
+    pbranch = server.get_one_value('branch')
+
+    if not pname or not pbranch:
+        return 'Package name and branch not be empty!'
+
+    # version
+    pversion = server.get_one_value('version')
+    if not pversion:
+        server.request_line = \
+            "SELECT MAX(p.version) FROM Package p " \
+            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+            "WHERE p.name = '{name}' AND an.name = '{branch}'" \
+            "".format(name=pname, branch=pbranch)
+
+        pversion = server.send_request()
+        if pversion is False:
+            return 'Request error..('
+
+        pversion = pversion[0][0]
+
+    # files
+    pfiles = server.get_one_value('files')
+    if not pfiles:
+        server.request_line = \
+            "SELECT DISTINCT f.filename, p.arch FROM Package p " \
+            "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+            "WHERE p.name = '{name}' AND an.name = '{branch}' " \
+            "AND p.version = '{version}'" \
+            "".format(name=pname, branch=pbranch, version=pversion)
+
+        pfiles = server.send_request()
+        if pfiles is False:
+            return 'Request error..('
+
+    pfiles = tuple([(file[0], file[1]) for file in pfiles])
+
+    # packages with ident files
+    server.request_line = \
+        "SELECT DISTINCT p.name, p.version, p.release, p.arch, p.sha1header FROM Package p " \
+        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE (f.filename, p.arch) IN {files} " \
+        "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%' " \
+        "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
+        "AND an.name = '{branch}'" \
+        "".format(files=pfiles, name=pname, branch=pbranch)
+
+    packages_with_ident_files = server.send_request()
+    if packages_with_ident_files is False:
+        return 'Request error..('
+
+    packages_with_ident_files = [(el[0], "{}-{}".format(el[1], el[2]), el[3])
+                                 for el in packages_with_ident_files]
+
+    # conflicts input package
+    server.request_line = \
+        "SELECT DISTINCT c.name, c.version, p.arch FROM Package p " \
+        "INNER JOIN Conflict c ON c.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE p.name = '{name}' AND p.version = '{version}' " \
+        "AND an.name = '{branch}'" \
+        "".format(name=pname, version=pversion, branch=pbranch)
+
+    conflicts = server.send_request()
+    if conflicts is False:
+        return 'Request error..('
+
+    packages_without_conflict = []
+
+    for package in packages_with_ident_files:
+        if package[2] == 'noarch':
+            for conflict in conflicts:
+                conflict = (conflict[0], conflict[1])
+
+                if (package[0], package[1]) != conflict and \
+                        (package[0], '') != conflict:
+                    packages_without_conflict.append(package)
+        else:
+            if package not in conflicts and \
+                    (package[0], '', package[2]) not in conflicts:
+                packages_without_conflict.append(package)
+
+    result_packages = []
+
+    for package in packages_without_conflict:
+        package = (package[0], package[1].split("-")[0],
+                   package[1].split("-")[1], package[2])
+
+        # conflicts found packages
+        server.request_line = \
+            "SELECT DISTINCT c.name, c.version, p.arch FROM Package p " \
+            "INNER JOIN Conflict c ON c.package_sha1 = p.sha1header " \
+            "INNER JOIN Assigment a ON a.package_sha1 = sha1header " \
+            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+            "WHERE (p.name, p.version, p.release, p.arch) = {nvr} " \
+            "AND an.name = '{branch}'" \
+            "".format(nvr=package, branch=pbranch)
+
+        conflicts = server.send_request()
+        if conflicts is False:
+            return 'Request error..('
+
+        ind = False
+        for conflict in conflicts:
+            if (pname, pversion) == (conflict[0], conflict[1]) or \
+                    (pname, '') == (conflict[0], conflict[1]):
+                ind = True
+                break
+
+        # conflict files
+        if ind is False:
+            server.request_line = \
+                "SELECT DISTINCT f.filename FROM Package p " \
+                "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+                "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+                "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+                "WHERE (p.name, p.version, p.release, p.arch) = {nvr} " \
+                "AND an.name = '{branch}' AND (f.filename, p.arch) IN {files}" \
+                "".format(nvr=package, branch=pbranch, files=pfiles)
+
+            files = server.send_request()
+            if files is False:
+                return 'Request error..('
+
+            files = server.join_tuples(files)
+
+            result_packages.append((package[0],
+                                    "{}-{}".format(package[1], package[2]),
+                                    package[3], files))
+
+    return server.convert_to_json(['name', 'version', 'arch', 'files'],
+                                  result_packages)
+
+
 if __name__ == '__main__':
     app.run()
