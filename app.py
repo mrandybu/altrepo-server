@@ -160,5 +160,144 @@ class LogicServer:
         return tuple([tuple_[0] for tuple_ in tuple_list])
 
 
+@app.route('/package_info')
+def package_info():
+    server = LogicServer()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    buildtime_action = None
+
+    buildtime_value = server.get_one_value('buildtime')
+    if buildtime_value:
+        if buildtime_value not in ['>', '<', '=']:
+            buildtime_action = "{} = {}"
+
+    date_value = server.get_one_value('date')
+    if date_value is None:
+        date_value = "{} IN (SELECT datetime_release FROM AssigmentName " \
+                     "ORDER BY datetime_release DESC LIMIT 1)"
+    else:
+        date_value = None
+
+    intput_params = {
+        'name': {
+            'rname': 'p.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'version': {
+            'rname': 'p.version',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'release': {
+            'rname': 'p.release',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'arch': {
+            'rname': 'p.arch',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'disttag': {
+            'rname': 'p.disttag',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'buildtime': {
+            'rname': 'p.buildtime',
+            'type': 'i',
+            'action': buildtime_action,
+            'notempty': False,
+        },
+        'sourcerpm': {
+            'rname': 'p.sourcerpm',
+            'type': 'b',
+            'action': None,
+            'notempty': False,
+        },
+        'branch': {
+            'rname': 'an.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'date': {
+            'rname': 'an.datetime_release',
+            'type': 's',
+            'action': date_value,
+            'notempty': False,
+        },
+        'packager': {
+            'rname': 'pr.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+    }
+
+    params_values = server.get_values_by_params(intput_params)
+    if params_values is False:
+        return 'Request params error..('
+
+    server.request_line = \
+        "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id WHERE " \
+        "".format(", p.".join(server.package_params)) + " ".join(params_values)
+
+    response = server.send_request()
+    if response is False:
+        return 'Request error..('
+
+    server.add_extra_package_params(['packager', 'branch', 'date', 'files',
+                                     'requires', 'conflicts', 'obsoletes',
+                                     'provides'])
+
+    json_retval = json.loads(
+        server.convert_to_json(server.package_params, response)
+    )
+
+    for elem in json_retval:
+        package_sha1 = json_retval[elem]['sha1header']
+
+        # files
+        server.request_line = \
+            "SELECT filename FROM File WHERE package_sha1 = '{}'" \
+            "".format(package_sha1)
+
+        files = server.send_request()
+        if files is False:
+            return 'Request error..('
+
+        json_retval[elem]['files'] = server.join_tuples(files)
+
+        p_list = [('Require', 'requires'), ('Conflict', 'conflicts'),
+                  ('Obsolete', 'obsoletes'), ('Provide', 'provides')]
+
+        for pl in p_list:
+            server.request_line = "SELECT name, version FROM {table} " \
+                                  "WHERE package_sha1 = '{sha1}'" \
+                                  "".format(table=pl[0], sha1=package_sha1)
+
+            response = server.send_request()
+            if response is False:
+                return 'Request error..('
+
+            json_retval[elem][pl[1]] = server.join_tuples(response)
+
+    return json.dumps(json_retval)
+
+
 if __name__ == '__main__':
     app.run()
