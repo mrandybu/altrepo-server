@@ -488,5 +488,35 @@ def package_by_file():
     return server.convert_to_json(['name', 'version', 'branch'], response)
 
 
+@app.route('/package_files')
+def package_files():
+    server = LogicServer()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    sha1 = server.get_one_value('sha1')
+
+    server.request_line = \
+        "SELECT DISTINCT f.filename FROM Package p " \
+        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "WHERE p.sourcerpm IS NOT NULL " \
+        "AND p.sha1header = '{sha1}'".format(sha1=sha1)
+
+    response = server.send_request()
+    if response is False:
+        return "Request error..("
+
+    tp = server.join_tuples(response)
+
+    js = {
+        'sha1': sha1,
+        'files': tp
+    }
+
+    return json.dumps(js)
+
+
 if __name__ == '__main__':
     app.run()
