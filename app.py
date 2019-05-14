@@ -518,5 +518,63 @@ def package_files():
     return json.dumps(js)
 
 
+@app.route('/dependent_packages')
+def dependent_packages():
+    server = LogicServer()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    input_params = {
+        'name': {
+            'rname': 'r.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+        'version': {
+            'rname': 'r.version',
+            'type': 's',
+            'action': "{} LIKE '{}%'",
+            'notempty': False,
+        },
+        'branch': {
+            'rname': 'an.name',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+
+        },
+        'date': {
+            'rname': 'an.datetime_release',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
+    }
+
+    params_values = server.get_values_by_params(input_params)
+    if params_values is False:
+        return 'Request params error..('
+
+    server.request_line = \
+        "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
+        "WHERE sourcerpm IS NULL AND " \
+        "".format(", p.".join(server.package_params)) + " ".join(params_values)
+
+    response = server.send_request()
+    if response is False:
+        return 'Request error..('
+
+    server.add_extra_package_params(['packager', 'branch', 'date'])
+
+    return server.convert_to_json(server.package_params, response)
+
+
 if __name__ == '__main__':
     app.run()
