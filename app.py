@@ -247,7 +247,7 @@ def package_info():
 
     params_values = server.get_values_by_params(intput_params)
     if params_values is False:
-        return 'Request params error..('
+        return 'Request params error..(\n'
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -258,7 +258,7 @@ def package_info():
 
     response = server.send_request()
     if response is False:
-        return 'Request error..('
+        return 'Request error..(\n'
 
     server.add_extra_package_params(['packager', 'branch', 'date', 'files',
                                      'requires', 'conflicts', 'obsoletes',
@@ -278,7 +278,7 @@ def package_info():
 
         files = server.send_request()
         if files is False:
-            return 'Request error..('
+            return 'Request error..(\n'
 
         json_retval[elem]['files'] = server.join_tuples(files)
 
@@ -292,7 +292,7 @@ def package_info():
 
             response = server.send_request()
             if response is False:
-                return 'Request error..('
+                return 'Request error..(\n'
 
             json_retval[elem][pl[1]] = server.join_tuples(response)
 
@@ -311,7 +311,7 @@ def conflict_packages():
     pbranch = server.get_one_value('branch')
 
     if not pname or not pbranch:
-        return 'Package name and branch not be empty!'
+        return 'Package name and branch not be empty!\n'
 
     # version
     pversion = server.get_one_value('version')
@@ -325,7 +325,7 @@ def conflict_packages():
 
         pversion = server.send_request()
         if pversion is False:
-            return 'Request error..('
+            return 'Request error..(\n'
 
         pversion = pversion[0][0]
 
@@ -343,7 +343,7 @@ def conflict_packages():
 
         pfiles = server.send_request()
         if pfiles is False:
-            return 'Request error..('
+            return 'Request error..(\n'
 
     pfiles = tuple([(file[0], file[1]) for file in pfiles])
 
@@ -361,7 +361,7 @@ def conflict_packages():
 
     packages_with_ident_files = server.send_request()
     if packages_with_ident_files is False:
-        return 'Request error..('
+        return 'Request error..(\n'
 
     packages_with_ident_files = [(el[0], "{}-{}".format(el[1], el[2]), el[3])
                                  for el in packages_with_ident_files]
@@ -378,7 +378,7 @@ def conflict_packages():
 
     conflicts = server.send_request()
     if conflicts is False:
-        return 'Request error..('
+        return 'Request error..(\n'
 
     packages_without_conflict = []
 
@@ -413,7 +413,7 @@ def conflict_packages():
 
         conflicts = server.send_request()
         if conflicts is False:
-            return 'Request error..('
+            return 'Request error..(\n'
 
         ind = False
         for conflict in conflicts:
@@ -435,7 +435,7 @@ def conflict_packages():
 
             files = server.send_request()
             if files is False:
-                return 'Request error..('
+                return 'Request error..(\n'
 
             files = server.join_tuples(files)
 
@@ -472,7 +472,7 @@ def package_by_file():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return 'Request params error..('
+        return 'Request params error..(\n'
 
     server.request_line = \
         "SELECT DISTINCT p.name, p.version, an.name FROM Package p " \
@@ -483,7 +483,7 @@ def package_by_file():
 
     response = server.send_request()
     if response is False:
-        return "Request error..("
+        return 'Request error..(\n'
 
     return server.convert_to_json(['name', 'version', 'branch'], response)
 
@@ -506,7 +506,7 @@ def package_files():
 
     response = server.send_request()
     if response is False:
-        return "Request error..("
+        return 'Request error..(\n'
 
     tp = server.join_tuples(response)
 
@@ -556,7 +556,7 @@ def dependent_packages():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return 'Request params error..('
+        return 'Request params error..(\n'
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -569,7 +569,7 @@ def dependent_packages():
 
     response = server.send_request()
     if response is False:
-        return 'Request error..('
+        return 'Request error..(\n'
 
     server.add_extra_package_params(['packager', 'branch', 'date'])
 
