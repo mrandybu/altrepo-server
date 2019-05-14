@@ -77,12 +77,12 @@ class LogicServer:
         parch = self.get_one_value('arch')
         if parch and parch not in ['aarch64', 'armh', 'i586',
                                    'noarch', 'x86_64', 'x86_64-i586']:
-            return 'Unknown arch of package!'
+            return 'Unknown arch of package!\n'
 
         # check branch
         pbranch = self.get_one_value('branch')
         if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus']:
-            return 'Unknown branch!'
+            return 'Unknown branch!\n'
 
         # check package params
         pname = self.get_one_value('name')
@@ -104,8 +104,8 @@ class LogicServer:
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
-            if not self.request_line:
-                return "Package with params not exists!"
+            if len(self.send_request()) == 0:
+                return "Package with params not exists!\n"
 
         return True
 
