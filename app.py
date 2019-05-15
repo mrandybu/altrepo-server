@@ -1,5 +1,5 @@
 from flask import Flask, request, json
-from db_request import DBRequest
+from db_request import DBConnection
 
 app = Flask(__name__)
 
@@ -28,19 +28,10 @@ class LogicServer:
         self.request_line = request_line
 
     def send_request(self):
-        db = DBRequest()
+        db = DBConnection(dbconn_struct=self._db_connection)
+        db.request_line = self.request_line
 
-        conn = db.get_connection(self._db_connection)
-        if conn is False:
-            return False
-
-        result = db.send_request(conn, self.request_line)
-        if result is False:
-            return False
-
-        db.close_connection(conn)
-
-        return result
+        return db.send_request()
 
     @staticmethod
     def convert_to_json(keys, values):
@@ -57,7 +48,9 @@ class LogicServer:
         self.request_line = "SELECT datetime_release FROM AssigmentName " \
                             "ORDER BY id DESC LIMIT 1"
 
-        result = self.send_request()
+        status, result = self.send_request()
+        if status is False:
+            return result
 
         self.request_line = request_line_tmp
 
@@ -104,7 +97,11 @@ class LogicServer:
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
-            if len(self.send_request()) == 0:
+            status, result = self.send_request()
+            if status is False:
+                return result
+
+            if len(result) == 0:
                 return "Package with params not exists!\n"
 
         return True
@@ -256,9 +253,9 @@ def package_info():
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id WHERE " \
         "".format(", p.".join(server.package_params)) + " ".join(params_values)
 
-    response = server.send_request()
-    if response is False:
-        return 'Request error..(\n'
+    status, response = server.send_request()
+    if status is False:
+        return response
 
     server.add_extra_package_params(['packager', 'branch', 'date', 'files',
                                      'requires', 'conflicts', 'obsoletes',
@@ -276,9 +273,9 @@ def package_info():
             "SELECT filename FROM File WHERE package_sha1 = '{}'" \
             "".format(package_sha1)
 
-        files = server.send_request()
-        if files is False:
-            return 'Request error..(\n'
+        status, files = server.send_request()
+        if status is False:
+            return files
 
         json_retval[elem]['files'] = server.join_tuples(files)
 
@@ -290,9 +287,9 @@ def package_info():
                                   "WHERE package_sha1 = '{sha1}'" \
                                   "".format(table=pl[0], sha1=package_sha1)
 
-            response = server.send_request()
-            if response is False:
-                return 'Request error..(\n'
+            status, response = server.send_request()
+            if status is False:
+                return response
 
             json_retval[elem][pl[1]] = server.join_tuples(response)
 
@@ -323,9 +320,9 @@ def conflict_packages():
             "WHERE p.name = '{name}' AND an.name = '{branch}'" \
             "".format(name=pname, branch=pbranch)
 
-        pversion = server.send_request()
-        if pversion is False:
-            return 'Request error..(\n'
+        status, pversion = server.send_request()
+        if status is False:
+            return pversion
 
         pversion = pversion[0][0]
 
@@ -341,9 +338,9 @@ def conflict_packages():
             "AND p.version = '{version}'" \
             "".format(name=pname, branch=pbranch, version=pversion)
 
-        pfiles = server.send_request()
-        if pfiles is False:
-            return 'Request error..(\n'
+        status, pfiles = server.send_request()
+        if status is False:
+            return pfiles
 
     pfiles = tuple([(file[0], file[1]) for file in pfiles])
 
@@ -359,9 +356,9 @@ def conflict_packages():
         "AND an.name = '{branch}'" \
         "".format(files=pfiles, name=pname, branch=pbranch)
 
-    packages_with_ident_files = server.send_request()
-    if packages_with_ident_files is False:
-        return 'Request error..(\n'
+    status, packages_with_ident_files = server.send_request()
+    if status is False:
+        return packages_with_ident_files
 
     packages_with_ident_files = [(el[0], "{}-{}".format(el[1], el[2]), el[3])
                                  for el in packages_with_ident_files]
@@ -376,9 +373,9 @@ def conflict_packages():
         "AND an.name = '{branch}'" \
         "".format(name=pname, version=pversion, branch=pbranch)
 
-    conflicts = server.send_request()
-    if conflicts is False:
-        return 'Request error..(\n'
+    status, conflicts = server.send_request()
+    if status is False:
+        return conflicts
 
     packages_without_conflict = []
 
@@ -411,9 +408,9 @@ def conflict_packages():
             "AND an.name = '{branch}'" \
             "".format(nvr=package, branch=pbranch)
 
-        conflicts = server.send_request()
-        if conflicts is False:
-            return 'Request error..(\n'
+        status, conflicts = server.send_request()
+        if status is False:
+            return conflicts
 
         ind = False
         for conflict in conflicts:
@@ -433,9 +430,9 @@ def conflict_packages():
                 "AND an.name = '{branch}' AND (f.filename, p.arch) IN {files}" \
                 "".format(nvr=package, branch=pbranch, files=pfiles)
 
-            files = server.send_request()
-            if files is False:
-                return 'Request error..(\n'
+            status, files = server.send_request()
+            if status is False:
+                return files
 
             files = server.join_tuples(files)
 
@@ -481,9 +478,9 @@ def package_by_file():
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE {args}".format(args=" ".join(params_values))
 
-    response = server.send_request()
-    if response is False:
-        return 'Request error..(\n'
+    status, response = server.send_request()
+    if status is False:
+        return response
 
     return server.convert_to_json(['name', 'version', 'branch'], response)
 
@@ -504,9 +501,9 @@ def package_files():
         "WHERE p.sourcerpm IS NOT NULL " \
         "AND p.sha1header = '{sha1}'".format(sha1=sha1)
 
-    response = server.send_request()
-    if response is False:
-        return 'Request error..(\n'
+    status, response = server.send_request()
+    if status is False:
+        return response
 
     tp = server.join_tuples(response)
 
@@ -567,9 +564,9 @@ def dependent_packages():
         "WHERE sourcerpm IS NULL AND " \
         "".format(", p.".join(server.package_params)) + " ".join(params_values)
 
-    response = server.send_request()
-    if response is False:
-        return 'Request error..(\n'
+    status, response = server.send_request()
+    if status is False:
+        return response
 
     server.add_extra_package_params(['packager', 'branch', 'date'])
 
