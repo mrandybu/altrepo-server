@@ -1,16 +1,15 @@
-import logging
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
+from utils import get_logger, exception_to_logger, json_str_error
 
-logging.basicConfig(filename='altrepo_server.log', level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 class DBConnection(object):
-    def __init__(self, maxsize=20, dbconn_struct=None, request_line=None):
+    def __init__(self, maxsize=20, dbconn_struct=None, db_query=None):
         self.dbconn_struct = dbconn_struct
         self.maxsize = maxsize
-        self.request_line = request_line
+        self.db_query = db_query
 
     @contextmanager
     def get_db_connection(self):
@@ -22,8 +21,8 @@ class DBConnection(object):
                 host=self.dbconn_struct.get('host'),
             )
         except Exception as error:
-            logger.error(error)
-            yield None, "Unable to database connect!\n"
+            logger.error(exception_to_logger(error))
+            yield None, json_str_error("Unable to database connect!")
         else:
             try:
                 connection = pool.getconn()
@@ -49,12 +48,12 @@ class DBConnection(object):
         with self.get_db_cursor() as (cursor, error):
             if cursor:
                 try:
-                    cursor.execute(self.request_line)
+                    cursor.execute(self.db_query)
                     response = cursor.fetchall()
                     response_status = True
                 except Exception as error:
-                    logger.error(error)
-                    response = 'SQL request error!\n'
+                    logger.error(exception_to_logger(error))
+                    response = json_str_error("Error in sql query!")
 
                 return response_status, response
             else:

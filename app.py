@@ -1,17 +1,12 @@
 from flask import Flask, request, json
 from db_connection import DBConnection
+from utils import get_logger, read_config, json_str_error
 
 app = Flask(__name__)
+logger = get_logger(__name__)
 
 
 class LogicServer:
-    _db_connection = {
-        'dbname': 'alter_altrepo',
-        'user': 'underwit',
-        'password': '1',
-        'host': '10.88.13.7',
-    }
-
     def __init__(self, request_line=None):
         self.package_params = [
             'sha1header', 'subtask', 'name', 'arch', 'version', 'release',
@@ -28,8 +23,23 @@ class LogicServer:
         self.request_line = request_line
 
     def send_request(self):
-        db = DBConnection(dbconn_struct=self._db_connection)
-        db.request_line = self.request_line
+        config = read_config('dbconfig.conf')
+        if config is False:
+            message = "Read database config error."
+            logger.error(message)
+            return False, json_str_error(message)
+
+        section = 'DBParams'
+
+        db_connection = {
+            'dbname': config.get(section, 'DataBaseName'),
+            'user': config.get(section, 'User'),
+            'password': config.get(section, 'Password'),
+            'host': config.get(section, 'Host'),
+        }
+
+        db = DBConnection(dbconn_struct=db_connection)
+        db.db_query = self.request_line
 
         return db.send_request()
 
@@ -70,12 +80,12 @@ class LogicServer:
         parch = self.get_one_value('arch')
         if parch and parch not in ['aarch64', 'armh', 'i586',
                                    'noarch', 'x86_64', 'x86_64-i586']:
-            return 'Unknown arch of package!\n'
+            return json_str_error('Unknown arch of package!')
 
         # check branch
         pbranch = self.get_one_value('branch')
         if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus']:
-            return 'Unknown branch!\n'
+            return json_str_error('Unknown branch!')
 
         # check package params
         pname = self.get_one_value('name')
@@ -102,7 +112,8 @@ class LogicServer:
                 return result
 
             if len(result) == 0:
-                return "Package with params not exists!\n"
+                logger.info("Package with input params not in repository.")
+                return json_str_error("Package with input params not exists!")
 
         return True
 
@@ -160,6 +171,8 @@ class LogicServer:
 @app.route('/package_info')
 def package_info():
     server = LogicServer()
+
+    logger.info(request.url)
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -300,6 +313,8 @@ def package_info():
 def conflict_packages():
     server = LogicServer()
 
+    logger.info(request.url)
+
     check_params = server.check_input_params()
     if check_params is not True:
         return check_params
@@ -343,6 +358,8 @@ def conflict_packages():
             return pfiles
 
     pfiles = tuple([(file[0], file[1]) for file in pfiles])
+    if len(pfiles) < 2:
+        pfiles += (('', ''),)
 
     # packages with ident files
     server.request_line = \
@@ -450,6 +467,8 @@ def conflict_packages():
 def package_by_file():
     server = LogicServer()
 
+    logger.info(request.url)
+
     check_params = server.check_input_params()
     if check_params is not True:
         return check_params
@@ -491,6 +510,8 @@ def package_by_file():
 def package_files():
     server = LogicServer()
 
+    logger.info(request.url)
+
     check_params = server.check_input_params()
     if check_params is not True:
         return check_params
@@ -511,7 +532,7 @@ def package_files():
 
     js = {
         'sha1': sha1,
-        'files': tp
+        'files': tp,
     }
 
     return json.dumps(js)
@@ -520,6 +541,8 @@ def package_files():
 @app.route('/dependent_packages')
 def dependent_packages():
     server = LogicServer()
+
+    logger.info(request.url)
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -577,7 +600,7 @@ def dependent_packages():
 
 @app.errorhandler(404)
 def page_404(e):
-    return "Page not found\n"
+    return json_str_error("Page not found")
 
 
 if __name__ == '__main__':
