@@ -1,5 +1,5 @@
 from flask import Flask, request, json
-from db_request import DBConnection
+from db_connection import DBConnection
 
 app = Flask(__name__)
 
@@ -353,7 +353,9 @@ def conflict_packages():
         "WHERE (f.filename, p.arch) IN {files} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%' " \
         "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
-        "AND an.name = '{branch}'" \
+        "AND an.name = '{branch}' AND an.datetime_release IN " \
+        "(SELECT datetime_release FROM AssigmentName " \
+        "ORDER BY datetime_release DESC LIMIT 1)" \
         "".format(files=pfiles, name=pname, branch=pbranch)
 
     status, packages_with_ident_files = server.send_request()
