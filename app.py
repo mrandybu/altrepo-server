@@ -346,7 +346,7 @@ def conflict_packages():
     pfiles = server.get_one_value('files')
     if not pfiles:
         server.request_line = \
-            "SELECT DISTINCT f.filename, p.arch FROM Package p " \
+            "SELECT DISTINCT f.filename, p.arch, f.filemd5 FROM Package p " \
             "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
             "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
@@ -357,6 +357,11 @@ def conflict_packages():
         status, pfiles = server.send_request()
         if status is False:
             return pfiles
+
+    # FIXME
+    filemd5 = tuple([(file[2]) for file in pfiles])
+    if len(filemd5) < 2:
+        pfiles += ('',)
 
     pfiles = tuple([(file[0], file[1]) for file in pfiles])
     if len(pfiles) < 2:
@@ -369,12 +374,13 @@ def conflict_packages():
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE (f.filename, p.arch) IN {files} " \
+        "AND f.filemd5 NOT IN {filemd5} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%' " \
         "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
         "AND an.name = '{branch}' AND an.datetime_release IN " \
         "(SELECT datetime_release FROM AssigmentName " \
         "ORDER BY datetime_release DESC LIMIT 1)" \
-        "".format(files=pfiles, name=pname, branch=pbranch)
+        "".format(files=pfiles, filemd5=filemd5, name=pname, branch=pbranch)
 
     status, packages_with_ident_files = server.send_request()
     if status is False:
