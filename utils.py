@@ -1,11 +1,12 @@
 import logging
 import configparser
 import json
+from paths import paths
 
 
 def get_logger(name):
     logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
-                        level=logging.DEBUG, filename='altrepo_server.log')
+                        level=logging.DEBUG, filename=paths.LOG_FILE)
     logger = logging.getLogger(name)
 
     return logger

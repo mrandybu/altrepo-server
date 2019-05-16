@@ -1,6 +1,7 @@
 from flask import Flask, request, json
 from db_connection import DBConnection
 from utils import get_logger, read_config, json_str_error
+from paths import paths
 
 app = Flask(__name__)
 logger = get_logger(__name__)
@@ -23,7 +24,7 @@ class LogicServer:
         self.request_line = request_line
 
     def send_request(self):
-        config = read_config('dbconfig.conf')
+        config = read_config(paths.DB_CONFIG_FILE)
         if config is False:
             message = "Read database config error."
             logger.error(message)
