@@ -1,6 +1,6 @@
 from flask import Flask, request, json
 from db_connection import DBConnection
-from utils import get_logger, read_config, json_str_error
+from utils import get_logger, read_config, json_str_error, func_time
 from paths import paths
 
 app = Flask(__name__)
@@ -160,6 +160,7 @@ class LogicServer:
 
 
 @app.route('/package_info')
+@func_time(logger)
 def package_info():
     logger.info(request.url)
 
@@ -298,6 +299,7 @@ def package_info():
 
 
 @app.route('/misconflict_packages')
+@func_time(logger)
 def conflict_packages():
     logger.info(request.url)
 
@@ -458,6 +460,7 @@ def conflict_packages():
 
 
 @app.route('/package_by_file')
+@func_time(logger)
 def package_by_file():
     logger.info(request.url)
 
@@ -501,6 +504,7 @@ def package_by_file():
 
 
 @app.route('/package_files')
+@func_time(logger)
 def package_files():
     logger.info(request.url)
 
@@ -529,6 +533,7 @@ def package_files():
 
 
 @app.route('/dependent_packages')
+@func_time(logger)
 def dependent_packages():
     logger.info(request.url)
 

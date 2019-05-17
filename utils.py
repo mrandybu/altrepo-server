@@ -1,6 +1,7 @@
 import logging
 import configparser
 import json
+import time
 from paths import paths
 
 
@@ -27,3 +28,19 @@ def read_config(config_file):
 
 def json_str_error(error):
     return json.dumps({'Error': error})
+
+
+def func_time(logger):
+    def decorator(function):
+        def wrapper(*args, **kwargs):
+            start = time.time()
+            resuls = function(*args, **kwargs)
+            logger.info(
+                "Time {} is {}".format(function.__name__, time.time() - start)
+            )
+            return resuls
+
+        wrapper.__name__ = function.__name__
+        return wrapper
+
+    return decorator
