@@ -1,6 +1,10 @@
+import getpass
+
+
 class BasePathNamespace:
-    DB_CONFIG_FILE = "/etc/altrepo_server/dbconfig.conf"
-    LOG_FILE = "altrepo_server.log"
+    PROJECT_NAME = "altrepo_server"
+    DB_CONFIG_FILE = "/etc/{}/dbconfig.conf".format(PROJECT_NAME)
+    LOG_FILE = "/home/{}/{}.log".format(getpass.getuser(), PROJECT_NAME)
 
 
 paths = BasePathNamespace()
