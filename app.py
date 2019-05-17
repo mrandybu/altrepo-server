@@ -33,26 +33,8 @@ class LogicServer:
         }
         self.db = DBConnection(dbconn_struct=db_connection)
 
-    # FIXME
     def send_request(self):
-        '''config = read_config(paths.DB_CONFIG_FILE)
-        if config is False:
-            message = "Read database config error."
-            logger.error(message)
-            return False, json_str_error(message)
-
-        section = 'DBParams'
-
-        db_connection = {
-            'dbname': config.get(section, 'DataBaseName'),
-            'user': config.get(section, 'User'),
-            'password': config.get(section, 'Password'),
-            'host': config.get(section, 'Host'),
-        }
-
-        db = DBConnection(dbconn_struct=db_connection)'''
         self.db.db_query = self.request_line
-
         return self.db.send_request()
 
     @staticmethod
@@ -120,8 +102,10 @@ class LogicServer:
                 return response
 
             if len(response) == 0:
-                logger.info("Package with input params not in repository.")
-                return json_str_error("Package with input params not exists!")
+                message = "Package with input parameters is not in the " \
+                          "repository."
+                logger.info(message)
+                return json_str_error(message)
 
         return True
 
@@ -186,9 +170,8 @@ def package_info():
     buildtime_action = None
 
     buildtime_value = server.get_one_value('buildtime')
-    if buildtime_value:
-        if buildtime_value not in ['>', '<', '=']:
-            buildtime_action = "{} = {}"
+    if buildtime_value and buildtime_value not in ['>', '<', '=']:
+        buildtime_action = "{} = {}"
 
     date_value = server.get_one_value('date')
     if date_value is None:
@@ -261,7 +244,9 @@ def package_info():
 
     params_values = server.get_values_by_params(intput_params)
     if params_values is False:
-        return 'Request params error..(\n'
+        message = 'Error in request arguments.'
+        logger.info(message)
+        return json_str_error(message)
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -288,25 +273,26 @@ def package_info():
             "SELECT filename FROM File WHERE package_sha1 = '{}'" \
             "".format(package_sha1)
 
-        status, files = server.send_request()
+        status, response = server.send_request()
         if status is False:
-            return files
+            return response
 
-        json_retval[elem]['files'] = server.join_tuples(files)
+        json_retval[elem]['files'] = server.join_tuples(response)
 
-        p_list = [('Require', 'requires'), ('Conflict', 'conflicts'),
-                  ('Obsolete', 'obsoletes'), ('Provide', 'provides')]
+        # package properties
+        prop_list = [('Require', 'requires'), ('Conflict', 'conflicts'),
+                     ('Obsolete', 'obsoletes'), ('Provide', 'provides')]
 
-        for pl in p_list:
+        for prop in prop_list:
             server.request_line = "SELECT name, version FROM {table} " \
                                   "WHERE package_sha1 = '{sha1}'" \
-                                  "".format(table=pl[0], sha1=package_sha1)
+                                  "".format(table=prop[0], sha1=package_sha1)
 
             status, response = server.send_request()
             if status is False:
                 return response
 
-            json_retval[elem][pl[1]] = server.join_tuples(response)
+            json_retval[elem][prop[1]] = server.join_tuples(response)
 
     return json.dumps(json_retval)
 
@@ -323,7 +309,9 @@ def conflict_packages():
     pbranch = server.get_one_value('branch')
 
     if not pname or not pbranch:
-        return 'Package name and branch not be empty!\n'
+        message = 'Error in request arguments.'
+        logger.info(message)
+        return json_str_error(message)
 
     # version
     pversion = server.get_one_value('version')
@@ -335,11 +323,11 @@ def conflict_packages():
             "WHERE p.name = '{name}' AND an.name = '{branch}'" \
             "".format(name=pname, branch=pbranch)
 
-        status, pversion = server.send_request()
+        status, response = server.send_request()
         if status is False:
-            return pversion
+            return response
 
-        pversion = pversion[0][0]
+        pversion = response[0][0]
 
     # files
     pfiles = server.get_one_value('files')
@@ -353,11 +341,12 @@ def conflict_packages():
             "AND p.version = '{version}'" \
             "".format(name=pname, branch=pbranch, version=pversion)
 
-        status, pfiles = server.send_request()
+        status, response = server.send_request()
         if status is False:
-            return pfiles
+            return response
 
-    # FIXME
+        pfiles = response
+
     md5files = tuple([file[2] for file in pfiles])
     if len(md5files) < 2:
         md5files += ('',)
@@ -380,12 +369,12 @@ def conflict_packages():
         "".format(files=pfiles, filemd5=md5files, name=pname,
                   branch=pbranch, date=server.get_last_date_record())
 
-    status, packages_with_ident_files = server.send_request()
+    status, response = server.send_request()
     if status is False:
-        return packages_with_ident_files
+        return response
 
     packages_with_ident_files = [(el[0], "{}-{}".format(el[1], el[2]), el[3])
-                                 for el in packages_with_ident_files]
+                                 for el in response]
 
     # conflicts input package
     server.request_line = \
@@ -397,23 +386,23 @@ def conflict_packages():
         "AND an.name = '{branch}'" \
         "".format(name=pname, version=pversion, branch=pbranch)
 
-    status, conflicts = server.send_request()
+    status, response = server.send_request()
     if status is False:
-        return conflicts
+        return response
 
     packages_without_conflict = []
 
     for package in packages_with_ident_files:
         if package[2] == 'noarch':
-            for conflict in conflicts:
+            for conflict in response:
                 conflict = (conflict[0], conflict[1])
 
                 if (package[0], package[1]) != conflict and \
                         (package[0], '') != conflict:
                     packages_without_conflict.append(package)
         else:
-            if package not in conflicts and \
-                    (package[0], '', package[2]) not in conflicts:
+            if package not in response and \
+                    (package[0], '', package[2]) not in response:
                 packages_without_conflict.append(package)
 
     result_packages = []
@@ -432,12 +421,12 @@ def conflict_packages():
             "AND an.name = '{branch}'" \
             "".format(nvr=package, branch=pbranch)
 
-        status, conflicts = server.send_request()
+        status, response = server.send_request()
         if status is False:
-            return conflicts
+            return response
 
         ind = False
-        for conflict in conflicts:
+        for conflict in response:
             if (pname, pversion) == (conflict[0], conflict[1]) or \
                     (pname, '') == (conflict[0], conflict[1]):
                 ind = True
@@ -454,11 +443,11 @@ def conflict_packages():
                 "AND an.name = '{branch}' AND (f.filename, p.arch) IN {files}" \
                 "".format(nvr=package, branch=pbranch, files=pfiles)
 
-            status, files = server.send_request()
+            status, response = server.send_request()
             if status is False:
-                return files
+                return response
 
-            files = server.join_tuples(files)
+            files = server.join_tuples(response)
 
             result_packages.append((package[0],
                                     "{}-{}".format(package[1], package[2]),
@@ -493,7 +482,9 @@ def package_by_file():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return 'Request params error..(\n'
+        message = 'Error in request arguments.'
+        logger.info(message)
+        return json_str_error(message)
 
     server.request_line = \
         "SELECT DISTINCT p.name, p.version, an.name FROM Package p " \
@@ -529,11 +520,9 @@ def package_files():
     if status is False:
         return response
 
-    tp = server.join_tuples(response)
-
     js = {
         'sha1': sha1,
-        'files': tp,
+        'files': server.join_tuples(response),
     }
 
     return json.dumps(js)
@@ -577,7 +566,9 @@ def dependent_packages():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return 'Request params error..(\n'
+        message = 'Error in request arguments.'
+        logger.info(message)
+        return json_str_error(message)
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -598,7 +589,7 @@ def dependent_packages():
 
 @app.errorhandler(404)
 def page_404(e):
-    return json_str_error("Page not found")
+    return json_str_error("Page not found!")
 
 
 server = LogicServer()
