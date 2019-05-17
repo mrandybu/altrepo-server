@@ -23,8 +23,19 @@ class LogicServer:
         ]
         self.request_line = request_line
 
-    def send_request(self):
         config = read_config(paths.DB_CONFIG_FILE)
+        section = 'DBParams'
+        db_connection = {
+            'dbname': config.get(section, 'DataBaseName'),
+            'user': config.get(section, 'User'),
+            'password': config.get(section, 'Password'),
+            'host': config.get(section, 'Host'),
+        }
+        self.db = DBConnection(dbconn_struct=db_connection)
+
+    # FIXME
+    def send_request(self):
+        '''config = read_config(paths.DB_CONFIG_FILE)
         if config is False:
             message = "Read database config error."
             logger.error(message)
@@ -39,10 +50,10 @@ class LogicServer:
             'host': config.get(section, 'Host'),
         }
 
-        db = DBConnection(dbconn_struct=db_connection)
-        db.db_query = self.request_line
+        db = DBConnection(dbconn_struct=db_connection)'''
+        self.db.db_query = self.request_line
 
-        return db.send_request()
+        return self.db.send_request()
 
     @staticmethod
     def convert_to_json(keys, values):
@@ -55,21 +66,17 @@ class LogicServer:
         return json.dumps(js)
 
     def get_last_date_record(self):
-        request_line_tmp = self.request_line
         self.request_line = "SELECT datetime_release FROM AssigmentName " \
                             "ORDER BY id DESC LIMIT 1"
 
-        status, result = self.send_request()
+        status, response = self.send_request()
         if status is False:
-            return result
+            return response
 
-        self.request_line = request_line_tmp
-
-        if result is not False:
-            return result[0][0]
+        return response[0][0]
 
     def add_extra_package_params(self, extra_package_params):
-        self.package_params += extra_package_params
+        return self.package_params + extra_package_params
 
     @staticmethod
     def get_one_value(param):
@@ -108,11 +115,11 @@ class LogicServer:
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
-            status, result = self.send_request()
+            status, response = self.send_request()
             if status is False:
-                return result
+                return response
 
-            if len(result) == 0:
+            if len(response) == 0:
                 logger.info("Package with input params not in repository.")
                 return json_str_error("Package with input params not exists!")
 
@@ -152,12 +159,11 @@ class LogicServer:
                     if type_ == 't':
                         arg = "{} = {}"
 
-                if arg:
-                    arg = arg.format(rname, value)
-                    if len(params_list) > 0:
-                        arg = "AND {}".format(arg)
+                arg = arg.format(rname, value)
+                if len(params_list) > 0:
+                    arg = "AND {}".format(arg)
 
-                    params_list.append(arg)
+                params_list.append(arg)
 
         if len(params_list) == 0:
             return False
@@ -171,8 +177,6 @@ class LogicServer:
 
 @app.route('/package_info')
 def package_info():
-    server = LogicServer()
-
     logger.info(request.url)
 
     check_params = server.check_input_params()
@@ -188,8 +192,7 @@ def package_info():
 
     date_value = server.get_one_value('date')
     if date_value is None:
-        date_value = "{} IN (SELECT datetime_release FROM AssigmentName " \
-                     "ORDER BY datetime_release DESC LIMIT 1)"
+        date_value = "{} = '{}'".format('{}', server.get_last_date_record())
     else:
         date_value = None
 
@@ -271,13 +274,11 @@ def package_info():
     if status is False:
         return response
 
-    server.add_extra_package_params(['packager', 'branch', 'date', 'files',
-                                     'requires', 'conflicts', 'obsoletes',
-                                     'provides'])
-
-    json_retval = json.loads(
-        server.convert_to_json(server.package_params, response)
-    )
+    json_retval = json.loads(server.convert_to_json(
+        server.add_extra_package_params(
+            ['packager', 'branch', 'date', 'files',
+             'requires', 'conflicts', 'obsoletes', 'provides']
+        ), response))
 
     for elem in json_retval:
         package_sha1 = json_retval[elem]['sha1header']
@@ -312,8 +313,6 @@ def package_info():
 
 @app.route('/misconflict_packages')
 def conflict_packages():
-    server = LogicServer()
-
     logger.info(request.url)
 
     check_params = server.check_input_params()
@@ -359,9 +358,9 @@ def conflict_packages():
             return pfiles
 
     # FIXME
-    filemd5 = tuple([(file[2]) for file in pfiles])
-    if len(filemd5) < 2:
-        pfiles += ('',)
+    md5files = tuple([file[2] for file in pfiles])
+    if len(md5files) < 2:
+        md5files += ('',)
 
     pfiles = tuple([(file[0], file[1]) for file in pfiles])
     if len(pfiles) < 2:
@@ -377,10 +376,9 @@ def conflict_packages():
         "AND f.filemd5 NOT IN {filemd5} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%' " \
         "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
-        "AND an.name = '{branch}' AND an.datetime_release IN " \
-        "(SELECT datetime_release FROM AssigmentName " \
-        "ORDER BY datetime_release DESC LIMIT 1)" \
-        "".format(files=pfiles, filemd5=filemd5, name=pname, branch=pbranch)
+        "AND an.name = '{branch}' AND an.datetime_release = '{date}'" \
+        "".format(files=pfiles, filemd5=md5files, name=pname,
+                  branch=pbranch, date=server.get_last_date_record())
 
     status, packages_with_ident_files = server.send_request()
     if status is False:
@@ -472,8 +470,6 @@ def conflict_packages():
 
 @app.route('/package_by_file')
 def package_by_file():
-    server = LogicServer()
-
     logger.info(request.url)
 
     check_params = server.check_input_params()
@@ -515,8 +511,6 @@ def package_by_file():
 
 @app.route('/package_files')
 def package_files():
-    server = LogicServer()
-
     logger.info(request.url)
 
     check_params = server.check_input_params()
@@ -547,8 +541,6 @@ def package_files():
 
 @app.route('/dependent_packages')
 def dependent_packages():
-    server = LogicServer()
-
     logger.info(request.url)
 
     check_params = server.check_input_params()
@@ -600,15 +592,16 @@ def dependent_packages():
     if status is False:
         return response
 
-    server.add_extra_package_params(['packager', 'branch', 'date'])
-
-    return server.convert_to_json(server.package_params, response)
+    return server.convert_to_json(server.add_extra_package_params(
+        ['packager', 'branch', 'date']), response)
 
 
 @app.errorhandler(404)
 def page_404(e):
     return json_str_error("Page not found")
 
+
+server = LogicServer()
 
 if __name__ == '__main__':
     app.run()
