@@ -468,12 +468,20 @@ def package_by_file():
     if check_params is not True:
         return check_params
 
+    file = server.get_one_value('file')
+    md5 = server.get_one_value('md5')
+
+    if (file and md5) or (not file and not md5):
+        message = 'Error in request arguments.'
+        logger.info(message)
+        return json_str_error(message)
+
     input_params = {
         'file': {
             'rname': 'f.filename',
             'type': 's',
             'action': None,
-            'notempty': True,
+            'notempty': False,
         },
         'branch': {
             'rname': 'an.name',
@@ -481,6 +489,12 @@ def package_by_file():
             'action': None,
             'notempty': False,
         },
+        'md5': {
+            'rname': 'f.filemd5',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        }
     }
 
     params_values = server.get_values_by_params(input_params)
@@ -489,18 +503,24 @@ def package_by_file():
         logger.info(message)
         return json_str_error(message)
 
+    extra_param = ['f.filename', 'file']
+    if md5:
+        extra_param = ['f.filemd5', 'md5']
+
     server.request_line = \
-        "SELECT DISTINCT p.name, p.version, an.name FROM Package p " \
+        "SELECT DISTINCT p.name, p.version, an.name, {ep} FROM Package p " \
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE {args}".format(args=" ".join(params_values))
+        "WHERE {args}".format(args=" ".join(params_values), ep=extra_param[0])
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    return server.convert_to_json(['name', 'version', 'branch'], response)
+    return server.convert_to_json(
+        ['name', 'version', 'branch', extra_param[1]], response
+    )
 
 
 @app.route('/package_files')
