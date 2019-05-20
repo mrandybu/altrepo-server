@@ -1,3 +1,5 @@
+import re
+from urllib.parse import unquote
 from flask import Flask, request, json
 from db_connection import DBConnection
 from utils import get_logger, read_config, json_str_error, func_time
@@ -471,7 +473,13 @@ def package_by_file():
     file = server.get_one_value('file')
     md5 = server.get_one_value('md5')
 
-    if (file and md5) or (not file and not md5):
+    regular = re.findall(re.compile("regular='(.*)'"), unquote(request.url))
+    if len(regular) > 0:
+        regular = "{} LIKE '{}'".format('{}', regular[0])
+    else:
+        regular = None
+
+    if len([param for param in [file, md5, regular] if param]) != 1:
         message = 'Error in request arguments.'
         logger.info(message)
         return json_str_error(message)
@@ -494,7 +502,13 @@ def package_by_file():
             'type': 's',
             'action': None,
             'notempty': False,
-        }
+        },
+        'regular': {
+            'rname': 'f.filename',
+            'type': 's',
+            'action': regular,
+            'notempty': False,
+        },
     }
 
     params_values = server.get_values_by_params(input_params)
