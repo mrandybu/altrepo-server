@@ -512,7 +512,9 @@ def package_by_file():
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE {args}".format(args=" ".join(params_values), ep=extra_param[0])
+        "WHERE an.datetime_release = '{date}' AND {args}" \
+        "".format(args=" ".join(params_values), ep=extra_param[0],
+                  date=server.get_last_date_record())
 
     status, response = server.send_request()
     if status is False:
