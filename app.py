@@ -67,7 +67,7 @@ class LogicServer:
         value = request.args.get(param)
         return value
 
-    def check_input_params(self):
+    def check_input_params(self, binary_only=False):
         # check arch
         parch = self.get_one_value('arch')
         if parch and parch not in ['aarch64', 'armh', 'i586',
@@ -96,6 +96,9 @@ class LogicServer:
 
                 default_req = "{} {}".format(default_req, extra_params)
                 args = "{} AND an.name = '{}'".format(args, pbranch)
+
+            if binary_only:
+                args = "{} AND sourcerpm IS NOT NULL".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -329,7 +332,7 @@ def package_info():
 def conflict_packages():
     server.url_logging()
 
-    check_params = server.check_input_params()
+    check_params = server.check_input_params(binary_only=True)
     if check_params is not True:
         return check_params
 
