@@ -538,19 +538,14 @@ def package_by_file():
         logger.debug(message)
         return json_str_error(message)
 
-    # FIXME add return filename when use md5 request
-    extra_param = ['f.filename', 'file']
-    if md5:
-        extra_param = ['f.filemd5', 'md5']
-
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
-        "p.disttag, an.name, {ep} FROM Package p " \
+        "p.disttag, f.filename, an.name FROM Package p " \
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE an.datetime_release = '{date}' AND {args}" \
-        "".format(args=" ".join(params_values), ep=extra_param[0],
+        "".format(args=" ".join(params_values),
                   date=server.get_last_date_record())
 
     status, response = server.send_request()
@@ -558,8 +553,8 @@ def package_by_file():
         return response
 
     return server.convert_to_json(
-        ['sha1header', 'name', 'version', 'release', 'disttag', 'branch',
-         extra_param[1]], response
+        ['sha1header', 'name', 'version', 'release', 'disttag', 'file',
+         'branch'], response
     )
 
 
@@ -652,6 +647,7 @@ def dependent_packages():
         ['packager', 'branch', 'date']), response)
 
 
+# FIXME check binary -> source
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
