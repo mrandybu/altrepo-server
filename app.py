@@ -106,7 +106,7 @@ class LogicServer:
             if len(response) == 0:
                 message = "Package with input parameters is not in the " \
                           "repository."
-                logger.info(message)
+                logger.debug(message)
                 return json_str_error(message)
 
         return True
@@ -160,11 +160,15 @@ class LogicServer:
     def join_tuples(tuple_list):
         return tuple([tuple_[0] for tuple_ in tuple_list])
 
+    @staticmethod
+    def url_logging():
+        logger.info(unquote(request.url))
+
 
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
-    logger.info(request.url)
+    server.url_logging()
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -248,7 +252,7 @@ def package_info():
     params_values = server.get_values_by_params(intput_params)
     if params_values is False:
         message = 'Error in request arguments.'
-        logger.info(message)
+        logger.debug(message)
         return json_str_error(message)
 
     server.request_line = \
@@ -303,7 +307,7 @@ def package_info():
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
-    logger.info(request.url)
+    server.url_logging()
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -314,7 +318,7 @@ def conflict_packages():
 
     if not pname or not pbranch:
         message = 'Error in request arguments.'
-        logger.info(message)
+        logger.debug(message)
         return json_str_error(message)
 
     # version
@@ -464,7 +468,7 @@ def conflict_packages():
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
-    logger.info(request.url)
+    server.url_logging()
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -481,7 +485,7 @@ def package_by_file():
 
     if len([param for param in [file, md5, regular] if param]) != 1:
         message = 'Error in request arguments.'
-        logger.info(message)
+        logger.debug(message)
         return json_str_error(message)
 
     input_params = {
@@ -514,7 +518,7 @@ def package_by_file():
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
         message = 'Error in request arguments.'
-        logger.info(message)
+        logger.debug(message)
         return json_str_error(message)
 
     extra_param = ['f.filename', 'file']
@@ -542,7 +546,7 @@ def package_by_file():
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
-    logger.info(request.url)
+    server.url_logging()
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -571,7 +575,7 @@ def package_files():
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
-    logger.info(request.url)
+    server.url_logging()
 
     check_params = server.check_input_params()
     if check_params is not True:
@@ -608,7 +612,7 @@ def dependent_packages():
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
         message = 'Error in request arguments.'
-        logger.info(message)
+        logger.debug(message)
         return json_str_error(message)
 
     server.request_line = \
