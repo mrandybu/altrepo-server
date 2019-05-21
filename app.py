@@ -169,6 +169,21 @@ class LogicServer:
     def url_logging():
         logger.info(unquote(request.url))
 
+    @staticmethod
+    def get_last_version(name, branch):
+        server.request_line = \
+            "SELECT MAX(p.version) FROM Package p " \
+            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+            "WHERE p.name = '{name}' AND an.name = '{branch}'" \
+            "".format(name=name, branch=branch)
+
+        status, response = server.send_request()
+        if status is False:
+            return False, response
+
+        return True, response[0][0]
+
 
 @app.route('/package_info')
 @func_time(logger)
@@ -329,18 +344,9 @@ def conflict_packages():
     # version
     pversion = server.get_one_value('version')
     if not pversion:
-        server.request_line = \
-            "SELECT MAX(p.version) FROM Package p " \
-            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-            "WHERE p.name = '{name}' AND an.name = '{branch}'" \
-            "".format(name=pname, branch=pbranch)
-
-        status, response = server.send_request()
+        status, pversion = server.get_last_version(pname, pbranch)
         if status is False:
-            return response
-
-        pversion = response[0][0]
+            return pversion
 
     # files
     pfiles = server.get_one_value('files')
@@ -359,6 +365,9 @@ def conflict_packages():
             return response
 
         pfiles = response
+
+        if len(pfiles) == 0:
+            return '{}'
 
     md5files = tuple([file[2] for file in pfiles])
     if len(md5files) < 2:
