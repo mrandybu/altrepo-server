@@ -526,7 +526,8 @@ def package_by_file():
         extra_param = ['f.filemd5', 'md5']
 
     server.request_line = \
-        "SELECT DISTINCT p.name, p.version, an.name, {ep} FROM Package p " \
+        "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
+        "p.disttag, an.name, {ep} FROM Package p " \
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
@@ -539,7 +540,8 @@ def package_by_file():
         return response
 
     return server.convert_to_json(
-        ['name', 'version', 'branch', extra_param[1]], response
+        ['sha1header', 'name', 'version', 'release', 'disttag', 'branch',
+         extra_param[1]], response
     )
 
 
