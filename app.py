@@ -111,8 +111,10 @@ class LogicServer:
 
         return True
 
-    def get_values_by_params(self, input_params):
+    def get_values_by_params(self, input_params, values_only=False):
         params_list = []
+        if values_only:
+            params_list = {}
 
         for param in input_params:
             value = self.get_one_value(param)
@@ -124,32 +126,35 @@ class LogicServer:
             action = input_params[param].get('action')
 
             if value or action:
-                arg = "{} = '{}'"
-                rname = input_params[param].get('rname')
-                type_ = input_params[param].get('type')
-
-                if action:
-                    arg = action
+                if values_only:
+                    params_list[param] = value
                 else:
-                    if type_ == 'i':
-                        if type(value) is not int:
-                            return False
-                        arg = "{} {}"
-                    if type_ == 'b':
-                        if value.lower() == 'true':
-                            arg = "{} IS NULL"
-                        elif value.lower() == 'false':
-                            arg = "{} IS NOT NULL"
-                        else:
-                            return False
-                    if type_ == 't':
-                        arg = "{} = {}"
+                    arg = "{} = '{}'"
+                    rname = input_params[param].get('rname')
+                    type_ = input_params[param].get('type')
 
-                arg = arg.format(rname, value)
-                if len(params_list) > 0:
-                    arg = "AND {}".format(arg)
+                    if action:
+                        arg = action
+                    else:
+                        if type_ == 'i':
+                            if type(value) is not int:
+                                return False
+                            arg = "{} {}"
+                        if type_ == 'b':
+                            if value.lower() == 'true':
+                                arg = "{} IS NULL"
+                            elif value.lower() == 'false':
+                                arg = "{} IS NOT NULL"
+                            else:
+                                return False
+                        if type_ == 't':
+                            arg = "{} = {}"
 
-                params_list.append(arg)
+                    arg = arg.format(rname, value)
+                    if len(params_list) > 0:
+                        arg = "AND {}".format(arg)
+
+                    params_list.append(arg)
 
         if len(params_list) == 0:
             return False
@@ -521,6 +526,7 @@ def package_by_file():
         logger.debug(message)
         return json_str_error(message)
 
+    # FIXME add return filename when use md5 request
     extra_param = ['f.filename', 'file']
     if md5:
         extra_param = ['f.filemd5', 'md5']
@@ -632,6 +638,64 @@ def dependent_packages():
 
     return server.convert_to_json(server.add_extra_package_params(
         ['packager', 'branch', 'date']), response)
+
+
+@app.route('/what_depends_src')
+@func_time(logger)
+def broken_build():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    input_params = {
+        'name': {
+            'rname': 'r.name',
+            'type': 's',
+            'action': None,
+            'notempty': True,
+        },
+        'version': {
+            'rname': 'r.version',
+            'type': 's',
+            'action': None,
+            'notempty': True
+        },
+        'branch': {
+            'rname': 'an.name',
+            'type': 's',
+            'action': None,
+            'notempty': True,
+        },
+    }
+
+    params_values = server.get_values_by_params(input_params, True)
+    if params_values is False:
+        message = 'Error in request arguments.'
+        logger.debug(message)
+        return json_str_error(message)
+
+    server.request_line = \
+        "SELECT DISTINCT p.sha1header, p.name, p.version, p.arch, an.name " \
+        "FROM Package p INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE an.name = '{branch}' AND an.datetime_release = '{date}' " \
+        "AND p.sourcerpm IS NULL AND (r.name = '{name}' AND r.version " \
+        "LIKE '{version}%') OR (r.name = '{name}' AND r.version = '')" \
+        "".format(
+            name=params_values['name'], version=params_values['version'],
+            branch=params_values['branch'], date=server.get_last_date_record()
+        )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    return server.convert_to_json(
+        ['sha1', 'name', 'version', 'arch', 'branch'], response
+    )
 
 
 @app.errorhandler(404)
