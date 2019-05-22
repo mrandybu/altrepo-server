@@ -193,6 +193,8 @@ class LogicServer:
             "WHERE p.name = '{name}' AND an.name = '{branch}'" \
             "".format(name=name, branch=branch)
 
+        logger.debug(server.request_line)
+
         status, response = server.send_request()
         if status is False:
             return False, response
@@ -297,6 +299,8 @@ def package_info():
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id WHERE " \
         "".format(", p.".join(server.package_params)) + " ".join(params_values)
 
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -315,6 +319,8 @@ def package_info():
             "SELECT filename FROM File WHERE package_sha1 = '{}'" \
             "".format(package_sha1)
 
+        logger.debug(server.request_line)
+
         status, response = server.send_request()
         if status is False:
             return response
@@ -329,6 +335,8 @@ def package_info():
             server.request_line = "SELECT name, version FROM {table} " \
                                   "WHERE package_sha1 = '{sha1}'" \
                                   "".format(table=prop[0], sha1=package_sha1)
+
+            logger.debug(server.request_line)
 
             status, response = server.send_request()
             if status is False:
@@ -374,6 +382,8 @@ def conflict_packages():
         "AND p.version = '{version}'" \
         "".format(name=pname, branch=pbranch, version=pversion)
 
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -405,6 +415,8 @@ def conflict_packages():
         "".format(files=pfiles, filemd5=md5files, name=pname,
                   branch=pbranch, date=server.get_last_date_record())
 
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -421,6 +433,8 @@ def conflict_packages():
         "WHERE p.name = '{name}' AND p.version = '{version}' " \
         "AND an.name = '{branch}'" \
         "".format(name=pname, version=pversion, branch=pbranch)
+
+    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -457,6 +471,8 @@ def conflict_packages():
             "AND an.name = '{branch}'" \
             "".format(nvr=package, branch=pbranch)
 
+        logger.debug(server.request_line)
+
         status, response = server.send_request()
         if status is False:
             return response
@@ -478,6 +494,8 @@ def conflict_packages():
                 "WHERE (p.name, p.version, p.release, p.arch) = {nvr} " \
                 "AND an.name = '{branch}' AND (f.filename, p.arch) IN {files}" \
                 "".format(nvr=package, branch=pbranch, files=pfiles)
+
+            logger.debug(server.request_line)
 
             status, response = server.send_request()
             if status is False:
@@ -564,6 +582,8 @@ def package_by_file():
         "".format(args=" ".join(params_values),
                   date=server.get_last_date_record())
 
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -594,6 +614,8 @@ def package_files():
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "WHERE p.sourcerpm IS NOT NULL " \
         "AND p.sha1header = '{sha1}'".format(sha1=sha1)
+
+    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -659,6 +681,8 @@ def dependent_packages():
         "WHERE sourcerpm IS NULL AND " \
         "".format(", p.".join(server.package_params)) + " ".join(params_values)
 
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -717,6 +741,8 @@ def broken_build():
             name=pname, version=pversion, branch=pbranch,
             date=server.get_last_date_record()
         )
+
+    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
