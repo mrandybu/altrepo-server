@@ -63,29 +63,42 @@ class LogicServer:
         return self.package_params + extra_package_params
 
     @staticmethod
-    def get_one_value(param):
+    def get_one_value(param, type_):
         value = request.args.get(param)
+
+        if value:
+            if type_ == 's':
+                value = value.split("'")[0]
+            if type_ == 'i':
+                try:
+                    value = int(value)
+                except:
+                    value = False
+            if type_ == 'b':
+                if value.lower() not in ['true', 'false']:
+                    value = False
+
         return value
 
     def check_input_params(self, binary_only=False):
         # check arch
-        parch = self.get_one_value('arch')
+        parch = self.get_one_value('arch', 's')
         if parch and parch not in ['aarch64', 'armh', 'i586',
                                    'noarch', 'x86_64', 'x86_64-i586']:
             return json_str_error('Unknown arch of package!')
 
         # check branch
-        pbranch = self.get_one_value('branch')
+        pbranch = self.get_one_value('branch', 's')
         if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus']:
             return json_str_error('Unknown branch!')
 
         # check package params
-        pname = self.get_one_value('name')
+        pname = self.get_one_value('name', 's')
         if pname:
             default_req = "SELECT p.name FROM Package p"
             args = "p.name = '{}'".format(pname)
 
-            pversion = self.get_one_value('version')
+            pversion = self.get_one_value('version', 's')
             if pversion:
                 args = "{} AND p.version = '{}'".format(args, pversion)
 
@@ -120,7 +133,11 @@ class LogicServer:
             params_list = {}
 
         for param in input_params:
-            value = self.get_one_value(param)
+            type_ = input_params[param].get('type')
+
+            value = self.get_one_value(param, type_)
+            if value is False:
+                return value
 
             notempty = input_params[param].get('notempty')
             if not value and notempty is True:
@@ -134,22 +151,17 @@ class LogicServer:
                 else:
                     arg = "{} = '{}'"
                     rname = input_params[param].get('rname')
-                    type_ = input_params[param].get('type')
 
                     if action:
                         arg = action
                     else:
                         if type_ == 'i':
-                            if type(value) is not int:
-                                return False
                             arg = "{} {}"
                         if type_ == 'b':
                             if value.lower() == 'true':
                                 arg = "{} IS NULL"
                             elif value.lower() == 'false':
                                 arg = "{} IS NOT NULL"
-                            else:
-                                return False
                         if type_ == 't':
                             arg = "{} = {}"
 
@@ -199,11 +211,11 @@ def package_info():
 
     buildtime_action = None
 
-    buildtime_value = server.get_one_value('buildtime')
+    buildtime_value = server.get_one_value('buildtime', 'i')
     if buildtime_value and buildtime_value not in ['>', '<', '=']:
         buildtime_action = "{} = {}"
 
-    date_value = server.get_one_value('date')
+    date_value = server.get_one_value('date', 's')
     if date_value is None:
         date_value = "{} = '{}'".format('{}', server.get_last_date_record())
     else:
@@ -336,8 +348,8 @@ def conflict_packages():
     if check_params is not True:
         return check_params
 
-    pname = server.get_one_value('name')
-    pbranch = server.get_one_value('branch')
+    pname = server.get_one_value('name', 's')
+    pbranch = server.get_one_value('branch', 's')
 
     if not pname or not pbranch:
         message = 'Error in request arguments.'
@@ -345,32 +357,31 @@ def conflict_packages():
         return json_str_error(message)
 
     # version
-    pversion = server.get_one_value('version')
+    pversion = server.get_one_value('version', 's')
     if not pversion:
         status, pversion = server.get_last_version(pname, pbranch)
         if status is False:
             return pversion
 
+    # TODO make user files input, maybe later..
     # files
-    pfiles = server.get_one_value('files')
-    if not pfiles:
-        server.request_line = \
-            "SELECT DISTINCT f.filename, p.arch, f.filemd5 FROM Package p " \
-            "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-            "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-            "AND p.version = '{version}'" \
-            "".format(name=pname, branch=pbranch, version=pversion)
+    server.request_line = \
+        "SELECT DISTINCT f.filename, p.arch, f.filemd5 FROM Package p " \
+        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE p.name = '{name}' AND an.name = '{branch}' " \
+        "AND p.version = '{version}'" \
+        "".format(name=pname, branch=pbranch, version=pversion)
 
-        status, response = server.send_request()
-        if status is False:
-            return response
+    status, response = server.send_request()
+    if status is False:
+        return response
 
-        pfiles = response
+    pfiles = response
 
-        if len(pfiles) == 0:
-            return '{}'
+    if len(pfiles) == 0:
+        return '{}'
 
     md5files = tuple([file[2] for file in pfiles])
     if len(md5files) < 2:
@@ -491,8 +502,13 @@ def package_by_file():
     if check_params is not True:
         return check_params
 
-    file = server.get_one_value('file')
-    md5 = server.get_one_value('md5')
+    file = server.get_one_value('file', 's')
+    md5 = server.get_one_value('md5', 's')
+
+    if not file and not md5:
+        message = 'Error in request arguments.'
+        logger.debug(message)
+        return json_str_error(message)
 
     regular = re.findall(re.compile("regular='(.*)'"), unquote(request.url))
     if len(regular) > 0:
@@ -567,7 +583,11 @@ def package_files():
     if check_params is not True:
         return check_params
 
-    sha1 = server.get_one_value('sha1')
+    sha1 = server.get_one_value('sha1', 's')
+    if sha1 is False:
+        message = 'Error in request arguments.'
+        logger.debug(message)
+        return json_str_error(message)
 
     server.request_line = \
         "SELECT DISTINCT f.filename FROM Package p " \
@@ -664,12 +684,6 @@ def broken_build():
             'action': None,
             'notempty': True,
         },
-        'version': {
-            'rname': 'r.version',
-            'type': 's',
-            'action': None,
-            'notempty': True
-        },
         'branch': {
             'rname': 'an.name',
             'type': 's',
@@ -684,6 +698,13 @@ def broken_build():
         logger.debug(message)
         return json_str_error(message)
 
+    pname = params_values['name']
+    pbranch = params_values['branch']
+
+    status, pversion = server.get_last_version(pname, pbranch)
+    if status is False:
+        return pversion
+
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.arch, an.name " \
         "FROM Package p INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
@@ -693,8 +714,8 @@ def broken_build():
         "AND p.sourcerpm IS NULL AND (r.name = '{name}' AND r.version " \
         "LIKE '{version}%') OR (r.name = '{name}' AND r.version = '')" \
         "".format(
-            name=params_values['name'], version=params_values['version'],
-            branch=params_values['branch'], date=server.get_last_date_record()
+            name=pname, version=pversion, branch=pbranch,
+            date=server.get_last_date_record()
         )
 
     status, response = server.send_request()
