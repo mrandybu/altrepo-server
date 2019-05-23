@@ -1,4 +1,5 @@
 import re
+import time
 from urllib.parse import unquote
 from flask import Flask, request, json
 from db_connection import DBConnection
@@ -49,6 +50,7 @@ class LogicServer:
 
         return json.dumps(js)
 
+    # FIXME when start update data detect is now
     def get_last_date_record(self):
         self.request_line = "SELECT datetime_release FROM AssigmentName " \
                             "ORDER BY id DESC LIMIT 1"
@@ -729,27 +731,41 @@ def broken_build():
     if status is False:
         return pversion
 
+    current_date = server.get_last_date_record()
+
+    # binary packages of input package
     server.request_line = \
-        "SELECT DISTINCT p.sha1header, p.name, p.version, p.arch, an.name " \
-        "FROM Package p INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
+        "SELECT DISTINCT p.name FROM Package p " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE an.name = '{branch}' AND an.datetime_release = '{date}' " \
-        "AND p.sourcerpm IS NULL AND (r.name = '{name}' AND r.version " \
-        "LIKE '{version}%') OR (r.name = '{name}' AND r.version = '')" \
-        "".format(
-            name=pname, version=pversion, branch=pbranch,
-            date=server.get_last_date_record()
-        )
+        "WHERE an.name = '{branch}' AND an.datetime_release = '{dt}' " \
+        "AND p.sourcerpm LIKE '{name}-{version}-%'" \
+        "".format(name=pname, version=pversion, branch=pbranch,
+                  dt=current_date)
 
-    logger.debug(server.request_line)
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    binary_packages = tuple([package[0] for package in response])
+
+    server.request_line = \
+        "SELECT p.name, p.version, p.arch, an.name FROM Package p " \
+        "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
+        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE p.sourcerpm IS NULL AND an.name = '{branch}' " \
+        "AND an.datetime_release = '{dt}' AND r.name IN {bp} " \
+        "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
+        "".format(branch=pbranch, dt=current_date, bp=binary_packages,
+                  vers=pversion)
 
     status, response = server.send_request()
     if status is False:
         return response
 
     return server.convert_to_json(
-        ['sha1', 'name', 'version', 'arch', 'branch'], response
+        ['name', 'version', 'arch', 'branch'], response
     )
 
 
