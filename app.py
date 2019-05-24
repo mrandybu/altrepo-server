@@ -591,6 +591,7 @@ def package_by_file():
     )
 
 
+# FIXME if return [] showed []
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
@@ -743,6 +744,8 @@ def broken_build():
         return response
 
     binary_packages = tuple([package[0] for package in response])
+    if len(binary_packages) < 2:
+        binary_packages += ('',)
 
     server.request_line = \
         "SELECT p.name, p.version, p.arch, an.name FROM Package p " \
