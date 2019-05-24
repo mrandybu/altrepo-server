@@ -525,18 +525,13 @@ def package_by_file():
     file = server.get_one_value('file', 's')
     md5 = server.get_one_value('md5', 's')
 
-    if not file and not md5:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return json_str_error(message)
-
-    regular = re.findall(re.compile("regular='(.*)'"), unquote(request.url))
-    if len(regular) > 0:
-        regular = "{} LIKE '{}'".format('{}', regular[0])
+    mask = re.findall(re.compile("mask='(.*)'"), unquote(request.url))
+    if len(mask) > 0:
+        mask = "{} LIKE '{}'".format('{}', mask[0])
     else:
-        regular = None
+        mask = None
 
-    if len([param for param in [file, md5, regular] if param]) != 1:
+    if len([param for param in [file, md5, mask] if param]) != 1:
         message = 'Error in request arguments.'
         logger.debug(message)
         return json_str_error(message)
@@ -560,10 +555,10 @@ def package_by_file():
             'action': None,
             'notempty': False,
         },
-        'regular': {
+        'mask': {
             'rname': 'f.filename',
             'type': 's',
-            'action': regular,
+            'action': mask,
             'notempty': False,
         },
     }
@@ -576,7 +571,7 @@ def package_by_file():
 
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
-        "p.disttag, f.filename, an.name FROM Package p " \
+        "p.arch, p.disttag, f.filename, an.name FROM Package p " \
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
@@ -591,8 +586,8 @@ def package_by_file():
         return response
 
     return server.convert_to_json(
-        ['sha1header', 'name', 'version', 'release', 'disttag', 'file',
-         'branch'], response
+        ['sha1header', 'name', 'version', 'release', 'arch', 'disttag',
+         'file', 'branch'], response
     )
 
 
