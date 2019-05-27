@@ -689,7 +689,6 @@ def dependent_packages():
         ['packager', 'branch', 'date']), response)
 
 
-# FIXME check binary -> source
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
@@ -748,7 +747,8 @@ def broken_build():
         binary_packages += ('',)
 
     server.request_line = \
-        "SELECT p.name, p.version, p.arch, an.name FROM Package p " \
+        "SELECT DISTINCT p.sha1header, p.name, p.version, " \
+        "p.release, an.name FROM Package p " \
         "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
@@ -762,8 +762,47 @@ def broken_build():
     if status is False:
         return response
 
+    req_src_packages = response
+
+    source_names_tuple = ()
+    for package in req_src_packages:
+        source_name = ("{}-{}-{}.src.rpm".format(
+            package[1], package[2], package[3]),
+        )
+        req_src_packages[req_src_packages.index(package)] += source_name
+        source_names_tuple += source_name
+
+    server.request_line = \
+        "SELECT DISTINCT p.name, p.arch, p.sourcerpm FROM Package p " \
+        "WHERE p.sourcerpm IN {}".format(source_names_tuple)
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    binary_packages_with_arch = response
+
+    source_name_archs_list = []
+    for package in binary_packages_with_arch:
+        archs = [bp[1] for bp in binary_packages_with_arch
+                 if bp[2] == package[2]]
+
+        source_name_archs = (package[2], set(archs))
+        if source_name_archs not in source_name_archs_list:
+            source_name_archs_list.append(source_name_archs)
+
+    sources_with_archs = []
+    for package in req_src_packages:
+        mod_package = (package[1], package[2], package[4])
+
+        for source in source_name_archs_list:
+            if source[0] == package[5]:
+                mod_package += (tuple(source[1]),)
+
+        sources_with_archs.append(mod_package)
+
     return server.convert_to_json(
-        ['name', 'version', 'arch', 'branch'], response
+        ['name', 'version', 'branch', 'archs'], sources_with_archs
     )
 
 
