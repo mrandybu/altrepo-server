@@ -30,6 +30,20 @@ def json_str_error(error):
     return json.dumps({'Error': error})
 
 
+def convert_to_json(keys, values):
+    js = {}
+
+    for i in range(len(values)):
+        js[i] = dict([(keys[j], values[i][j])
+                      for j in range(len(values[i]))])
+
+    return json.dumps(js)
+
+
+def join_tuples(tuple_list):
+    return tuple([tuple_[0] for tuple_ in tuple_list])
+
+
 def func_time(logger):
     def decorator(function):
         def wrapper(*args, **kwargs):

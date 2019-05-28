@@ -2,11 +2,12 @@ import re
 from urllib.parse import unquote
 from flask import Flask, request, json
 from db_connection import DBConnection
-from utils import get_logger, read_config, json_str_error, func_time
+import utils
+from utils import func_time
 from paths import paths
 
 app = Flask(__name__)
-logger = get_logger(__name__)
+logger = utils.get_logger(__name__)
 
 
 class LogicServer:
@@ -25,7 +26,7 @@ class LogicServer:
         ]
         self.request_line = request_line
 
-        config = read_config(paths.DB_CONFIG_FILE)
+        config = utils.read_config(paths.DB_CONFIG_FILE)
         section = 'DBParams'
         db_connection = {
             'dbname': config.get(section, 'DataBaseName'),
@@ -40,16 +41,6 @@ class LogicServer:
     def send_request(self):
         self.db.db_query = self.request_line
         return self.db.send_request()
-
-    @staticmethod
-    def convert_to_json(keys, values):
-        js = {}
-
-        for i in range(len(values)):
-            js[i] = dict([(keys[j], values[i][j])
-                          for j in range(len(values[i]))])
-
-        return json.dumps(js)
 
     # select date one day earlier than current
     def _get_last_date_record(self):
@@ -95,12 +86,12 @@ class LogicServer:
         parch = self.get_one_value('arch', 's')
         if parch and parch not in ['aarch64', 'armh', 'i586',
                                    'noarch', 'x86_64', 'x86_64-i586']:
-            return json_str_error('Unknown arch of package!')
+            return utils.json_str_error('Unknown arch of package!')
 
         # check branch
         pbranch = self.get_one_value('branch', 's')
         if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus']:
-            return json_str_error('Unknown branch!')
+            return utils.json_str_error('Unknown branch!')
 
         # check package params
         pname = self.get_one_value('name', 's')
@@ -133,7 +124,7 @@ class LogicServer:
                 message = "Package with input parameters is not in the " \
                           "repository."
                 logger.debug(message)
-                return json_str_error(message)
+                return utils.json_str_error(message)
 
         return True
 
@@ -187,26 +178,21 @@ class LogicServer:
         return params_list
 
     @staticmethod
-    def join_tuples(tuple_list):
-        return tuple([tuple_[0] for tuple_ in tuple_list])
-
-    @staticmethod
     def url_logging():
         logger.info(unquote(request.url))
 
-    @staticmethod
-    def get_last_version(name, branch):
-        server.request_line = \
+    def get_last_version(self, name, branch):
+        self.request_line = \
             "SELECT MAX(p.version) FROM Package p " \
             "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
             "AND an.datetime_release = '{dt}'" \
-            "".format(name=name, branch=branch, dt=server.last_date)
+            "".format(name=name, branch=branch, dt=self.last_date)
 
-        logger.debug(server.request_line)
+        logger.debug(self.request_line)
 
-        status, response = server.send_request()
+        status, response = self.send_request()
         if status is False:
             return False, response
 
@@ -301,7 +287,7 @@ def package_info():
     if params_values is False:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -316,7 +302,7 @@ def package_info():
     if status is False:
         return response
 
-    json_retval = json.loads(server.convert_to_json(
+    json_retval = json.loads(utils.convert_to_json(
         server.add_extra_package_params(
             ['packager', 'branch', 'date', 'files',
              'requires', 'conflicts', 'obsoletes', 'provides']
@@ -336,7 +322,7 @@ def package_info():
         if status is False:
             return response
 
-        json_retval[elem]['files'] = server.join_tuples(response)
+        json_retval[elem]['files'] = utils.join_tuples(response)
 
         # package properties
         prop_list = [('Require', 'requires'), ('Conflict', 'conflicts'),
@@ -353,7 +339,7 @@ def package_info():
             if status is False:
                 return response
 
-            json_retval[elem][prop[1]] = server.join_tuples(response)
+            json_retval[elem][prop[1]] = utils.join_tuples(response)
 
     return json.dumps(json_retval)
 
@@ -373,7 +359,7 @@ def conflict_packages():
     if not pname or not pbranch:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     # version
     pversion = server.get_one_value('version', 's')
@@ -512,14 +498,14 @@ def conflict_packages():
             if status is False:
                 return response
 
-            files = server.join_tuples(response)
+            files = utils.join_tuples(response)
 
             result_packages.append((package[0],
                                     "{}-{}".format(package[1], package[2]),
                                     package[3], files))
 
-    return server.convert_to_json(['name', 'version', 'arch', 'files'],
-                                  result_packages)
+    return utils.convert_to_json(['name', 'version', 'arch', 'files'],
+                                 result_packages)
 
 
 @app.route('/package_by_file')
@@ -543,7 +529,7 @@ def package_by_file():
     if len([param for param in [file, md5, mask] if param]) != 1:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     input_params = {
         'file': {
@@ -576,7 +562,7 @@ def package_by_file():
     if params_values is False:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
@@ -594,7 +580,7 @@ def package_by_file():
     if status is False:
         return response
 
-    return server.convert_to_json(
+    return utils.convert_to_json(
         ['sha1header', 'name', 'version', 'release', 'arch', 'disttag',
          'file', 'branch'], response
     )
@@ -614,7 +600,7 @@ def package_files():
     if sha1 is False:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     server.request_line = \
         "SELECT DISTINCT f.filename FROM Package p " \
@@ -630,7 +616,7 @@ def package_files():
 
     js = {
         'sha1': sha1,
-        'files': server.join_tuples(response),
+        'files': utils.join_tuples(response),
     }
 
     return json.dumps(js)
@@ -677,7 +663,7 @@ def dependent_packages():
     if params_values is False:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     server.request_line = \
         "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
@@ -694,7 +680,7 @@ def dependent_packages():
     if status is False:
         return response
 
-    return server.convert_to_json(server.add_extra_package_params(
+    return utils.convert_to_json(server.add_extra_package_params(
         ['packager', 'branch', 'date']), response)
 
 
@@ -726,7 +712,7 @@ def broken_build():
     if params_values is False:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return json_str_error(message)
+        return utils.json_str_error(message)
 
     pname = params_values['name']
     pbranch = params_values['branch']
@@ -769,7 +755,7 @@ def broken_build():
         "WHERE p.sourcerpm IS NULL AND an.name = '{branch}' " \
         "AND an.datetime_release = '{dt}' AND r.name IN {bp} " \
         "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
-        "".format(branch=pbranch, dt=current_date, bp=binary_packages,
+        "".format(branch=pbranch, dt=server.last_date, bp=binary_packages,
                   vers=pversion)
 
     logger.debug(server.request_line)
@@ -832,14 +818,14 @@ def broken_build():
 
         sources_with_archs.append(mod_package)
 
-    return server.convert_to_json(
+    return utils.convert_to_json(
         ['name', 'version', 'branch', 'archs'], sources_with_archs
     )
 
 
 @app.errorhandler(404)
 def page_404(e):
-    return json_str_error("Page not found!")
+    return utils.json_str_error("Page not found!")
 
 
 server = LogicServer()
