@@ -1,5 +1,4 @@
 import re
-import time
 from urllib.parse import unquote
 from flask import Flask, request, json
 from db_connection import DBConnection
@@ -36,6 +35,7 @@ class LogicServer:
         }
         self.db = DBConnection(dbconn_struct=db_connection)
 
+    @func_time(logger)
     def send_request(self):
         self.db.db_query = self.request_line
         return self.db.send_request()
@@ -738,11 +738,11 @@ def broken_build():
         "".format(name=pname, version=pversion, branch=pbranch,
                   dt=current_date)
 
-    start = time.time()
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
-    print("binary packages {}".format(time.time() - start))
 
     binary_packages = tuple([package[0] for package in response])
     if len(binary_packages) < 2:
@@ -760,11 +760,11 @@ def broken_build():
         "".format(branch=pbranch, dt=current_date, bp=binary_packages,
                   vers=pversion)
 
-    start = time.time()
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
-    print("source packages with req {}".format(time.time() - start))
 
     req_src_packages = response
 
@@ -783,15 +783,14 @@ def broken_build():
         "SELECT DISTINCT p.name, p.arch, p.sourcerpm FROM Package p " \
         "WHERE p.sourcerpm IN {}".format(source_names_tuple)
 
-    start = time.time()
+    logger.debug(server.request_line)
+
     status, response = server.send_request()
     if status is False:
         return response
-    print("package archs {}".format(time.time() - start))
 
     binary_packages_with_arch = response
 
-    start = time.time()
     source_name_archs_list = []
     for package in binary_packages_with_arch:
         archs = [bp[1] for bp in binary_packages_with_arch
@@ -810,8 +809,6 @@ def broken_build():
                 mod_package += (tuple(source[1]),)
 
         sources_with_archs.append(mod_package)
-
-    print("MAIN {}".format(time.time() - start))
 
     return server.convert_to_json(
         ['name', 'version', 'branch', 'archs'], sources_with_archs
