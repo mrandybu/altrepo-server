@@ -34,6 +34,7 @@ class LogicServer:
             'host': config.get(section, 'Host'),
         }
         self.db = DBConnection(dbconn_struct=db_connection)
+        self.last_date = self._get_last_date_record()
 
     @func_time(logger)
     def send_request(self):
@@ -50,10 +51,17 @@ class LogicServer:
 
         return json.dumps(js)
 
-    # FIXME when start update data detect is now
-    def get_last_date_record(self):
-        self.request_line = "SELECT datetime_release FROM AssigmentName " \
-                            "ORDER BY id DESC LIMIT 1"
+    # select date one day earlier than current
+    def _get_last_date_record(self):
+        current_date = "SELECT datetime_release FROM AssigmentName " \
+                       "ORDER BY id DESC LIMIT 1"
+
+        self.request_line = \
+            "SELECT datetime_release FROM AssigmentName " \
+            "WHERE datetime_release NOT IN ({}) ORDER BY id DESC LIMIT 1" \
+            "".format(current_date)
+
+        logger.debug(self.request_line)
 
         status, response = self.send_request()
         if status is False:
@@ -192,8 +200,9 @@ class LogicServer:
             "SELECT MAX(p.version) FROM Package p " \
             "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-            "WHERE p.name = '{name}' AND an.name = '{branch}'" \
-            "".format(name=name, branch=branch)
+            "WHERE p.name = '{name}' AND an.name = '{branch}' " \
+            "AND an.datetime_release = '{dt}'" \
+            "".format(name=name, branch=branch, dt=server.last_date)
 
         logger.debug(server.request_line)
 
@@ -221,7 +230,7 @@ def package_info():
 
     date_value = server.get_one_value('date', 's')
     if date_value is None:
-        date_value = "{} = '{}'".format('{}', server.get_last_date_record())
+        date_value = "{} = '{}'".format('{}', server.last_date)
     else:
         date_value = None
 
@@ -415,7 +424,7 @@ def conflict_packages():
         "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
         "AND an.name = '{branch}' AND an.datetime_release = '{date}'" \
         "".format(files=pfiles, filemd5=md5files, name=pname,
-                  branch=pbranch, date=server.get_last_date_record())
+                  branch=pbranch, date=server.last_date)
 
     logger.debug(server.request_line)
 
@@ -577,7 +586,7 @@ def package_by_file():
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE an.datetime_release = '{date}' AND {args}" \
         "".format(args=" ".join(params_values),
-                  date=server.get_last_date_record())
+                  date=server.last_date)
 
     logger.debug(server.request_line)
 
@@ -726,8 +735,6 @@ def broken_build():
     if status is False:
         return pversion
 
-    current_date = server.get_last_date_record()
-
     # binary packages of input package
     server.request_line = \
         "SELECT DISTINCT p.name, p.arch FROM Package p " \
@@ -736,7 +743,7 @@ def broken_build():
         "WHERE an.name = '{branch}' AND an.datetime_release = '{dt}' " \
         "AND p.sourcerpm LIKE '{name}-{version}-%'" \
         "".format(name=pname, version=pversion, branch=pbranch,
-                  dt=current_date)
+                  dt=server.last_date)
 
     logger.debug(server.request_line)
 
