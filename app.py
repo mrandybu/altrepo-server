@@ -586,7 +586,6 @@ def package_by_file():
     )
 
 
-# FIXME if return [] showed []
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
@@ -613,6 +612,11 @@ def package_files():
     status, response = server.send_request()
     if status is False:
         return response
+
+    if len(response) == 0:
+        return utils.json_str_error(
+            "Files not found by sha1 '{}'".format(sha1)
+        )
 
     js = {
         'sha1': sha1,
