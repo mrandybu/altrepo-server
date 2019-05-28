@@ -730,7 +730,7 @@ def broken_build():
 
     # binary packages of input package
     server.request_line = \
-        "SELECT DISTINCT p.name FROM Package p " \
+        "SELECT DISTINCT p.name, p.arch FROM Package p " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE an.name = '{branch}' AND an.datetime_release = '{dt}' " \
@@ -744,10 +744,15 @@ def broken_build():
     if status is False:
         return response
 
+    input_package_archs_list = list(
+        set([package[1] for package in response])
+    )
+
     binary_packages = tuple([package[0] for package in response])
     if len(binary_packages) < 2:
         binary_packages += ('',)
 
+    # packages with require on binary
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, " \
         "p.release, an.name FROM Package p " \
@@ -768,6 +773,7 @@ def broken_build():
 
     req_src_packages = response
 
+    # source package name
     source_names_tuple = ()
     for package in req_src_packages:
         source_name = ("{}-{}-{}.src.rpm".format(
@@ -779,6 +785,7 @@ def broken_build():
     if len(source_names_tuple) < 2:
         source_names_tuple += ('',)
 
+    # binary package with req on input
     server.request_line = \
         "SELECT DISTINCT p.name, p.arch, p.sourcerpm FROM Package p " \
         "WHERE p.sourcerpm IN {}".format(source_names_tuple)
@@ -791,6 +798,7 @@ def broken_build():
 
     binary_packages_with_arch = response
 
+    # add archs to binary packages
     source_name_archs_list = []
     for package in binary_packages_with_arch:
         archs = [bp[1] for bp in binary_packages_with_arch
@@ -800,13 +808,20 @@ def broken_build():
         if source_name_archs not in source_name_archs_list:
             source_name_archs_list.append(source_name_archs)
 
+    # add archs to source packages
     sources_with_archs = []
     for package in req_src_packages:
         mod_package = (package[1], package[2], package[4])
 
         for source in source_name_archs_list:
             if source[0] == package[5]:
-                mod_package += (tuple(source[1]),)
+                broken_archs = ()
+
+                for arch in source[1]:
+                    if arch == 'noarch' or arch in input_package_archs_list:
+                        broken_archs += (arch,)
+
+                mod_package += (broken_archs,)
 
         sources_with_archs.append(mod_package)
 
