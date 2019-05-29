@@ -404,11 +404,10 @@ def conflict_packages():
         "FROM Package p INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE (f.filename, p.arch) IN {files} " \
-        "AND f.filemd5 NOT IN {filemd5} " \
-        "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%' " \
-        "AND p.name != '{name}' AND p.sourcerpm IS NOT NULL " \
-        "AND an.name = '{branch}' AND an.datetime_release = '{date}'" \
+        "WHERE p.sourcerpm IS NOT NULL AND p.name != '{name}' " \
+        "AND an.name = '{branch}' AND an.datetime_release = '{date}' " \
+        "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
+        "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
         "".format(files=pfiles, filemd5=md5files, name=pname,
                   branch=pbranch, date=server.last_date)
 
