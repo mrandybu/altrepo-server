@@ -28,13 +28,13 @@ class LogicServer:
 
         config = utils.read_config(paths.DB_CONFIG_FILE)
         section = 'DBParams'
-        db_connection = {
+        self.db_connection = {
             'dbname': config.get(section, 'DataBaseName'),
             'user': config.get(section, 'User'),
             'password': config.get(section, 'Password'),
             'host': config.get(section, 'Host'),
         }
-        self.db = DBConnection(dbconn_struct=db_connection)
+        self.db = DBConnection(dbconn_struct=self.db_connection)
         self.last_date = self._get_last_date_record()
 
     @func_time(logger)

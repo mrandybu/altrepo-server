@@ -12,7 +12,7 @@ class DBConnection(object):
         self.db_query = db_query
 
     @contextmanager
-    def _get_db_connection(self):
+    def get_db_connection(self):
         try:
             pool = ThreadedConnectionPool(
                 1, self.maxsize, dbname=self.dbconn_struct.get('dbname'),
@@ -31,8 +31,8 @@ class DBConnection(object):
                 pool.putconn(connection)
 
     @contextmanager
-    def _get_db_cursor(self):
-        with self._get_db_connection() as (connection, error):
+    def get_db_cursor(self):
+        with self.get_db_connection() as (connection, error):
             if connection:
                 try:
                     cursor = connection.cursor()
@@ -45,7 +45,7 @@ class DBConnection(object):
     def send_request(self):
         response_status = False
 
-        with self._get_db_cursor() as (cursor, error):
+        with self.get_db_cursor() as (cursor, error):
             if cursor:
                 try:
                     cursor.execute(self.db_query)
