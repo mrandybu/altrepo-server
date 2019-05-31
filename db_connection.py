@@ -17,7 +17,7 @@ class DBConnection(object):
             pool = ThreadedConnectionPool(
                 1, self.maxsize, dbname=self.dbconn_struct.get('dbname'),
                 user=self.dbconn_struct.get('user'),
-                password=self.dbconn_struct.get('passwd'),
+                password=self.dbconn_struct.get('password'),
                 host=self.dbconn_struct.get('host'),
             )
         except Exception as error:
