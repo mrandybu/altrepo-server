@@ -125,7 +125,7 @@ class LogicServer:
                 args = "{} AND an.name = '{}'".format(args, pbranch)
 
             if binary_only:
-                args = "{} AND sourcepackage IS FALSE".format(args)
+                args = "{} AND sourcerpm IS NOT NULL".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -173,9 +173,9 @@ class LogicServer:
                             arg = "{} {}"
                         if type_ == 'b':
                             if value.lower() == 'true':
-                                arg = "{} IS TRUE"
+                                arg = "{} IS NULL"
                             elif value.lower() == 'false':
-                                arg = "{} IS FALSE"
+                                arg = "{} IS NOT NULL"
                         if type_ == 't':
                             arg = "{} = {}"
 
@@ -271,7 +271,7 @@ def package_info():
             'notempty': False,
         },
         'sourcerpm': {
-            'rname': 'p.sourcepackage',
+            'rname': 'p.sourcerpm',
             'type': 'b',
             'action': None,
             'notempty': False,
@@ -417,7 +417,7 @@ def conflict_packages():
         "FROM Package p INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS FALSE AND p.name != '{name}' " \
+        "WHERE p.sourcerpm IS NOT NULL AND p.name != '{name}' " \
         "AND an.name = '{branch}' AND an.datetime_release = '{date}' " \
         "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
@@ -616,7 +616,7 @@ def package_files():
     server.request_line = \
         "SELECT DISTINCT f.filename FROM Package p " \
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-        "WHERE p.sourcepackage IS FALSE " \
+        "WHERE p.sourcerpm IS NOT NULL " \
         "AND p.sha1header = '{sha1}'".format(sha1=sha1)
 
     logger.debug(server.request_line)
@@ -687,7 +687,7 @@ def dependent_packages():
         "INNER JOIN Packager pr ON pr.id = p.packager_id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
-        "WHERE p.sourcepackage IS TRUE AND " \
+        "WHERE p.sourcerpm IS NULL AND " \
         "".format(", p.".join(server.package_params)) + " ".join(params_values)
 
     logger.debug(server.request_line)
@@ -768,7 +768,7 @@ def broken_build():
         "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS TRUE AND an.name = '{branch}' " \
+        "WHERE p.sourcerpm IS NULL AND an.name = '{branch}' " \
         "AND an.datetime_release = '{dt}' AND r.name IN {bp} " \
         "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
         "".format(branch=pbranch, dt=server.get_last_date(), bp=binary_packages,

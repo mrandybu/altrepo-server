@@ -81,6 +81,21 @@ class TestApp(unittest.TestCase):
         assert true_status is True
         assert false_status is False
 
+    def test_package_files(self):
+        files = [
+            '/usr/bin/osyncbinary',
+            '/usr/bin/osyncdump',
+            '/usr/bin/osyncplugin',
+            '/usr/bin/osyncstress',
+            '/usr/bin/osynctest',
+        ]
+
+        response = json.loads(self.test.get(
+            "/package_files?sha1=943b98762e8ee71aa2afc430a9f942fc9afed559"
+        ).data.decode('utf-8'))['files']
+
+        assert set(response) == set(files)
+
     def test_package_by_file(self):
         # by file
         response_by_file = json.loads(
