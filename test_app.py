@@ -3,7 +3,9 @@ import psycopg2
 import datetime
 from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
 from subprocess import Popen, PIPE
+import app
 from app import LogicServer
+import json
 
 
 class TestApp(unittest.TestCase):
@@ -30,6 +32,9 @@ class TestApp(unittest.TestCase):
             if err.pgcode != '42P04':
                 return 'db err'
 
+        app.server = self.get_server_with_test_config()
+        self.test = app.app.test_client()
+
     def tearDown(self) -> None:
         self.cursor.execute("DROP DATABASE {}".format(self.TEST_DB_NAME))
 
@@ -51,14 +56,14 @@ class TestApp(unittest.TestCase):
     def test_last_version(self):
         server = self.get_server_with_test_config()
 
-        _, last_version = server.get_last_version('kde5-korganizer', 'Sisyphus')
+        _, last_version = server.get_last_version('glibc-utils', 'Sisyphus')
 
-        assert last_version == '19.04.0'
+        assert last_version == '2.27'
 
     def test_last_date(self):
         server = self.get_server_with_test_config()
 
-        date_of_repo = server._get_last_date_record()
+        date_of_repo = server.get_last_date()
 
         assert datetime.datetime(2019, 5, 29) == date_of_repo
 
@@ -75,3 +80,28 @@ class TestApp(unittest.TestCase):
 
         assert true_status is True
         assert false_status is False
+
+    def test_package_by_file(self):
+        # by file
+        response_by_file = json.loads(
+            self.test.get("/package_by_file?file=/usr/bin/setstyle")
+                .data.decode('utf-8')
+        )
+
+        # by mask
+        response_by_mask = json.loads(
+            self.test.get("package_by_file?mask='/etc/dwall/%/post.sh'&branch=p7")
+                .data.decode('utf-8')
+        )
+
+        # by md5
+        response_by_md5 = json.loads(
+            self.test.get("package_by_file?md5=0003aee2a42b8d09c1be35849a51fc0c")
+                .data.decode('utf-8'))
+        md5_package = tuple(
+            set(response_by_md5[res]['name'] for res in response_by_md5)
+        )
+
+        assert response_by_file['0']['name'] == 'WindowMaker'
+        assert response_by_mask['0']['name'] == 'dwall'
+        assert ''.join(md5_package) == 'freeciv-server-data'

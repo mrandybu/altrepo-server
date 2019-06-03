@@ -34,29 +34,42 @@ class LogicServer:
             'password': config.get(section, 'Password'),
             'host': config.get(section, 'Host'),
         }
-        self.db = DBConnection(dbconn_struct=self.db_connection)
-        self.last_date = self._get_last_date_record()
+
+    def _get_connection(self):
+        return DBConnection(dbconn_struct=self.db_connection)
 
     @func_time(logger)
     def send_request(self):
-        self.db.db_query = self.request_line
-        return self.db.send_request()
+        db_connection = self._get_connection()
+        db_connection.db_query = self.request_line
+
+        return db_connection.send_request()
 
     # select date one day earlier than current
-    def _get_last_date_record(self):
-        current_date = "SELECT datetime_release FROM AssigmentName " \
-                       "ORDER BY id DESC LIMIT 1"
-
-        self.request_line = \
-            "SELECT datetime_release FROM AssigmentName " \
-            "WHERE datetime_release NOT IN ({}) ORDER BY id DESC LIMIT 1" \
-            "".format(current_date)
+    def get_last_date(self):
+        self.request_line = "SELECT datetime_release FROM AssigmentName " \
+                            "{} ORDER BY id DESC LIMIT 1".format(None)
 
         logger.debug(self.request_line)
 
         status, response = self.send_request()
         if status is False:
             return response
+
+        last_date = response
+
+        self.request_line = self.request_line.format(
+            "WHERE datetime_release != {}".format(last_date)
+        )
+
+        logger.debug(self.request_line)
+
+        status, response = self.send_request()
+        if status is False:
+            return response
+
+        if len(response) == 0:
+            return last_date[0][0]
 
         return response[0][0]
 
@@ -188,7 +201,7 @@ class LogicServer:
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
             "AND an.datetime_release = '{dt}'" \
-            "".format(name=name, branch=branch, dt=self.last_date)
+            "".format(name=name, branch=branch, dt=self.get_last_date())
 
         logger.debug(self.request_line)
 
@@ -216,7 +229,7 @@ def package_info():
 
     date_value = server.get_one_value('date', 's')
     if date_value is None:
-        date_value = "{} = '{}'".format('{}', server.last_date)
+        date_value = "{} = '{}'".format('{}', server.get_last_date())
     else:
         date_value = None
 
@@ -409,7 +422,7 @@ def conflict_packages():
         "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
         "".format(files=pfiles, filemd5=md5files, name=pname,
-                  branch=pbranch, date=server.last_date)
+                  branch=pbranch, date=server.get_last_date())
 
     logger.debug(server.request_line)
 
@@ -571,7 +584,7 @@ def package_by_file():
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE an.datetime_release = '{date}' AND {args}" \
         "".format(args=" ".join(params_values),
-                  date=server.last_date)
+                  date=server.get_last_date())
 
     logger.debug(server.request_line)
 
@@ -732,7 +745,7 @@ def broken_build():
         "WHERE an.name = '{branch}' AND an.datetime_release = '{dt}' " \
         "AND p.sourcerpm LIKE '{name}-{version}-%'" \
         "".format(name=pname, version=pversion, branch=pbranch,
-                  dt=server.last_date)
+                  dt=server.get_last_date())
 
     logger.debug(server.request_line)
 
@@ -758,7 +771,7 @@ def broken_build():
         "WHERE p.sourcepackage IS TRUE AND an.name = '{branch}' " \
         "AND an.datetime_release = '{dt}' AND r.name IN {bp} " \
         "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
-        "".format(branch=pbranch, dt=server.last_date, bp=binary_packages,
+        "".format(branch=pbranch, dt=server.get_last_date(), bp=binary_packages,
                   vers=pversion)
 
     logger.debug(server.request_line)
