@@ -47,20 +47,13 @@ class LogicServer:
 
     # select date one day earlier than current
     def get_last_date(self):
-        self.request_line = "SELECT datetime_release FROM AssigmentName " \
-                            "{} ORDER BY id DESC LIMIT 1".format(None)
+        current_date = "SELECT datetime_release FROM AssigmentName " \
+                       "ORDER BY datetime_release DESC LIMIT 1"
 
-        logger.debug(self.request_line)
-
-        status, response = self.send_request()
-        if status is False:
-            return response
-
-        last_date = response
-
-        self.request_line = self.request_line.format(
-            "WHERE datetime_release != {}".format(last_date)
-        )
+        self.request_line = \
+            "SELECT datetime_release FROM AssigmentName " \
+            "WHERE datetime_release < (SELECT date_trunc('day', ({}))) " \
+            "ORDER BY datetime_release DESC LIMIT 1".format(current_date)
 
         logger.debug(self.request_line)
 
@@ -69,7 +62,13 @@ class LogicServer:
             return response
 
         if len(response) == 0:
-            return last_date[0][0]
+            self.request_line = current_date
+
+            logger.debug(self.request_line)
+
+            status, response = self.send_request()
+            if status is False:
+                return response
 
         return response[0][0]
 
