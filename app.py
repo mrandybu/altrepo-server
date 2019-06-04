@@ -81,6 +81,10 @@ class LogicServer:
         value = request.args.get(param)
 
         if value:
+            # fix err when package name contains '+'
+            if param == 'name':
+                value = value.replace(' ', '+')
+
             if type_ == 's':
                 value = value.split("'")[0]
             if type_ == 'i':
@@ -638,6 +642,7 @@ def package_files():
     return json.dumps(js)
 
 
+# FIXME check work method
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
@@ -753,6 +758,9 @@ def broken_build():
     if status is False:
         return response
 
+    if len(response) == 0:
+        return json.dumps({})
+
     input_package_archs_list = list(
         set([package[1] for package in response])
     )
@@ -779,6 +787,9 @@ def broken_build():
     status, response = server.send_request()
     if status is False:
         return response
+
+    if len(response) == 0:
+        return json.dumps({})
 
     req_src_packages = response
 
