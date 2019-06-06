@@ -47,13 +47,13 @@ class LogicServer:
 
     # select date one day earlier than current
     def get_last_date(self):
-        current_date = "SELECT datetime_release FROM AssigmentName " \
-                       "ORDER BY datetime_release DESC LIMIT 1"
+        current_date = "SELECT datetime_release::date FROM AssigmentName " \
+                       "{} ORDER BY datetime_release::date DESC LIMIT 1"
 
-        self.request_line = \
-            "SELECT datetime_release FROM AssigmentName " \
-            "WHERE datetime_release < (SELECT date_trunc('day', ({}))) " \
-            "ORDER BY datetime_release DESC LIMIT 1".format(current_date)
+        self.request_line = current_date.format(
+            "WHERE datetime_release::date < (SELECT datetime_release::date "
+            "FROM AssigmentName ORDER BY datetime_release::date DESC LIMIT 1)"
+        )
 
         logger.debug(self.request_line)
 
@@ -62,7 +62,7 @@ class LogicServer:
             return response
 
         if len(response) == 0:
-            self.request_line = current_date
+            self.request_line = current_date.format(None)
 
             logger.debug(self.request_line)
 
@@ -203,7 +203,7 @@ class LogicServer:
             "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-            "AND an.datetime_release = '{dt}'" \
+            "AND an.datetime_release::date = '{dt}'" \
             "".format(name=name, branch=branch, dt=self.get_last_date())
 
         logger.debug(self.request_line)
@@ -286,7 +286,7 @@ def package_info():
             'notempty': False,
         },
         'date': {
-            'rname': 'an.datetime_release',
+            'rname': 'an.datetime_release::date',
             'type': 's',
             'action': date_value,
             'notempty': False,
@@ -421,7 +421,7 @@ def conflict_packages():
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE p.sourcerpm IS NOT NULL AND p.name != '{name}' " \
-        "AND an.name = '{branch}' AND an.datetime_release = '{date}' " \
+        "AND an.name = '{branch}' AND an.datetime_release::date = '{date}' " \
         "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
         "".format(files=pfiles, filemd5=md5files, name=pname,
@@ -585,7 +585,7 @@ def package_by_file():
         "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE an.datetime_release = '{date}' AND {args}" \
+        "WHERE an.datetime_release::date = '{date}' AND {args}" \
         "".format(args=" ".join(params_values),
                   date=server.get_last_date())
 
@@ -672,7 +672,7 @@ def dependent_packages():
 
         },
         'date': {
-            'rname': 'an.datetime_release',
+            'rname': 'an.datetime_release::date',
             'type': 's',
             'action': None,
             'notempty': False,
@@ -746,7 +746,7 @@ def broken_build():
         "SELECT DISTINCT p.name, p.arch FROM Package p " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE an.name = '{branch}' AND an.datetime_release = '{dt}' " \
+        "WHERE an.name = '{branch}' AND an.datetime_release::date = '{dt}' " \
         "AND p.sourcerpm LIKE '{name}-{version}-%'" \
         "".format(name=pname, version=pversion, branch=pbranch,
                   dt=server.get_last_date())
@@ -776,7 +776,7 @@ def broken_build():
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE p.sourcerpm IS NULL AND an.name = '{branch}' " \
-        "AND an.datetime_release = '{dt}' AND r.name IN {bp} " \
+        "AND an.datetime_release::date = '{dt}' AND r.name IN {bp} " \
         "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
         "".format(branch=pbranch, dt=server.get_last_date(), bp=binary_packages,
                   vers=pversion)

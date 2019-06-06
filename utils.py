@@ -2,6 +2,7 @@ import logging
 import configparser
 import json
 import time
+import datetime
 from paths import paths
 
 
@@ -36,6 +37,12 @@ def convert_to_json(keys, values):
     for i in range(len(values)):
         js[i] = dict([(keys[j], values[i][j])
                       for j in range(len(values[i]))])
+
+        for key in js[i]:
+            if key == 'date':
+                js[i]['date'] = datetime.datetime.strftime(
+                    js[i]['date'], '%Y-%m-%d %H:%M:%S'
+                )
 
     return json.dumps(js)
 
