@@ -384,6 +384,8 @@ def conflict_packages():
         if status is False:
             return pversion
 
+    repo_date = server.get_last_date()
+
     # TODO make user files input, maybe later..
     # files
     server.request_line = \
@@ -392,8 +394,8 @@ def conflict_packages():
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-        "AND p.version = '{version}'" \
-        "".format(name=pname, branch=pbranch, version=pversion)
+        "AND p.version = '{version}' AND an.datetime_release::date = '{dt}'" \
+        "".format(name=pname, branch=pbranch, version=pversion, dt=repo_date)
 
     logger.debug(server.request_line)
 
@@ -425,7 +427,7 @@ def conflict_packages():
         "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
         "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
         "".format(files=pfiles, filemd5=md5files, name=pname,
-                  branch=pbranch, date=server.get_last_date())
+                  branch=pbranch, date=repo_date)
 
     logger.debug(server.request_line)
 
