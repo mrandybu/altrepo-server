@@ -51,6 +51,10 @@ def join_tuples(tuple_list):
     return tuple([tuple_[0] for tuple_ in tuple_list])
 
 
+def remove_duplicate(list_):
+    return list(set(list_))
+
+
 def func_time(logger):
     def decorator(function):
         def wrapper(*args, **kwargs):

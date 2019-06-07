@@ -435,8 +435,9 @@ def conflict_packages():
     if status is False:
         return response
 
-    packages_with_ident_files = [(el[0], "{}-{}".format(el[1], el[2]), el[3])
-                                 for el in response]
+    packages_with_ident_files = utils.remove_duplicate(
+        [(el[0], "{}-{}".format(el[1], el[2]), el[3]) for el in response]
+    )
 
     # conflicts input package
     server.request_line = \
@@ -456,18 +457,24 @@ def conflict_packages():
 
     packages_without_conflict = []
 
+    # FIXME
     for package in packages_with_ident_files:
         if package[2] == 'noarch':
-            for conflict in response:
-                conflict = (conflict[0], conflict[1])
-
-                if (package[0], package[1]) != conflict and \
-                        (package[0], '') != conflict:
+            if len(response) == 0:
+                packages_without_conflict.append(package)
+            else:
+                response = [(el[0], el[1]) for el in response]
+                if (package[0], package[1]) not in response and \
+                        (package[0], '') not in response:
                     packages_without_conflict.append(package)
         else:
             if package not in response and \
                     (package[0], '', package[2]) not in response:
                 packages_without_conflict.append(package)
+
+    packages_without_conflict = utils.remove_duplicate(
+        packages_without_conflict
+    )
 
     result_packages = []
 
