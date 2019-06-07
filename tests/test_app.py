@@ -9,7 +9,6 @@ import json
 
 
 class TestApp(unittest.TestCase):
-
     def setUp(self):
         self.conn = psycopg2.connect(
             dbname='postgres',
@@ -30,6 +29,7 @@ class TestApp(unittest.TestCase):
             Popen(restore_cmd, stdout=PIPE, stderr=PIPE).wait()
         except psycopg2.DatabaseError as err:
             if err.pgcode != '42P04':
+                self.tearDown()
                 return 'db err'
 
         app.server = self.get_server_with_test_config()
@@ -53,19 +53,24 @@ class TestApp(unittest.TestCase):
 
         return logic_server
 
+    @staticmethod
+    def convert_response(response):
+        return json.loads(response.data.decode('utf-8'))
+
     def test_last_version(self):
         server = self.get_server_with_test_config()
 
-        _, last_version = server.get_last_version('glibc-utils', 'Sisyphus')
+        _, last_version = server.get_last_version('libtcplay', 'Sisyphus')
 
-        assert last_version == '2.27'
+        assert last_version == '2.0'
 
     def test_last_date(self):
         server = self.get_server_with_test_config()
 
-        date_of_repo = server.get_last_date()
+        repodate = server.get_last_date()
 
-        assert datetime.datetime(2019, 5, 29) == date_of_repo
+        assert datetime.datetime.strptime(
+            '2019-06-05', '%Y-%m-%d').date() == repodate
 
     def test_request_status(self):
         server = self.get_server_with_test_config()
@@ -83,40 +88,54 @@ class TestApp(unittest.TestCase):
 
     def test_package_files(self):
         files = [
-            '/usr/bin/osyncbinary',
-            '/usr/bin/osyncdump',
-            '/usr/bin/osyncplugin',
-            '/usr/bin/osyncstress',
-            '/usr/bin/osynctest',
+            '/usr/include/tclxslt',
+            '/usr/include/tclxslt/tclxslt.h',
         ]
 
-        response = json.loads(self.test.get(
-            "/package_files?sha1=943b98762e8ee71aa2afc430a9f942fc9afed559"
-        ).data.decode('utf-8'))['files']
+        response = self.convert_response(
+            self.test.get("/package_files?sha1="
+                          "8934dda8b2c4548217b23f5178d6dd0558c99073")
+        )['files']
 
         assert set(response) == set(files)
 
+    def test_package_info(self):
+        test_struct = {
+            'arch': 'noarch',
+            'branch': 'p8',
+            'version': '5.5.1',
+            'name': 'puppet',
+            'packager': 'cas',
+        }
+
+        response = self.convert_response(
+            self.test.get("/package_info?name=puppet&branch=p8"))['0']
+
+        assert response['arch'] == test_struct['arch']
+        assert response['branch'] == test_struct['branch']
+        assert response['version'] == test_struct['version']
+        assert response['name'] == test_struct['name']
+        assert response['packager'] == test_struct['packager']
+
     def test_package_by_file(self):
         # by file
-        response_by_file = json.loads(
-            self.test.get("/package_by_file?file=/usr/bin/setstyle")
-                .data.decode('utf-8')
+        response_by_file = self.convert_response(
+            self.test.get("/package_by_file?file=/usr/bin/syslinux")
         )
 
         # by mask
-        response_by_mask = json.loads(
-            self.test.get("package_by_file?mask='/etc/dwall/%/post.sh'&branch=p7")
-                .data.decode('utf-8')
+        response_by_mask = self.convert_response(
+            self.test.get("package_by_file?mask='/etc/bacula/pool.d/%.conf'")
         )
 
         # by md5
-        response_by_md5 = json.loads(
-            self.test.get("package_by_file?md5=0003aee2a42b8d09c1be35849a51fc0c")
-                .data.decode('utf-8'))
+        response_by_md5 = self.convert_response(
+            self.test.get("package_by_file?md5=c5ab3e09e155543ed2bf0a03a3baa4e3")
+        )
         md5_package = tuple(
             set(response_by_md5[res]['name'] for res in response_by_md5)
         )
 
-        assert response_by_file['0']['name'] == 'WindowMaker'
-        assert response_by_mask['0']['name'] == 'dwall'
-        assert ''.join(md5_package) == 'freeciv-server-data'
+        assert response_by_file['0']['name'] == 'syslinux1'
+        assert response_by_mask['0']['name'] == 'bacula9-director-common'
+        assert ''.join(md5_package) == 'pekwm'
