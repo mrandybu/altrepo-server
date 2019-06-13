@@ -386,16 +386,23 @@ def conflict_packages():
 
     repo_date = server.get_last_date()
 
-    # TODO make user files input, maybe later..
-    # files
-    server.request_line = \
-        "SELECT DISTINCT f.filename, p.arch, f.filemd5 FROM Package p " \
-        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+    default_query = \
+        "SELECT DISTINCT {what} FROM Package p " \
         "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-        "AND p.version = '{version}' AND an.datetime_release::date = '{dt}'" \
-        "".format(name=pname, branch=pbranch, version=pversion, dt=repo_date)
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id {join} " \
+        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
+        "WHERE an.name = '{branch}' AND an.datetime_release = '{date}' " \
+        "AND {where}".format(what='{what}', branch=pbranch, date=repo_date,
+                             where='{where}', join='{join}')
+
+    # input package archs
+    server.request_line = default_query.format(
+        what="p.arch",
+        where="p.name = '{name}' AND p.version = '{vers}' "
+              "AND p.sourcerpm IS NOT NULL"
+              "".format(name=pname, vers=pversion),
+        join=''
+    )
 
     logger.debug(server.request_line)
 
@@ -403,31 +410,48 @@ def conflict_packages():
     if status is False:
         return response
 
-    pfiles = response
+    with_archs = ''
 
-    if len(pfiles) == 0:
-        return '{}'
+    archs = tuple([arch[0] for arch in response])
+    if len(archs) == 0:
+        message = "Architectures for {} not found in database.".format(pname)
+        return utils.json_str_error(message)
 
-    md5files = tuple([file[2] for file in pfiles])
-    if len(md5files) < 2:
-        md5files += ('',)
+    if len(archs) == 1:
+        archs += ('',)
+    if archs[0] != 'noarch':
+        with_archs = "AND p.arch IN {}".format(archs)
 
-    pfiles = tuple([(file[0], file[1]) for file in pfiles])
-    if len(pfiles) < 2:
-        pfiles += (('', ''),)
+    # input package files
+    server.request_line = default_query.format(
+        what="f.filename",
+        where="p.name = '{name}' AND p.version = '{vers}' "
+              "AND p.sourcerpm IS NOT NULL AND f.fileclass != 'directory'"
+              "".format(name=pname, vers=pversion),
+        join=''
+    )
+
+    logger.debug(server.request_line)
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    input_package_files = tuple([file[0] for file in response])
+    if len(input_package_files) == 0:
+        return
+    if len(input_package_files) == 1:
+        input_package_files += ('',)
 
     # packages with ident files
-    server.request_line = \
-        "SELECT DISTINCT p.name, p.version, p.release, p.arch, p.sha1header " \
-        "FROM Package p INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcerpm IS NOT NULL AND p.name != '{name}' " \
-        "AND an.name = '{branch}' AND an.datetime_release::date = '{date}' " \
-        "AND f.filemd5 NOT IN {filemd5} AND (f.filename, p.arch) IN {files} " \
-        "AND CAST(f.filemode AS VARCHAR) NOT LIKE '1%'" \
-        "".format(files=pfiles, filemd5=md5files, name=pname,
-                  branch=pbranch, date=repo_date)
+    server.request_line = default_query.format(
+        what="p.name, p.version, p.arch",
+        where="p.name != '{name}' {with_archs} AND p.sourcerpm IS NOT NULL AND "
+              "f.filename IN {files}"
+              "".format(name=pname, with_archs=with_archs,
+                        files=input_package_files),
+        join=''
+    )
 
     logger.debug(server.request_line)
 
@@ -435,19 +459,18 @@ def conflict_packages():
     if status is False:
         return response
 
-    packages_with_ident_files = utils.remove_duplicate(
-        [(el[0], "{}-{}".format(el[1], el[2]), el[3]) for el in response]
-    )
+    packages_with_ident_files = [
+        (package[0], package[1], package[2]) for package in response
+    ]
 
-    # conflicts input package
-    server.request_line = \
-        "SELECT DISTINCT c.name, c.version, p.arch FROM Package p " \
-        "INNER JOIN Conflict c ON c.package_sha1 = p.sha1header " \
-        "INNER JOIN Assigment a ON a.package_sha1 = sha1header " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.name = '{name}' AND p.version = '{version}' " \
-        "AND an.name = '{branch}'" \
-        "".format(name=pname, version=pversion, branch=pbranch)
+    # input package conflicts
+    server.request_line = default_query.format(
+        what="c.name, c.version",
+        where="p.name = '{name}' AND p.version = '{vers}' "
+              "AND p.sourcerpm IS NOT NULL"
+              "".format(name=pname, vers=pversion),
+        join="INNER JOIN Conflict c ON c.package_sha1 = p.sha1header"
+    )
 
     logger.debug(server.request_line)
 
@@ -455,42 +478,20 @@ def conflict_packages():
     if status is False:
         return response
 
-    packages_without_conflict = []
+    input_package_conflicts = [
+        (conflict[0], conflict[1].split('-')[0]) for conflict in response
+    ]
 
-    # FIXME
-    for package in packages_with_ident_files:
-        if package[2] == 'noarch':
-            if len(response) == 0:
-                packages_without_conflict.append(package)
-            else:
-                response = [(el[0], el[1]) for el in response]
-                if (package[0], package[1]) not in response and \
-                        (package[0], '') not in response:
-                    packages_without_conflict.append(package)
-        else:
-            if package not in response and \
-                    (package[0], '', package[2]) not in response:
-                packages_without_conflict.append(package)
-
-    packages_without_conflict = utils.remove_duplicate(
-        packages_without_conflict
-    )
-
-    result_packages = []
-
-    for package in packages_without_conflict:
-        package = (package[0], package[1].split("-")[0],
-                   package[1].split("-")[1], package[2])
-
-        # conflicts found packages
-        server.request_line = \
-            "SELECT DISTINCT c.name, c.version, p.arch FROM Package p " \
-            "INNER JOIN Conflict c ON c.package_sha1 = p.sha1header " \
-            "INNER JOIN Assigment a ON a.package_sha1 = sha1header " \
-            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-            "WHERE (p.name, p.version, p.release, p.arch) = {nvr} " \
-            "AND an.name = '{branch}'" \
-            "".format(nvr=package, branch=pbranch)
+    ident_package_without_conflicts = []
+    for ident_package in packages_with_ident_files:
+        # ident package conflicts
+        server.request_line = default_query.format(
+            what="c.name, c.version",
+            where="(p.name, p.version, p.arch) = {ident_package} "
+                  "AND p.sourcerpm IS NOT NULL"
+                  "".format(ident_package=ident_package),
+            join="INNER JOIN Conflict c ON c.package_sha1 = p.sha1header"
+        )
 
         logger.debug(server.request_line)
 
@@ -498,38 +499,53 @@ def conflict_packages():
         if status is False:
             return response
 
-        ind = False
-        for conflict in response:
-            if (pname, pversion) == (conflict[0], conflict[1]) or \
-                    (pname, '') == (conflict[0], conflict[1]):
-                ind = True
-                break
+        ident_package_conflicts = [
+            (conflict[0], conflict[1].split('-')[0]) for conflict in response
+        ]
 
-        # conflict files
-        if ind is False:
-            server.request_line = \
-                "SELECT DISTINCT f.filename FROM Package p " \
-                "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-                "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-                "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-                "WHERE (p.name, p.version, p.release, p.arch) = {nvr} " \
-                "AND an.name = '{branch}' AND (f.filename, p.arch) IN {files}" \
-                "".format(nvr=package, branch=pbranch, files=pfiles)
+        if (pname, pversion) not in ident_package_conflicts \
+                and (pname, '') not in ident_package_conflicts:
+            if (ident_package[0], ident_package[1]) not in input_package_conflicts \
+                    and (ident_package[0], '') not in input_package_conflicts:
 
-            logger.debug(server.request_line)
+                server.request_line = default_query.format(
+                    what="f.filename",
+                    where="(p.name, p.version, p.arch) = {ident_package} "
+                          "AND p.sourcerpm IS NOT NULL "
+                          "AND f.fileclass != 'directory'"
+                          "".format(ident_package=ident_package),
+                    join=''
+                )
 
-            status, response = server.send_request()
-            if status is False:
-                return response
+                logger.debug(server.request_line)
 
-            files = utils.join_tuples(response)
+                status, response = server.send_request()
+                if status is False:
+                    return response
 
-            result_packages.append((package[0],
-                                    "{}-{}".format(package[1], package[2]),
-                                    package[3], files))
+                ident_package_files = tuple([file[0] for file in response])
 
-    return utils.convert_to_json(['name', 'version', 'arch', 'files'],
-                                 result_packages)
+                intersection_files = []
+                for el in input_package_files:
+                    if el in ident_package_files:
+                        intersection_files.append(el)
+
+                ident_package += (intersection_files,)
+
+                ident_package_without_conflicts.append(ident_package)
+
+    misconflicts = []
+    for name, version, _, files in ident_package_without_conflicts:
+        archs = [package[2] for package in ident_package_without_conflicts
+                 if (package[0], package[1]) == (name, version)]
+
+        result_tuple = (name, version, archs, files)
+
+        if result_tuple not in misconflicts:
+            misconflicts.append(result_tuple)
+
+    return utils.convert_to_json(['name', 'version', 'archs', 'files'],
+                                 misconflicts)
 
 
 @app.route('/package_by_file')
