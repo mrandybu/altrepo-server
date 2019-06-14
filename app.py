@@ -222,6 +222,10 @@ class LogicServer:
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
+    return utils.json_str_error(
+        "At the moment, the request is being adapted to the new database structure."
+    )
+
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -367,6 +371,10 @@ def package_info():
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
+    return utils.json_str_error(
+        "At the moment, the request is being adapted to the new database structure."
+    )
+
     server.url_logging()
 
     check_params = server.check_input_params(binary_only=True)
@@ -555,6 +563,10 @@ def conflict_packages():
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
+    return utils.json_str_error(
+        "At the moment, the request is being adapted to the new database structure."
+    )
+
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -633,6 +645,10 @@ def package_by_file():
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
+    return utils.json_str_error(
+        "At the moment, the request is being adapted to the new database structure."
+    )
+
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -763,6 +779,10 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
+    return utils.json_str_error(
+        "At the moment, the request is being adapted to the new database structure."
+    )
+
     server.url_logging()
 
     check_params = server.check_input_params()
