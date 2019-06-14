@@ -645,10 +645,6 @@ def package_by_file():
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
-    return utils.json_str_error(
-        "At the moment, the request is being adapted to the new database structure."
-    )
-
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -662,9 +658,11 @@ def package_files():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT DISTINCT f.filename FROM Package p " \
-        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-        "WHERE p.sourcerpm IS NOT NULL " \
+        "SELECT DISTINCT pn.value, fi.basename FROM Package p " \
+        "INNER JOIN File f ON f.package_id = p.id " \
+        "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
+        "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
+        "WHERE p.sourcepackage IS FALSE " \
         "AND p.sha1header = '{sha1}'".format(sha1=sha1)
 
     logger.debug(server.request_line)
@@ -680,7 +678,7 @@ def package_files():
 
     js = {
         'sha1': sha1,
-        'files': utils.join_tuples(response),
+        'files': [file[0] + file[1] for file in response],
     }
 
     return json.dumps(js)
