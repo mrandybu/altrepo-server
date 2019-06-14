@@ -779,10 +779,6 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
-    return utils.json_str_error(
-        "At the moment, the request is being adapted to the new database structure."
-    )
-
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -819,15 +815,16 @@ def broken_build():
 
     # binary packages of input package
     server.request_line = \
-        "SELECT DISTINCT p.name, p.arch FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "SELECT DISTINCT p.name, ar.name FROM Package p " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE an.name = '{branch}' AND an.datetime_release::date = '{dt}' " \
+        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
+        "WHERE an.name = '{branch}' AND an.datetime_release::date = '{date}' " \
         "AND p.sourcerpm LIKE '{name}-{version}-%'" \
         "".format(name=pname, version=pversion, branch=pbranch,
-                  dt=server.get_last_date())
+                  date=server.get_last_date())
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -848,16 +845,16 @@ def broken_build():
     server.request_line = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, " \
         "p.release, an.name FROM Package p " \
-        "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "INNER JOIN Require r ON r.package_id = p.id " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcerpm IS NULL AND an.name = '{branch}' " \
-        "AND an.datetime_release::date = '{dt}' AND r.name IN {bp} " \
+        "WHERE p.sourcepackage IS TRUE AND an.name = '{branch}' " \
+        "AND an.datetime_release::date = '{date}' AND r.name IN {bp} " \
         "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
-        "".format(branch=pbranch, dt=server.get_last_date(), bp=binary_packages,
-                  vers=pversion)
+        "".format(branch=pbranch, date=server.get_last_date(),
+                  bp=binary_packages, vers=pversion)
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -882,8 +879,9 @@ def broken_build():
 
     # binary package with req on input
     server.request_line = \
-        "SELECT DISTINCT p.name, p.arch, p.sourcerpm FROM Package p " \
-        "WHERE p.sourcerpm IN {}".format(source_names_tuple)
+        "SELECT DISTINCT p.name, ar.name, p.sourcerpm FROM Package p " \
+        "INNER JOIN Arch ar ON ar.id = p.arch_id WHERE p.sourcerpm IN {}" \
+        "".format(source_names_tuple)
 
     logger.debug(server.request_line)
 
@@ -893,6 +891,7 @@ def broken_build():
 
     binary_packages_with_arch = response
 
+    # FIXME needed optimization
     # add archs to binary packages
     source_name_archs_list = []
     for package in binary_packages_with_arch:
