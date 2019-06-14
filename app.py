@@ -13,16 +13,19 @@ logger = utils.get_logger(__name__)
 class LogicServer:
     def __init__(self, request_line=None):
         self.package_params = [
-            'sha1header', 'subtask', 'name', 'arch', 'version', 'release',
-            'epoch', 'serial_', 'summary', 'description', 'changelog',
-            'buildtime', 'buildhost', 'size', 'distribution', 'vendor', 'gif',
-            'xpm', 'license', 'group_', 'source', 'patch', 'url', 'os',
-            'prein', 'postin', 'preun', 'postun', 'icon', 'archivesize',
-            'rpmversion', 'preinprog', 'postinprog', 'preunprog', 'postunprog',
-            'buildarchs', 'verifyscript', 'verifyscriptprog', 'cookie',
-            'prefixes', 'instprefixes', 'sourcepackage', 'optflags', 'disturl',
-            'payloadformat', 'payloadcompressor', 'payloadflags', 'platform',
-            'disttag', 'sourcerpm', 'filename',
+            'sha1header', 'subtask', 'name', 'version', 'release', 'epoch',
+            'serial_', 'buildtime', 'buildhost', 'size', 'archivesize',
+            'rpmversion', 'cookie', 'sourcepackage', 'disttag', 'sourcerpm',
+            'filename', 'sha1srcheader'
+        ]
+        self.packageinfo_params = [
+            'summary', 'description', 'changelog', 'distribution', 'vendor',
+            'gif', 'xpm', 'license', 'group_', 'source', 'patch', 'url',
+            'os', 'prein', 'postin', 'preun', 'postun', 'icon', 'preinprog',
+            'postinprog', 'preunprog', 'postunprog', 'buildarchs',
+            'verifyscript', 'verifyscriptprog', 'prefixes', 'instprefixes',
+            'optflags', 'disturl', 'payloadformat', 'payloadcompressor',
+            'payloadflags', 'platform'
         ]
         self.request_line = request_line
 
@@ -121,14 +124,14 @@ class LogicServer:
 
             if pbranch:
                 extra_params = \
-                    "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+                    "INNER JOIN Assigment a ON a.package_id = p.id " \
                     "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
 
                 default_req = "{} {}".format(default_req, extra_params)
                 args = "{} AND an.name = '{}'".format(args, pbranch)
 
             if binary_only:
-                args = "{} AND sourcerpm IS NOT NULL".format(args)
+                args = "{} AND sourcepackage IS FALSE".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -176,17 +179,18 @@ class LogicServer:
                             arg = "{} {}"
                         if type_ == 'b':
                             if value.lower() == 'true':
-                                arg = "{} IS NULL"
+                                arg = "{} IS TRUE"
                             elif value.lower() == 'false':
-                                arg = "{} IS NOT NULL"
+                                arg = "{} IS FALSE"
                         if type_ == 't':
                             arg = "{} = {}"
 
-                    arg = arg.format(rname, value)
-                    if len(params_list) > 0:
-                        arg = "AND {}".format(arg)
+                    if value:
+                        arg = arg.format(rname, value)
+                        if len(params_list) > 0:
+                            arg = "AND {}".format(arg)
 
-                    params_list.append(arg)
+                        params_list.append(arg)
 
         if len(params_list) == 0:
             return False
@@ -200,7 +204,7 @@ class LogicServer:
     def get_last_version(self, name, branch):
         self.request_line = \
             "SELECT MAX(p.version) FROM Package p " \
-            "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+            "INNER JOIN Assigment a ON a.package_id = p.id " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
             "AND an.datetime_release::date = '{dt}'" \
@@ -666,13 +670,12 @@ def package_files():
     return json.dumps(js)
 
 
-# FIXME check work method
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
     server.url_logging()
 
-    check_params = server.check_input_params()
+    check_params = server.check_input_params(binary_only=True)
     if check_params is not True:
         return check_params
 
@@ -681,7 +684,7 @@ def dependent_packages():
             'rname': 'r.name',
             'type': 's',
             'action': None,
-            'notempty': False,
+            'notempty': True,
         },
         'version': {
             'rname': 'r.version',
@@ -696,12 +699,6 @@ def dependent_packages():
             'notempty': False,
 
         },
-        'date': {
-            'rname': 'an.datetime_release::date',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-        },
     }
 
     params_values = server.get_values_by_params(input_params)
@@ -711,22 +708,56 @@ def dependent_packages():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
+        "SELECT DISTINCT p.sourcerpm FROM Package p " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "INNER JOIN Require r ON r.package_sha1 = p.sha1header " \
-        "WHERE p.sourcerpm IS NULL AND " \
-        "".format(", p.".join(server.package_params)) + " ".join(params_values)
-
-    logger.debug(server.request_line)
+        "INNER JOIN Require r ON r.package_id = p.id " \
+        "WHERE an.datetime_release::date = '{date}' " \
+        "AND ".format(date=server.get_last_date()) + " ".join(params_values)
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    return utils.convert_to_json(server.add_extra_package_params(
-        ['packager', 'branch', 'date']), response)
+    source_package_fullname = []
+    for fullname in response:
+        if fullname[0]:
+            reg = re.compile("(.*)-([0-9.]+)-(alt.*).src.rpm")
+            source_package_fullname.append(re.findall(reg, fullname[0])[0])
+
+    pbranch = server.get_one_value('branch', 's')
+    if pbranch:
+        pbranch = "AND an.name = '{}'".format(pbranch)
+    else:
+        pbranch = ''
+
+    server.request_line = \
+        "SELECT p.{}, pi.{}, pr.name, an.name, an.datetime_release::date " \
+        "FROM Package p INNER JOIN PackageInfo pi ON pi.package_id = p.id " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
+        "WHERE (p.name, p.version, p.release) IN {nvr} " \
+        "AND p.sourcepackage IS TRUE " \
+        "AND an.datetime_release::date = '{date}' {branch}" \
+        "".format(
+            ", p.".join(server.package_params),
+            ", pi.".join(server.packageinfo_params),
+            nvr=tuple(source_package_fullname),
+            date=server.get_last_date(),
+            branch=pbranch,
+        )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    return utils.convert_to_json(
+        server.add_extra_package_params(
+            server.packageinfo_params + ['packager', 'branch', 'date']
+        ),
+        response
+    )
 
 
 @app.route('/what_depends_src')
