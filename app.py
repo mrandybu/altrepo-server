@@ -109,7 +109,7 @@ class LogicServer:
 
         # check branch
         pbranch = self.get_one_value('branch', 's')
-        if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus']:
+        if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus', 'p9']:
             return utils.json_str_error('Unknown branch!')
 
         # check package params
@@ -560,13 +560,10 @@ def conflict_packages():
                                  misconflicts)
 
 
+# FIXME add searching package by file mask
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
-    return utils.json_str_error(
-        "At the moment, the request is being adapted to the new database structure."
-    )
-
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -587,58 +584,46 @@ def package_by_file():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    input_params = {
-        'file': {
-            'rname': 'f.filename',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-        },
-        'branch': {
-            'rname': 'an.name',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-        },
-        'md5': {
-            'rname': 'f.filemd5',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-        },
-        'mask': {
-            'rname': 'f.filename',
-            'type': 's',
-            'action': mask,
-            'notempty': False,
-        },
-    }
+    pbranch = server.get_one_value('branch', 's')
+    if (file or mask) and not pbranch:
+        return utils.json_str_error('Branch require parameter!')
 
-    params_values = server.get_values_by_params(input_params)
-    if params_values is False:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
-
-    server.request_line = \
+    base_query = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
-        "p.arch, p.disttag, f.filename, an.name FROM Package p " \
-        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "p.disttag, ar.value, an.name, pn.value || fi.basename " \
+        "FROM Package p INNER JOIN File f ON f.package_id = p.id " \
+        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
+        "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
+        "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE an.datetime_release::date = '{date}' AND {args}" \
-        "".format(args=" ".join(params_values),
-                  date=server.get_last_date())
+        "WHERE p.sourcepackage IS FALSE " \
+        "AND an.datetime_release = '{date}' AND {args}" \
+        "".format(date=server.get_last_date(), args="{args}")
 
-    logger.debug(server.request_line)
+    if md5:
+        args = "fi.filemd5 = '{md5}'".format(md5=md5)
+        if pbranch:
+            args = "{} {}".format(args, "AND an.name = '{}'".format(pbranch))
+
+    if file:
+        basename = file.split('/')[-1]
+
+        args = "fi.basename = '{name}' AND pn.value = '{path}'" \
+               "".format(name=basename, path=file.replace(basename, ''))
+
+    if file or mask:
+        args = "{} {}".format(args, "AND an.name = '{}'".format(pbranch))
+
+    server.request_line = base_query.format(args=args)
 
     status, response = server.send_request()
     if status is False:
         return response
 
     return utils.convert_to_json(
-        ['sha1header', 'name', 'version', 'release', 'arch', 'disttag',
-         'file', 'branch'], response
+        ['sha1header', 'name', 'version', 'release', 'disttag', 'arch',
+         'branch', 'file'], response
     )
 
 
