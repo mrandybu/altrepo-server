@@ -798,7 +798,7 @@ def broken_build():
 
     # binary packages of input package
     server.request_line = \
-        "SELECT DISTINCT p.name, ar.name FROM Package p " \
+        "SELECT DISTINCT p.name, ar.value FROM Package p " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "INNER JOIN Arch ar ON ar.id = p.arch_id " \
@@ -862,7 +862,7 @@ def broken_build():
 
     # binary package with req on input
     server.request_line = \
-        "SELECT DISTINCT p.name, ar.name, p.sourcerpm FROM Package p " \
+        "SELECT DISTINCT p.name, ar.value, p.sourcerpm FROM Package p " \
         "INNER JOIN Arch ar ON ar.id = p.arch_id WHERE p.sourcerpm IN {}" \
         "".format(source_names_tuple)
 
