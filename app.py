@@ -100,7 +100,7 @@ class LogicServer:
 
         return value
 
-    def check_input_params(self, binary_only=False):
+    def check_input_params(self, binary_only=False, date=None):
         # check arch
         parch = self.get_one_value('arch', 's')
         if parch and parch not in ['aarch64', 'armh', 'i586',
@@ -122,16 +122,21 @@ class LogicServer:
             if pversion:
                 args = "{} AND p.version = '{}'".format(args, pversion)
 
-            if pbranch:
-                extra_params = \
-                    "INNER JOIN Assigment a ON a.package_id = p.id " \
-                    "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
+            extra_params = \
+                "INNER JOIN Assigment a ON a.package_id = p.id " \
+                "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
+            default_req = "{} {}".format(default_req, extra_params)
 
-                default_req = "{} {}".format(default_req, extra_params)
+            if pbranch:
                 args = "{} AND an.name = '{}'".format(args, pbranch)
 
             if binary_only:
                 args = "{} AND sourcepackage IS FALSE".format(args)
+
+            if not date:
+                date = self.get_last_date()
+
+            args = "{} AND an.datetime_release::date = '{}'".format(args, date)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -185,12 +190,11 @@ class LogicServer:
                         if type_ == 't':
                             arg = "{} = {}"
 
-                    if value:
-                        arg = arg.format(rname, value)
-                        if len(params_list) > 0:
-                            arg = "AND {}".format(arg)
+                    arg = arg.format(rname, value)
+                    if len(params_list) > 0:
+                        arg = "AND {}".format(arg)
 
-                        params_list.append(arg)
+                    params_list.append(arg)
 
         if len(params_list) == 0:
             return False
@@ -222,10 +226,6 @@ class LogicServer:
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
-    return utils.json_str_error(
-        "At the moment, the request is being adapted to the new database structure."
-    )
-
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -249,7 +249,7 @@ def package_info():
             'rname': 'p.name',
             'type': 's',
             'action': None,
-            'notempty': False,
+            'notempty': True,
         },
         'version': {
             'rname': 'p.version',
@@ -264,7 +264,7 @@ def package_info():
             'notempty': False,
         },
         'arch': {
-            'rname': 'p.arch',
+            'rname': 'ar.arch',
             'type': 's',
             'action': None,
             'notempty': False,
@@ -281,8 +281,8 @@ def package_info():
             'action': buildtime_action,
             'notempty': False,
         },
-        'sourcerpm': {
-            'rname': 'p.sourcerpm',
+        'source': {
+            'rname': 'p.sourcepackage',
             'type': 'b',
             'action': None,
             'notempty': False,
@@ -314,13 +314,18 @@ def package_info():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT p.{}, pr.name, an.name, an.datetime_release FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
+        "SELECT p.{}, pi.{}, pr.name, an.name, an.datetime_release::date " \
+        "FROM Package p INNER JOIN Arch ar ON ar.id = p.arch_id " \
+        "INNER JOIN PackageInfo pi ON pi.package_id = p.id " \
         "INNER JOIN Packager pr ON pr.id = p.packager_id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id WHERE " \
-        "".format(", p.".join(server.package_params)) + " ".join(params_values)
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE ".format(
+            ", p.".join(server.package_params),
+            ", pi.".join(server.packageinfo_params),
+        ) + " ".join(params_values)
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -328,19 +333,25 @@ def package_info():
 
     json_retval = json.loads(utils.convert_to_json(
         server.add_extra_package_params(
+            server.packageinfo_params +
             ['packager', 'branch', 'date', 'files',
              'requires', 'conflicts', 'obsoletes', 'provides']
-        ), response))
+        ),
+        response
+    ))
 
     for elem in json_retval:
         package_sha1 = json_retval[elem]['sha1header']
 
         # files
         server.request_line = \
-            "SELECT filename FROM File WHERE package_sha1 = '{}'" \
-            "".format(package_sha1)
+            "SELECT pn.value || fi.basename FROM Package p " \
+            "INNER JOIN File f ON f.package_id = p.id " \
+            "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
+            "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
+            "WHERE p.sha1header = '{}'".format(package_sha1)
 
-        logger.debug(server.request_line)
+        # logger.debug(server.request_line)
 
         status, response = server.send_request()
         if status is False:
@@ -353,11 +364,13 @@ def package_info():
                      ('Obsolete', 'obsoletes'), ('Provide', 'provides')]
 
         for prop in prop_list:
-            server.request_line = "SELECT name, version FROM {table} " \
-                                  "WHERE package_sha1 = '{sha1}'" \
-                                  "".format(table=prop[0], sha1=package_sha1)
+            server.request_line = \
+                "SELECT tab.name, tab.version FROM  Package p " \
+                "INNER JOIN {table} tab ON tab.package_id = p.id " \
+                "WHERE p.sha1header = '{sha1}'" \
+                "".format(table=prop[0], sha1=package_sha1)
 
-            logger.debug(server.request_line)
+            # logger.debug(server.request_line)
 
             status, response = server.send_request()
             if status is False:
@@ -560,7 +573,7 @@ def conflict_packages():
                                  misconflicts)
 
 
-# FIXME add searching package by file mask
+# FIXME fix searching by mask
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
@@ -575,7 +588,7 @@ def package_by_file():
 
     mask = re.findall(re.compile("mask='(.*)'"), unquote(request.url))
     if len(mask) > 0:
-        mask = "{} LIKE '{}'".format('{}', mask[0])
+        mask = mask[0]
     else:
         mask = None
 
@@ -590,32 +603,33 @@ def package_by_file():
 
     base_query = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
-        "p.disttag, ar.value, an.name, pn.value || fi.basename " \
+        "p.disttag, ar.value, an.name, pn.value || fi.basename AS fullname " \
         "FROM Package p INNER JOIN File f ON f.package_id = p.id " \
         "INNER JOIN Arch ar ON ar.id = p.arch_id " \
         "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
         "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS FALSE " \
-        "AND an.datetime_release = '{date}' AND {args}" \
-        "".format(date=server.get_last_date(), args="{args}")
+        "WHERE p.sourcepackage IS FALSE AND an.datetime_release = '{date}'" \
+        "".format(date=server.get_last_date())
 
-    if md5:
-        args = "fi.filemd5 = '{md5}'".format(md5=md5)
-        if pbranch:
-            args = "{} {}".format(args, "AND an.name = '{}'".format(pbranch))
-
-    if file:
-        basename = file.split('/')[-1]
-
-        args = "fi.basename = '{name}' AND pn.value = '{path}'" \
-               "".format(name=basename, path=file.replace(basename, ''))
+    if pbranch:
+        base_query = "{} AND an.name = '{}'".format(base_query, pbranch)
 
     if file or mask:
-        args = "{} {}".format(args, "AND an.name = '{}'".format(pbranch))
+        base_query = \
+            "SELECT * FROM ({}) AS main WHERE".format(base_query)
 
-    server.request_line = base_query.format(args=args)
+    if md5:
+        arg = "AND fi.filemd5 = '{}'".format(md5)
+
+    if file:
+        arg = "fullname = '{}'".format(file)
+
+    if mask:
+        arg = "fullname LIKE '{}'".format(mask)
+
+    server.request_line = "{bq} {arg}".format(bq=base_query, arg=arg)
 
     status, response = server.send_request()
     if status is False:
@@ -678,6 +692,12 @@ def dependent_packages():
     if check_params is not True:
         return check_params
 
+    pversion = server.get_one_value('version', 's')
+    if pversion:
+        action = "{} LIKE '{}%'"
+    else:
+        action = None
+
     input_params = {
         'name': {
             'rname': 'r.name',
@@ -688,7 +708,7 @@ def dependent_packages():
         'version': {
             'rname': 'r.version',
             'type': 's',
-            'action': "{} LIKE '{}%'",
+            'action': action,
             'notempty': False,
         },
         'branch': {
@@ -723,6 +743,9 @@ def dependent_packages():
         if fullname[0]:
             reg = re.compile("(.*)-([0-9.]+)-(alt.*).src.rpm")
             source_package_fullname.append(re.findall(reg, fullname[0])[0])
+
+    if len(source_package_fullname) == 0:
+        return json.dumps('{}')
 
     pbranch = server.get_one_value('branch', 's')
     if pbranch:
