@@ -12,6 +12,7 @@ logger = utils.get_logger(__name__)
 
 class LogicServer:
     def __init__(self, request_line=None):
+        self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.package_params = [
             'sha1header', 'subtask', 'name', 'version', 'release', 'epoch',
             'serial_', 'buildtime', 'buildhost', 'size', 'archivesize',
@@ -47,6 +48,37 @@ class LogicServer:
         db_connection.db_query = self.request_line
 
         return db_connection.send_request()
+
+    def get_last_repo_id(self, pbranch=None, date=None):
+
+        default_query = "SELECT id FROM AssigmentName " \
+                        "WHERE complete IS TRUE {args} " \
+                        "ORDER BY datetime_release DESC LIMIT 1"
+
+        branch_id = {}
+        for branch in self.known_branches:
+            args = "AND name = '{}'".format(branch)
+            if date:
+                args = "{} AND datetime_release::date = '{}'" \
+                       "".format(args, date)
+
+            self.request_line = default_query.format(args=args)
+
+            status, response = self.send_request()
+            if status is False:
+                return response
+
+            if len(response) > 0:
+                branch_id[branch] = response[0][0]
+
+        if pbranch:
+            if pbranch in branch_id:
+                # always return a tuple to use 'IN' everywhere
+                return tuple((branch_id[pbranch], -1))
+
+            return ()
+
+        return tuple([branch for branch in branch_id.values()])
 
     # select date one day earlier than current
     def get_last_date(self):
@@ -109,7 +141,7 @@ class LogicServer:
 
         # check branch
         pbranch = self.get_one_value('branch', 's')
-        if pbranch and pbranch not in ['p7', 'p8', 'Sisyphus', 'p9']:
+        if pbranch and pbranch not in self.known_branches:
             return utils.json_str_error('Unknown branch!')
 
         # check package params
@@ -127,16 +159,22 @@ class LogicServer:
                 "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
             default_req = "{} {}".format(default_req, extra_params)
 
+            # FIXME rewrite it's code
             if pbranch:
-                args = "{} AND an.name = '{}'".format(args, pbranch)
+                if date:
+                    branch_id = self.get_last_repo_id(pbranch, date)
+                else:
+                    branch_id = self.get_last_repo_id(pbranch)
+            else:
+                if date:
+                    branch_id = self.get_last_repo_id(date=date)
+                else:
+                    branch_id = self.get_last_repo_id()
+
+            args = "{} AND an.id IN {}".format(args, branch_id)
 
             if binary_only:
                 args = "{} AND sourcepackage IS FALSE".format(args)
-
-            if not date:
-                date = self.get_last_date()
-
-            args = "{} AND an.datetime_release::date = '{}'".format(args, date)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -211,10 +249,11 @@ class LogicServer:
             "INNER JOIN Assigment a ON a.package_id = p.id " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-            "AND an.datetime_release::date = '{dt}'" \
-            "".format(name=name, branch=branch, dt=self.get_last_date())
+            "AND an.id IN {b_id}".format(
+                name=name, branch=branch, b_id=self.get_last_repo_id(branch)
+            )
 
-        logger.debug(self.request_line)
+        # logger.debug(self.request_line)
 
         status, response = self.send_request()
         if status is False:
@@ -238,11 +277,12 @@ def package_info():
     if buildtime_value and buildtime_value not in ['>', '<', '=']:
         buildtime_action = "{} = {}"
 
+    pbranch = server.get_one_value('branch', 's')
     date_value = server.get_one_value('date', 's')
-    if date_value is None:
-        date_value = "{} = '{}'".format('{}', server.get_last_date())
-    else:
-        date_value = None
+
+    last_repo_id = "{} IN {}".format(
+        '{}', server.get_last_repo_id(pbranch, date_value)
+    )
 
     intput_params = {
         'name': {
@@ -294,9 +334,9 @@ def package_info():
             'notempty': False,
         },
         'date': {
-            'rname': 'an.datetime_release::date',
+            'rname': 'an.id',
             'type': 's',
-            'action': date_value,
+            'action': last_repo_id,
             'notempty': False,
         },
         'packager': {
@@ -601,6 +641,11 @@ def package_by_file():
     if (file or mask) and not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
+    last_repo_id = server.get_last_repo_id(pbranch)
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
+
     base_query = \
         "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
         "p.disttag, ar.value, an.name, pn.value || fi.basename AS fullname " \
@@ -610,8 +655,8 @@ def package_by_file():
         "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS FALSE AND an.datetime_release = '{date}'" \
-        "".format(date=server.get_last_date())
+        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id}" \
+        "".format(b_id=last_repo_id)
 
     if pbranch:
         base_query = "{} AND an.name = '{}'".format(base_query, pbranch)
@@ -726,13 +771,20 @@ def dependent_packages():
         logger.debug(message)
         return utils.json_str_error(message)
 
+    pbranch = server.get_one_value('branch', 's')
+
+    last_repo_id = server.get_last_repo_id(pbranch)
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
+
     server.request_line = \
         "SELECT DISTINCT p.sourcerpm FROM Package p " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "INNER JOIN Require r ON r.package_id = p.id " \
-        "WHERE an.datetime_release::date = '{date}' " \
-        "AND ".format(date=server.get_last_date()) + " ".join(params_values)
+        "WHERE an.id IN {b_id} AND ".format(
+            b_id=last_repo_id) + " ".join(params_values)
 
     status, response = server.send_request()
     if status is False:
@@ -761,12 +813,12 @@ def dependent_packages():
         "INNER JOIN Packager pr ON pr.id = p.packager_id " \
         "WHERE (p.name, p.version, p.release) IN {nvr} " \
         "AND p.sourcepackage IS TRUE " \
-        "AND an.datetime_release::date = '{date}' {branch}" \
+        "AND an.id IN {b_id} {branch}" \
         "".format(
             ", p.".join(server.package_params),
             ", pi.".join(server.packageinfo_params),
             nvr=tuple(source_package_fullname),
-            date=server.get_last_date(),
+            b_id=last_repo_id,
             branch=pbranch,
         )
 
@@ -819,16 +871,21 @@ def broken_build():
     if status is False:
         return pversion
 
+    last_repo_id = server.get_last_repo_id(pbranch)
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
+
     # binary packages of input package
     server.request_line = \
         "SELECT DISTINCT p.name, ar.value FROM Package p " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "WHERE an.name = '{branch}' AND an.datetime_release::date = '{date}' " \
-        "AND p.sourcerpm LIKE '{name}-{version}-%'" \
-        "".format(name=pname, version=pversion, branch=pbranch,
-                  date=server.get_last_date())
+        "WHERE an.name = '{branch}' AND an.id IN {b_id} " \
+        "AND p.sourcerpm LIKE '{name}-{version}-%'".format(
+            name=pname, version=pversion, branch=pbranch, b_id=last_repo_id
+        )
 
     # logger.debug(server.request_line)
 
@@ -855,10 +912,11 @@ def broken_build():
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
         "WHERE p.sourcepackage IS TRUE AND an.name = '{branch}' " \
-        "AND an.datetime_release::date = '{date}' AND r.name IN {bp} " \
-        "AND (r.version = '' OR r.version LIKE '{vers}-%')" \
-        "".format(branch=pbranch, date=server.get_last_date(),
-                  bp=binary_packages, vers=pversion)
+        "AND an.id IN {b_id} AND r.name IN {bp} " \
+        "AND (r.version = '' OR r.version LIKE '{vers}-%')".format(
+            branch=pbranch, b_id=last_repo_id,
+            bp=binary_packages, vers=pversion
+        )
 
     # logger.debug(server.request_line)
 
