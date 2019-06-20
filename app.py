@@ -425,10 +425,6 @@ def package_info():
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
-    return utils.json_str_error(
-        "At the moment, the request is being adapted to the new database structure."
-    )
-
     server.url_logging()
 
     check_params = server.check_input_params(binary_only=True)
@@ -450,27 +446,26 @@ def conflict_packages():
         if status is False:
             return pversion
 
-    repo_date = server.get_last_date()
+    last_repo_id = server.get_last_repo_id(pbranch)
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
 
     default_query = \
         "SELECT DISTINCT {what} FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_sha1 = p.sha1header " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id {join} " \
-        "INNER JOIN File f ON f.package_sha1 = p.sha1header " \
-        "WHERE an.name = '{branch}' AND an.datetime_release = '{date}' " \
-        "AND {where}".format(what='{what}', branch=pbranch, date=repo_date,
-                             where='{where}', join='{join}')
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "{join} WHERE an.id IN {b_id} AND {where}".format(
+            what='{what}', join='{join}', b_id=last_repo_id, where='{where}'
+        )
 
-    # input package archs
+    # archs of input package
     server.request_line = default_query.format(
-        what="p.arch",
+        what="ar.value",
         where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcerpm IS NOT NULL"
-              "".format(name=pname, vers=pversion),
-        join=''
+              "AND p.sourcepackage IS FALSE".format(name=pname, vers=pversion),
+        join="INNER JOIN Arch ar ON ar.id = p.arch_id",
     )
-
-    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -479,47 +474,54 @@ def conflict_packages():
     with_archs = ''
 
     archs = tuple([arch[0] for arch in response])
-    if len(archs) == 0:
+    if not archs:
         message = "Architectures for {} not found in database.".format(pname)
         return utils.json_str_error(message)
 
     if len(archs) == 1:
         archs += ('',)
     if archs[0] != 'noarch':
-        with_archs = "AND p.arch IN {}".format(archs)
+        with_archs = "AND ar.value IN {}".format(archs)
 
     # input package files
     server.request_line = default_query.format(
-        what="f.filename",
+        what="pn.value || fi.basename",
         where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcerpm IS NOT NULL AND f.fileclass != 'directory'"
+              "AND p.sourcepackage IS FALSE AND f.fileclass_id != 4"
               "".format(name=pname, vers=pversion),
-        join=''
+        join="INNER JOIN File f ON f.package_id = p.id "
+             "INNER JOIN PathName pn ON pn.id = f.pathname_id "
+             "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
     )
-
-    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    input_package_files = tuple([file[0] for file in response])
-    if len(input_package_files) == 0:
-        return
+    input_package_files = ()
+    # split on (path, basename) to improve performance
+    for file in response:
+        basename = file[0].split('/')[-1]
+        input_package_files += ((file[0].replace(basename, ''), basename),)
+
+    if not input_package_files:
+        return utils.json_str_error("Package has no files.")
     if len(input_package_files) == 1:
         input_package_files += ('',)
 
-    # packages with ident files
+    # FIXME very long time of query
+    # package with ident files
     server.request_line = default_query.format(
-        what="p.name, p.version, p.arch",
-        where="p.name != '{name}' {with_archs} AND p.sourcerpm IS NOT NULL AND "
-              "f.filename IN {files}"
+        what="p.name, p.version, ar.value",
+        where="p.name != '{name}' {with_archs} AND p.sourcepackage IS FALSE "
+              "AND (pn.value, fi.basename) IN {files}"
               "".format(name=pname, with_archs=with_archs,
                         files=input_package_files),
-        join=''
+        join="INNER JOIN Arch ar ON ar.id = p.arch_id "
+             "INNER JOIN File f ON f.package_id = p.id "
+             "INNER JOIN PathName pn ON pn.id = f.pathname_id "
+             "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
     )
-
-    logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -533,12 +535,11 @@ def conflict_packages():
     server.request_line = default_query.format(
         what="c.name, c.version",
         where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcerpm IS NOT NULL"
-              "".format(name=pname, vers=pversion),
-        join="INNER JOIN Conflict c ON c.package_sha1 = p.sha1header"
+              "AND p.sourcepackage IS FALSE".format(name=pname, vers=pversion),
+        join="INNER JOIN Conflict c ON c.package_id = p.id",
     )
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -548,18 +549,20 @@ def conflict_packages():
         (conflict[0], conflict[1].split('-')[0]) for conflict in response
     ]
 
+    input_package_files = ["".join(file) for file in input_package_files]
+
     ident_package_without_conflicts = []
     for ident_package in packages_with_ident_files:
         # ident package conflicts
         server.request_line = default_query.format(
             what="c.name, c.version",
-            where="(p.name, p.version, p.arch) = {ident_package} "
-                  "AND p.sourcerpm IS NOT NULL"
-                  "".format(ident_package=ident_package),
-            join="INNER JOIN Conflict c ON c.package_sha1 = p.sha1header"
+            where="(p.name, p.version, ar.value) = {i_p} "
+                  "AND p.sourcepackage IS FALSE".format(i_p=ident_package),
+            join="INNER JOIN Arch ar ON ar.id = p.arch_id "
+                 "INNER JOIN Conflict c ON c.package_id = p.id",
         )
 
-        logger.debug(server.request_line)
+        # logger.debug(server.request_line)
 
         status, response = server.send_request()
         if status is False:
@@ -575,15 +578,17 @@ def conflict_packages():
                     and (ident_package[0], '') not in input_package_conflicts:
 
                 server.request_line = default_query.format(
-                    what="f.filename",
-                    where="(p.name, p.version, p.arch) = {ident_package} "
-                          "AND p.sourcerpm IS NOT NULL "
-                          "AND f.fileclass != 'directory'"
-                          "".format(ident_package=ident_package),
-                    join=''
+                    what="pn.value || fi.basename",
+                    where="(p.name, p.version, ar.value) = {i_p} "
+                          "AND p.sourcepackage IS FALSE AND f.fileclass_id != 4"
+                          "".format(i_p=ident_package),
+                    join="INNER JOIN File f ON f.package_id = p.id "
+                         "INNER JOIN PathName pn ON pn.id = f.pathname_id "
+                         "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id "
+                         "INNER JOIN Arch ar ON ar.id = p.arch_id",
                 )
 
-                logger.debug(server.request_line)
+                # logger.debug(server.request_line)
 
                 status, response = server.send_request()
                 if status is False:
