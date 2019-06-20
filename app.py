@@ -245,11 +245,12 @@ class LogicServer:
 
     def get_last_version(self, name, branch):
         self.request_line = \
-            "SELECT MAX(p.version) FROM Package p " \
+            "SELECT p.version FROM Package p " \
             "INNER JOIN Assigment a ON a.package_id = p.id " \
             "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
             "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-            "AND an.id IN {b_id}".format(
+            "AND an.id IN {b_id} ORDER BY p.buildtime DESC LIMIT 1" \
+            "".format(
                 name=name, branch=branch, b_id=self.get_last_repo_id(branch)
             )
 
@@ -955,7 +956,6 @@ def broken_build():
 
     binary_packages_with_arch = response
 
-    # FIXME needed optimization
     # add archs to binary packages
     source_name_archs_list = []
     for package in binary_packages_with_arch:
@@ -973,11 +973,14 @@ def broken_build():
 
         for source in source_name_archs_list:
             if source[0] == package[5]:
-                broken_archs = ()
+                broken_archs = []
 
                 for arch in source[1]:
                     if arch == 'noarch' or arch in input_package_archs_list:
-                        broken_archs += (arch,)
+                        broken_archs.append(arch)
+
+                if 'noarch' in broken_archs and len(broken_archs) > 1:
+                    broken_archs.remove('noarch')
 
                 mod_package += (broken_archs,)
 
