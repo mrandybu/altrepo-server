@@ -96,7 +96,7 @@ class LogicServer:
         if status is False:
             return response
 
-        if len(response) == 0:
+        if not response:
             self.request_line = current_date.format(None)
 
             logger.debug(self.request_line)
@@ -159,19 +159,9 @@ class LogicServer:
                 "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
             default_req = "{} {}".format(default_req, extra_params)
 
-            # FIXME rewrite it's code
-            if pbranch:
-                if date:
-                    branch_id = self.get_last_repo_id(pbranch, date)
-                else:
-                    branch_id = self.get_last_repo_id(pbranch)
-            else:
-                if date:
-                    branch_id = self.get_last_repo_id(date=date)
-                else:
-                    branch_id = self.get_last_repo_id()
-
-            args = "{} AND an.id IN {}".format(args, branch_id)
+            args = "{} AND an.id IN {}".format(
+                args, self.get_last_repo_id(pbranch, date)
+            )
 
             if binary_only:
                 args = "{} AND sourcepackage IS FALSE".format(args)
@@ -182,7 +172,7 @@ class LogicServer:
             if status is False:
                 return response
 
-            if len(response) == 0:
+            if not response:
                 message = "Package with input parameters is not in the " \
                           "repository."
                 logger.debug(message)
@@ -234,7 +224,7 @@ class LogicServer:
 
                     params_list.append(arg)
 
-        if len(params_list) == 0:
+        if not params_list:
             return False
 
         return params_list
@@ -284,6 +274,9 @@ def package_info():
     last_repo_id = "{} IN {}".format(
         '{}', server.get_last_repo_id(pbranch, date_value)
     )
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
 
     intput_params = {
         'name': {
@@ -721,7 +714,7 @@ def package_files():
     if status is False:
         return response
 
-    if len(response) == 0:
+    if not response:
         return utils.json_str_error(
             "Files not found by sha1 '{}'".format(sha1)
         )
@@ -802,7 +795,7 @@ def dependent_packages():
             reg = re.compile("(.*)-([0-9.]+)-(alt.*).src.rpm")
             source_package_fullname.append(re.findall(reg, fullname[0])[0])
 
-    if len(source_package_fullname) == 0:
+    if not source_package_fullname:
         return json.dumps('{}')
 
     pbranch = server.get_one_value('branch', 's')
@@ -899,7 +892,7 @@ def broken_build():
     if status is False:
         return response
 
-    if len(response) == 0:
+    if not response:
         return json.dumps({})
 
     input_package_archs_list = list(
@@ -930,7 +923,7 @@ def broken_build():
     if status is False:
         return response
 
-    if len(response) == 0:
+    if not response:
         return json.dumps({})
 
     req_src_packages = response
