@@ -129,6 +129,9 @@ class LogicServer:
             if type_ == 'b':
                 if value.lower() not in ['true', 'false']:
                     value = False
+            # type for using pattern in /package_by_file
+            if type_ == 'r':
+                value = [el for el in value.split("'") if el][0]
 
         return value
 
@@ -612,7 +615,6 @@ def conflict_packages():
                                  misconflicts)
 
 
-# FIXME fix searching by mask
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
@@ -622,22 +624,16 @@ def package_by_file():
     if check_params is not True:
         return check_params
 
-    file = server.get_one_value('file', 's')
+    file = server.get_one_value('file', 'r')
     md5 = server.get_one_value('md5', 's')
 
-    mask = re.findall(re.compile("mask='(.*)'"), unquote(request.url))
-    if len(mask) > 0:
-        mask = mask[0]
-    else:
-        mask = None
-
-    if len([param for param in [file, md5, mask] if param]) != 1:
+    if len([param for param in [file, md5] if param]) != 1:
         message = 'Error in request arguments.'
         logger.debug(message)
         return utils.json_str_error(message)
 
     pbranch = server.get_one_value('branch', 's')
-    if (file or mask) and not pbranch:
+    if file and not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
     last_repo_id = server.get_last_repo_id(pbranch)
@@ -646,34 +642,30 @@ def package_by_file():
         return utils.json_str_error(message)
 
     base_query = \
-        "SELECT DISTINCT p.sha1header, p.name, p.version, p.release, " \
-        "p.disttag, ar.value, an.name, pn.value || fi.basename AS fullname " \
-        "FROM Package p INNER JOIN File f ON f.package_id = p.id " \
+        "SELECT p.sha1header, p.name, p.version, p.release, p.disttag, " \
+        "ar.value, an.name, {what} FROM Package p " \
         "INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
-        "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id}" \
-        "".format(b_id=last_repo_id)
-
-    if pbranch:
-        base_query = "{} AND an.name = '{}'".format(base_query, pbranch)
-
-    if file or mask:
-        base_query = \
-            "SELECT * FROM ({}) AS main WHERE".format(base_query)
-
-    if md5:
-        arg = "AND fi.filemd5 = '{}'".format(md5)
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id {join} " \
+        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id} AND {where}" \
+        "".format(
+            what='{what}', where='{where}', join='{join}', b_id=last_repo_id
+        )
 
     if file:
-        arg = "fullname = '{}'".format(file)
-
-    if mask:
-        arg = "fullname LIKE '{}'".format(mask)
-
-    server.request_line = "{bq} {arg}".format(bq=base_query, arg=arg)
+        server.request_line = base_query.format(
+            what="fw.fullname",
+            where="fw.fullname LIKE '{file}'".format(file=file),
+            join="INNER JOIN fullname_view fw ON fw.package_id = p.id",
+        )
+    else:
+        server.request_line = base_query.format(
+            what="pn.value || fi.basename",
+            where="fi.filemd5 = '{md5}'".format(md5=md5),
+            join="INNER JOIN File f ON f.package_id = p.id "
+                 "INNER JOIN PathName pn ON pn.id = f.pathname_id "
+                 "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
+        )
 
     status, response = server.send_request()
     if status is False:
