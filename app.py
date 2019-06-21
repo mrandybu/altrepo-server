@@ -451,15 +451,16 @@ def conflict_packages():
         "SELECT DISTINCT {what} FROM Package p " \
         "INNER JOIN Assigment a ON a.package_id = p.id " \
         "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "{join} WHERE an.id IN {b_id} AND {where}".format(
+        "{join} WHERE an.id IN {b_id} AND p.sourcepackage IS FALSE AND " \
+        "{where}".format(
             what='{what}', join='{join}', b_id=last_repo_id, where='{where}'
         )
 
     # archs of input package
     server.request_line = default_query.format(
         what="ar.value",
-        where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcepackage IS FALSE".format(name=pname, vers=pversion),
+        where="p.name = '{name}' AND p.version = '{vers}'"
+              "".format(name=pname, vers=pversion),
         join="INNER JOIN Arch ar ON ar.id = p.arch_id",
     )
 
@@ -483,8 +484,7 @@ def conflict_packages():
     server.request_line = default_query.format(
         what="pn.value || fi.basename",
         where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcepackage IS FALSE AND f.fileclass_id != 4"
-              "".format(name=pname, vers=pversion),
+              "AND f.fileclass_id != 4".format(name=pname, vers=pversion),
         join="INNER JOIN File f ON f.package_id = p.id "
              "INNER JOIN PathName pn ON pn.id = f.pathname_id "
              "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
@@ -509,7 +509,7 @@ def conflict_packages():
     # package with ident files
     server.request_line = default_query.format(
         what="p.name, p.version, ar.value",
-        where="p.name != '{name}' {with_archs} AND p.sourcepackage IS FALSE "
+        where="p.name != '{name}' {with_archs} "
               "AND (pn.value, fi.basename) IN {files}"
               "".format(name=pname, with_archs=with_archs,
                         files=input_package_files),
@@ -530,8 +530,8 @@ def conflict_packages():
     # input package conflicts
     server.request_line = default_query.format(
         what="c.name, c.version",
-        where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND p.sourcepackage IS FALSE".format(name=pname, vers=pversion),
+        where="p.name = '{name}' AND p.version = '{vers}'"
+              "".format(name=pname, vers=pversion),
         join="INNER JOIN Conflict c ON c.package_id = p.id",
     )
 
@@ -553,7 +553,7 @@ def conflict_packages():
         server.request_line = default_query.format(
             what="c.name, c.version",
             where="(p.name, p.version, ar.value) = {i_p} "
-                  "AND p.sourcepackage IS FALSE".format(i_p=ident_package),
+                  "".format(i_p=ident_package),
             join="INNER JOIN Arch ar ON ar.id = p.arch_id "
                  "INNER JOIN Conflict c ON c.package_id = p.id",
         )
@@ -576,8 +576,7 @@ def conflict_packages():
                 server.request_line = default_query.format(
                     what="pn.value || fi.basename",
                     where="(p.name, p.version, ar.value) = {i_p} "
-                          "AND p.sourcepackage IS FALSE AND f.fileclass_id != 4"
-                          "".format(i_p=ident_package),
+                          "AND f.fileclass_id != 4".format(i_p=ident_package),
                     join="INNER JOIN File f ON f.package_id = p.id "
                          "INNER JOIN PathName pn ON pn.id = f.pathname_id "
                          "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id "
