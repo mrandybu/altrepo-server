@@ -1,15 +1,19 @@
 from contextlib import contextmanager
 from psycopg2.pool import ThreadedConnectionPool
+from clickhouse_driver import Client
 from utils import get_logger, exception_to_logger, json_str_error
 
 logger = get_logger(__name__)
 
 
-class DBConnection(object):
-    def __init__(self, maxsize=20, dbconn_struct=None, db_query=None):
+class DBConnection:
+    def __init__(self, maxsize=20, dbconn_struct=None, clickhouse_host=None,
+                 db_query=None):
+
         self.dbconn_struct = dbconn_struct
         self.maxsize = maxsize
         self.db_query = db_query
+        self.clickhouse_client = Client(clickhouse_host)
 
     @contextmanager
     def get_db_connection(self):
@@ -42,8 +46,18 @@ class DBConnection(object):
             else:
                 yield None, error
 
-    def send_request(self):
+    def send_request(self, clickhouse=False):
         response_status = False
+
+        if clickhouse:
+            try:
+                response = self.clickhouse_client.execute(self.db_query)
+                response_status = True
+            except Exception as error:
+                logger.error(exception_to_logger(error))
+                response = json_str_error("Error in query!")
+
+            return response_status, response
 
         with self.get_db_cursor() as (cursor, error):
             if cursor:

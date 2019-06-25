@@ -38,16 +38,18 @@ class LogicServer:
             'password': config.get(section, 'Password'),
             'host': config.get(section, 'Host'),
         }
+        self.clickhouse_host = config.get('ClickHouse', 'Host')
 
     def _get_connection(self):
-        return DBConnection(dbconn_struct=self.db_connection)
+        return DBConnection(dbconn_struct=self.db_connection,
+                            clickhouse_host=self.clickhouse_host)
 
     @func_time(logger)
-    def send_request(self):
+    def send_request(self, clickhouse=False):
         db_connection = self._get_connection()
         db_connection.db_query = self.request_line
 
-        return db_connection.send_request()
+        return db_connection.send_request(clickhouse)
 
     def get_last_repo_id(self, pbranch=None, date=None):
 
@@ -640,39 +642,53 @@ def package_by_file():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    base_query = \
-        "SELECT p.sha1header, p.name, p.version, p.release, p.disttag, " \
-        "ar.value, an.name, {what} FROM Package p " \
-        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id {join} " \
-        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id} AND {where}" \
-        "".format(
-            what='{what}', where='{where}', join='{join}', b_id=last_repo_id
-        )
+    base_query = "SELECT package_id, filename FROM File WHERE {}"
 
     if file:
-        server.request_line = base_query.format(
-            what="fw.fullname",
-            where="fw.fullname LIKE '{file}'".format(file=file),
-            join="INNER JOIN fullname_view fw ON fw.package_id = p.id",
-        )
+        query = "filename LIKE '{}'".format(file)
     else:
-        server.request_line = base_query.format(
-            what="pn.value || fi.basename",
-            where="fi.filemd5 = '{md5}'".format(md5=md5),
-            join="INNER JOIN File f ON f.package_id = p.id "
-                 "INNER JOIN PathName pn ON pn.id = f.pathname_id "
-                 "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
-        )
+        query = "filemd5 = '{}'".format(md5)
+
+    server.request_line = base_query.format(query)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    id_filename_dict = {}
+    for id_, filename in response:
+        if id_ not in id_filename_dict.keys():
+            id_filename_dict[id_] = []
+
+        id_filename_dict[id_].append(filename)
+
+    ids = tuple([id_ for id_ in id_filename_dict.keys()])
+    if len(ids) == 1:
+        ids += (-1,)
+
+    server.request_line = \
+        "SELECT p.id, p.sha1header, p.name, p.version, p.release, " \
+        "p.disttag, ar.value, an.name FROM Package p " \
+        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
+        "INNER JOIN Assigment a ON a.package_id = p.id " \
+        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
+        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id} " \
+        "AND p.id IN {ids}".format(b_id=last_repo_id, ids=ids)
 
     status, response = server.send_request()
     if status is False:
         return response
 
+    format_response = []
+    for iter_ in response:
+        format_response.append(
+            tuple(iter_[1:]) + (id_filename_dict[iter_[0]],)
+        )
+
     return utils.convert_to_json(
         ['sha1header', 'name', 'version', 'release', 'disttag', 'arch',
-         'branch', 'file'], response
+         'branch', 'file'],
+        format_response
     )
 
 
