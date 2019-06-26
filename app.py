@@ -30,16 +30,25 @@ class LogicServer:
         ]
         self.request_line = request_line
 
-        # FIXME runtime error if no needed section in config file
-        config = utils.read_config(paths.DB_CONFIG_FILE)
         section = 'DBParams'
         self.db_connection = {
-            'dbname': config.get(section, 'DataBaseName'),
-            'user': config.get(section, 'User'),
-            'password': config.get(section, 'Password'),
-            'host': config.get(section, 'Host'),
+            'dbname': self._get_config(section, 'DataBaseName'),
+            'user': self._get_config(section, 'User'),
+            'password': self._get_config(section, 'Password'),
+            'host': self._get_config(section, 'Host'),
         }
-        self.clickhouse_host = config.get('ClickHouse', 'Host')
+        self.clickhouse_host = self._get_config('ClickHouse', 'Host')
+
+    @staticmethod
+    def _get_config(section, field):
+        config = utils.read_config(paths.DB_CONFIG_FILE)
+        if config is False:
+            raise Exception("Unable read config file.")
+
+        try:
+            return config.get(section, field)
+        except:
+            raise Exception("No needed section or field in config file.")
 
     def _get_connection(self):
         return DBConnection(dbconn_struct=self.db_connection,
