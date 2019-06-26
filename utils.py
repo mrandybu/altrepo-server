@@ -51,6 +51,17 @@ def join_tuples(tuple_list):
     return tuple([tuple_[0] for tuple_ in tuple_list])
 
 
+def tuple_to_dict(tuple_):
+    dict_ = {}
+    for key, value in tuple_:
+        if key not in dict_.keys():
+            dict_[key] = []
+
+        dict_[key].append(value)
+
+    return dict_
+
+
 def remove_duplicate(list_):
     return list(set(list_))
 

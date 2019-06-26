@@ -30,6 +30,7 @@ class LogicServer:
         ]
         self.request_line = request_line
 
+        # FIXME runtime error if no needed section in config file
         config = utils.read_config(paths.DB_CONFIG_FILE)
         section = 'DBParams'
         self.db_connection = {
@@ -484,41 +485,54 @@ def conflict_packages():
 
     # input package files
     server.request_line = default_query.format(
-        what="pn.value || fi.basename",
+        what="p.id, p.buildtime",
         where="p.name = '{name}' AND p.version = '{vers}' "
-              "AND f.fileclass_id != 4".format(name=pname, vers=pversion),
-        join="INNER JOIN File f ON f.package_id = p.id "
-             "INNER JOIN PathName pn ON pn.id = f.pathname_id "
-             "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
+              "ORDER BY p.buildtime DESC LIMIT 1"
+              "".format(name=pname, vers=pversion),
+        join='',
     )
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    input_package_files = ()
-    # split on (path, basename) to improve performance
-    for file in response:
-        basename = file[0].split('/')[-1]
-        input_package_files += ((file[0].replace(basename, ''), basename),)
+    package_id = response[0][0]
 
+    server.request_line = \
+        "SELECT DISTINCT filename FROM File WHERE fileclass != 'directory' " \
+        "AND package_id = {}".format(package_id)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    input_package_files = tuple([file[0] for file in response])
     if not input_package_files:
         return utils.json_str_error("Package has no files.")
     if len(input_package_files) == 1:
         input_package_files += ('',)
 
-    # FIXME very long time of query
+    server.request_line = \
+        "SELECT DISTINCT package_id, filename FROM File WHERE filename IN {}" \
+        "".format(input_package_files)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    id_filename_dict = utils.tuple_to_dict(response)
+
+    ids = tuple(id_ for id_ in id_filename_dict.keys())
+    if len(ids) == 1:
+        ids += (-1,)
+
     # package with ident files
     server.request_line = default_query.format(
-        what="p.name, p.version, ar.value",
+        what="p.id, p.name, p.version, ar.value",
         where="p.name != '{name}' {with_archs} "
-              "AND (pn.value, fi.basename) IN {files}"
-              "".format(name=pname, with_archs=with_archs,
-                        files=input_package_files),
-        join="INNER JOIN Arch ar ON ar.id = p.arch_id "
-             "INNER JOIN File f ON f.package_id = p.id "
-             "INNER JOIN PathName pn ON pn.id = f.pathname_id "
-             "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id",
+              "AND p.id IN {ids}"
+              "".format(name=pname, with_archs=with_archs, ids=ids),
+        join="INNER JOIN Arch ar ON ar.id = p.arch_id"
     )
 
     status, response = server.send_request()
@@ -526,7 +540,7 @@ def conflict_packages():
         return response
 
     packages_with_ident_files = [
-        (package[0], package[1], package[2]) for package in response
+        (package[0], package[1], package[2], package[3]) for package in response
     ]
 
     # input package conflicts
@@ -547,15 +561,16 @@ def conflict_packages():
         (conflict[0], conflict[1].split('-')[0]) for conflict in response
     ]
 
-    input_package_files = ["".join(file) for file in input_package_files]
-
     ident_package_without_conflicts = []
     for ident_package in packages_with_ident_files:
+
+        i_p = (ident_package[1], ident_package[2], ident_package[3])
+
         # ident package conflicts
         server.request_line = default_query.format(
             what="c.name, c.version",
             where="(p.name, p.version, ar.value) = {i_p} "
-                  "".format(i_p=ident_package),
+                  "".format(i_p=i_p),
             join="INNER JOIN Arch ar ON ar.id = p.arch_id "
                  "INNER JOIN Conflict c ON c.package_id = p.id",
         )
@@ -572,40 +587,17 @@ def conflict_packages():
 
         if (pname, pversion) not in ident_package_conflicts \
                 and (pname, '') not in ident_package_conflicts:
-            if (ident_package[0], ident_package[1]) not in input_package_conflicts \
-                    and (ident_package[0], '') not in input_package_conflicts:
-
-                server.request_line = default_query.format(
-                    what="pn.value || fi.basename",
-                    where="(p.name, p.version, ar.value) = {i_p} "
-                          "AND f.fileclass_id != 4".format(i_p=ident_package),
-                    join="INNER JOIN File f ON f.package_id = p.id "
-                         "INNER JOIN PathName pn ON pn.id = f.pathname_id "
-                         "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id "
-                         "INNER JOIN Arch ar ON ar.id = p.arch_id",
-                )
-
-                # logger.debug(server.request_line)
-
-                status, response = server.send_request()
-                if status is False:
-                    return response
-
-                ident_package_files = tuple([file[0] for file in response])
-
-                intersection_files = []
-                for el in input_package_files:
-                    if el in ident_package_files:
-                        intersection_files.append(el)
-
-                ident_package += (intersection_files,)
+            if (ident_package[0], ident_package[1]) not in \
+                    input_package_conflicts and (ident_package[0], '') \
+                    not in input_package_conflicts:
+                ident_package += (tuple(id_filename_dict[ident_package[0]]),)
 
                 ident_package_without_conflicts.append(ident_package)
 
     misconflicts = []
-    for name, version, _, files in ident_package_without_conflicts:
-        archs = [package[2] for package in ident_package_without_conflicts
-                 if (package[0], package[1]) == (name, version)]
+    for _, name, version, _, files in ident_package_without_conflicts:
+        archs = [package[3] for package in ident_package_without_conflicts
+                 if (package[1], package[2]) == (name, version)]
 
         result_tuple = (name, version, archs, files)
 
@@ -655,12 +647,7 @@ def package_by_file():
     if status is False:
         return response
 
-    id_filename_dict = {}
-    for id_, filename in response:
-        if id_ not in id_filename_dict.keys():
-            id_filename_dict[id_] = []
-
-        id_filename_dict[id_].append(filename)
+    id_filename_dict = utils.tuple_to_dict(response)
 
     ids = tuple([id_ for id_ in id_filename_dict.keys()])
     if len(ids) == 1:
