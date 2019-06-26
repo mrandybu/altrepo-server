@@ -102,7 +102,7 @@ class LogicServer:
             "FROM AssigmentName ORDER BY datetime_release::date DESC LIMIT 1)"
         )
 
-        logger.debug(self.request_line)
+        # logger.debug(self.request_line)
 
         status, response = self.send_request()
         if status is False:
@@ -111,7 +111,7 @@ class LogicServer:
         if not response:
             self.request_line = current_date.format(None)
 
-            logger.debug(self.request_line)
+            # logger.debug(self.request_line)
 
             status, response = self.send_request()
             if status is False:
@@ -711,7 +711,7 @@ def package_files():
         "WHERE p.sourcepackage IS FALSE " \
         "AND p.sha1header = '{sha1}'".format(sha1=sha1)
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
@@ -949,7 +949,7 @@ def broken_build():
         "INNER JOIN Arch ar ON ar.id = p.arch_id WHERE p.sourcerpm IN {}" \
         "".format(source_names_tuple)
 
-    logger.debug(server.request_line)
+    # logger.debug(server.request_line)
 
     status, response = server.send_request()
     if status is False:
