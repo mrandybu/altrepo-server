@@ -14,10 +14,16 @@ class LogicServer:
     def __init__(self, request_line=None):
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.package_params = [
-            'sha1header', 'subtask', 'name', 'version', 'release', 'epoch',
-            'serial_', 'buildtime', 'buildhost', 'size', 'archivesize',
-            'rpmversion', 'cookie', 'sourcepackage', 'disttag', 'sourcerpm',
-            'filename', 'sha1srcheader'
+            'pkgcs', 'packager', 'packager_email', 'name', 'arch', 'version',
+            'release', 'epoch', 'serial_', 'buildtime', 'buildhost', 'size',
+            'archivesize', 'rpmversion', 'cookie', 'disttag', 'sourcerpm',
+            'filename', 'sha1srcheader', 'summary', 'description', 'changelog',
+            'distribution', 'vendor', 'gif', 'xpm', 'license', 'group_', 'url',
+            'os', 'prein', 'postin', 'preun', 'postun', 'icon', 'preinprog',
+            'postinprog', 'preunprog', 'postunprog', 'buildarchs',
+            'verifyscript', 'verifyscriptprog', 'prefixes', 'instprefixes',
+            'optflags', 'disturl', 'payloadformat', 'payloadcompressor',
+            'payloadflags', 'platform'
         ]
         self.packageinfo_params = [
             'summary', 'description', 'changelog', 'distribution', 'vendor',
@@ -63,20 +69,20 @@ class LogicServer:
 
     def get_last_repo_id(self, pbranch=None, date=None):
 
-        default_query = "SELECT id FROM AssigmentName " \
-                        "WHERE complete IS TRUE {args} " \
-                        "ORDER BY datetime_release DESC LIMIT 1"
+        default_query = \
+            "SELECT toString(id) FROM AssigmentName " \
+            "WHERE complete = 1 {args} ORDER BY datetime_release DESC LIMIT 1"
 
         branch_id = {}
         for branch in self.known_branches:
             args = "AND name = '{}'".format(branch)
             if date:
-                args = "{} AND datetime_release::date = '{}'" \
+                args = "{} AND toDate(datetime_release) = '{}'" \
                        "".format(args, date)
 
             self.request_line = default_query.format(args=args)
 
-            status, response = self.send_request()
+            status, response = self.send_request(clickhouse=True)
             if status is False:
                 return response
 
@@ -86,38 +92,11 @@ class LogicServer:
         if pbranch:
             if pbranch in branch_id:
                 # always return a tuple to use 'IN' everywhere
-                return tuple((branch_id[pbranch], -1))
+                return utils.normalize_tuple((branch_id[pbranch],))
 
             return ()
 
         return tuple([branch for branch in branch_id.values()])
-
-    # select date one day earlier than current
-    def get_last_date(self):
-        current_date = "SELECT datetime_release::date FROM AssigmentName " \
-                       "{} ORDER BY datetime_release::date DESC LIMIT 1"
-
-        self.request_line = current_date.format(
-            "WHERE datetime_release::date < (SELECT datetime_release::date "
-            "FROM AssigmentName ORDER BY datetime_release::date DESC LIMIT 1)"
-        )
-
-        # logger.debug(self.request_line)
-
-        status, response = self.send_request()
-        if status is False:
-            return response
-
-        if not response:
-            self.request_line = current_date.format(None)
-
-            # logger.debug(self.request_line)
-
-            status, response = self.send_request()
-            if status is False:
-                return response
-
-        return response[0][0]
 
     def add_extra_package_params(self, extra_package_params):
         return self.package_params + extra_package_params
@@ -162,28 +141,23 @@ class LogicServer:
         # check package params
         pname = self.get_one_value('name', 's')
         if pname:
-            default_req = "SELECT p.name FROM Package p"
-            args = "p.name = '{}'".format(pname)
+            default_req = "SELECT name FROM Package"
+            args = "name = '{}'".format(pname)
 
             pversion = self.get_one_value('version', 's')
             if pversion:
-                args = "{} AND p.version = '{}'".format(args, pversion)
+                args = "{} AND version = '{}'".format(args, pversion)
 
-            extra_params = \
-                "INNER JOIN Assigment a ON a.package_id = p.id " \
-                "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id"
-            default_req = "{} {}".format(default_req, extra_params)
-
-            args = "{} AND an.id IN {}".format(
-                args, self.get_last_repo_id(pbranch, date)
-            )
+            args = \
+                "{} AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {})" \
+                "".format(args, self.get_last_repo_id(pbranch, date))
 
             if binary_only:
-                args = "{} AND sourcepackage IS FALSE".format(args)
+                args = "{} AND sourcepackage = 0".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
-            status, response = self.send_request()
+            status, response = self.send_request(clickhouse=True)
             if status is False:
                 return response
 
@@ -227,9 +201,9 @@ class LogicServer:
                             arg = "{} {}"
                         if type_ == 'b':
                             if value.lower() == 'true':
-                                arg = "{} IS TRUE"
+                                arg = "{} = 1"
                             elif value.lower() == 'false':
-                                arg = "{} IS FALSE"
+                                arg = "{} = 0"
                         if type_ == 't':
                             arg = "{} = {}"
 
@@ -271,6 +245,7 @@ class LogicServer:
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
+    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -433,6 +408,7 @@ def package_info():
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
+    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params(binary_only=True)
@@ -635,7 +611,7 @@ def package_by_file():
         return utils.json_str_error(message)
 
     pbranch = server.get_one_value('branch', 's')
-    if file and not pbranch:
+    if not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
     last_repo_id = server.get_last_repo_id(pbranch)
@@ -643,7 +619,9 @@ def package_by_file():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    base_query = "SELECT package_id, filename FROM File WHERE {}"
+    base_query = "SELECT pkgcs, filename FROM File WHERE pkgcs IN " \
+                 "(SELECT pkgcs FROM Assigment WHERE uuid IN {}) AND {}" \
+                 "".format(last_repo_id, '{}')
 
     if file:
         query = "filename LIKE '{}'".format(file)
@@ -656,36 +634,27 @@ def package_by_file():
     if status is False:
         return response
 
-    id_filename_dict = utils.tuple_to_dict(response)
+    ids_filename_dict = utils.tuple_to_dict(response)
 
-    ids = tuple([id_ for id_ in id_filename_dict.keys()])
-    if len(ids) == 1:
-        ids += (-1,)
+    ids = utils.normalize_tuple(utils.join_tuples(response))
 
     server.request_line = \
-        "SELECT p.id, p.sha1header, p.name, p.version, p.release, " \
-        "p.disttag, ar.value, an.name FROM Package p " \
-        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS FALSE AND an.id IN {b_id} " \
-        "AND p.id IN {ids}".format(b_id=last_repo_id, ids=ids)
+        "SELECT pkgcs, name, version, release, disttag, arch FROM Package " \
+        "WHERE sourcepackage = 0 AND pkgcs IN {}".format(ids)
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    format_response = []
-    for iter_ in response:
-        format_response.append(
-            tuple(iter_[1:]) + (id_filename_dict[iter_[0]],)
-        )
+    output_values = []
+    for package in response:
+        package += (ids_filename_dict[package[0]], pbranch)
+        output_values.append(package)
 
-    return utils.convert_to_json(
-        ['sha1header', 'name', 'version', 'release', 'disttag', 'arch',
-         'branch', 'file'],
-        format_response
-    )
+    output_params = ['pkgcs', 'name', 'version', 'release',
+                     'disttag', 'arch', 'files', 'branch']
+
+    return utils.convert_to_json(output_params, tuple(output_values))
 
 
 @app.route('/package_files')
@@ -703,17 +672,12 @@ def package_files():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    server.request_line = \
-        "SELECT DISTINCT pn.value, fi.basename FROM Package p " \
-        "INNER JOIN File f ON f.package_id = p.id " \
-        "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
-        "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
-        "WHERE p.sourcepackage IS FALSE " \
-        "AND p.sha1header = '{sha1}'".format(sha1=sha1)
+    server.request_line = "SELECT filename FROM File WHERE pkgcs = '{sha1}'" \
+                          "".format(sha1=sha1)
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
@@ -724,15 +688,16 @@ def package_files():
 
     js = {
         'sha1': sha1,
-        'files': [file[0] + file[1] for file in response],
+        'files': [file[0] for file in response],
     }
 
-    return json.dumps(js)
+    return json.dumps(js, sort_keys=False)
 
 
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
+    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params(binary_only=True)
@@ -839,6 +804,7 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
+    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params()

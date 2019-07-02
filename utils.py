@@ -31,7 +31,7 @@ def json_str_error(error):
     return json.dumps({'Error': error})
 
 
-def convert_to_json(keys, values):
+def convert_to_json(keys, values, sort=False):
     js = {}
 
     for i in range(len(values)):
@@ -44,7 +44,7 @@ def convert_to_json(keys, values):
                     js[i]['date'], '%Y-%m-%d %H:%M:%S'
                 )
 
-    return json.dumps(js)
+    return json.dumps(js, sort_keys=sort)
 
 
 def join_tuples(tuple_list):
@@ -64,6 +64,13 @@ def tuple_to_dict(tuple_):
 
 def remove_duplicate(list_):
     return list(set(list_))
+
+
+def normalize_tuple(tuple_):
+    if len(tuple_) == 1:
+        tuple_ += (tuple_[0],)
+
+    return tuple_
 
 
 def func_time(logger):
