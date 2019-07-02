@@ -245,7 +245,6 @@ class LogicServer:
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
-    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -261,70 +260,56 @@ def package_info():
     pbranch = server.get_one_value('branch', 's')
     date_value = server.get_one_value('date', 's')
 
-    last_repo_id = "{} IN {}".format(
-        '{}', server.get_last_repo_id(pbranch, date_value)
-    )
+    last_repo_id = server.get_last_repo_id(pbranch, date_value)
     if not last_repo_id:
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
     intput_params = {
         'name': {
-            'rname': 'p.name',
+            'rname': 'name',
             'type': 's',
             'action': None,
             'notempty': True,
         },
         'version': {
-            'rname': 'p.version',
+            'rname': 'version',
             'type': 's',
             'action': None,
             'notempty': False,
         },
         'release': {
-            'rname': 'p.release',
+            'rname': 'release',
             'type': 's',
             'action': None,
             'notempty': False,
         },
         'arch': {
-            'rname': 'ar.arch',
+            'rname': 'arch',
             'type': 's',
             'action': None,
             'notempty': False,
         },
         'disttag': {
-            'rname': 'p.disttag',
+            'rname': 'disttag',
             'type': 's',
             'action': None,
             'notempty': False,
         },
         'buildtime': {
-            'rname': 'p.buildtime',
+            'rname': 'buildtime',
             'type': 'i',
             'action': buildtime_action,
             'notempty': False,
         },
         'source': {
-            'rname': 'p.sourcepackage',
+            'rname': 'sourcepackage',
             'type': 'b',
             'action': None,
             'notempty': False,
         },
-        'branch': {
-            'rname': 'an.name',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-        },
-        'date': {
-            'rname': 'an.id',
-            'type': 's',
-            'action': last_repo_id,
-            'notempty': False,
-        },
         'packager': {
-            'rname': 'pr.name',
+            'rname': 'name',
             'type': 's',
             'action': None,
             'notempty': False,
@@ -338,71 +323,64 @@ def package_info():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT p.{}, pi.{}, pr.name, an.name, an.datetime_release::date " \
-        "FROM Package p INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "INNER JOIN PackageInfo pi ON pi.package_id = p.id " \
-        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE ".format(
-            ", p.".join(server.package_params),
-            ", pi.".join(server.packageinfo_params),
-        ) + " ".join(params_values)
+        "SELECT {p_params} FROM Package WHERE pkgcs IN " \
+        "(SELECT pkgcs FROM Assigment WHERE uuid IN {repo_ids}) AND {p_values}" \
+        "".format(
+            p_params=", ".join(server.package_params),
+            repo_ids=last_repo_id,
+            p_values=" ".join(params_values)
+        )
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    json_retval = json.loads(utils.convert_to_json(
-        server.add_extra_package_params(
-            server.packageinfo_params +
-            ['packager', 'branch', 'date', 'files',
-             'requires', 'conflicts', 'obsoletes', 'provides']
-        ),
-        response
-    ))
+    json_retval = json.loads(
+        utils.convert_to_json(server.package_params, response)
+    )
 
     for elem in json_retval:
-        package_sha1 = json_retval[elem]['sha1header']
+        package_sha1 = json_retval[elem]['pkgcs']
 
         # files
         server.request_line = \
-            "SELECT pn.value || fi.basename FROM Package p " \
-            "INNER JOIN File f ON f.package_id = p.id " \
-            "INNER JOIN PathName pn ON pn.id = f.pathname_id " \
-            "INNER JOIN FileInfo fi ON fi.id = f.fileinfo_id " \
-            "WHERE p.sha1header = '{}'".format(package_sha1)
+            "SELECT filename FROM File WHERE pkgcs = '{}'".format(package_sha1)
 
         # logger.debug(server.request_line)
 
-        status, response = server.send_request()
+        status, response = server.send_request(clickhouse=True)
         if status is False:
             return response
 
         json_retval[elem]['files'] = utils.join_tuples(response)
 
         # package properties
-        prop_list = [('Require', 'requires'), ('Conflict', 'conflicts'),
-                     ('Obsolete', 'obsoletes'), ('Provide', 'provides')]
+        prop_list = [('requires', 'require'), ('conflicts', 'conflict'),
+                     ('obsoletes', 'obsolete'), ('provides', 'provide')]
+
+        server.request_line = \
+            "SELECT dptype, concat(name, ' ', version) FROM Depends " \
+            "WHERE pkgcs = '{}'".format(package_sha1)
+
+        status, response = server.send_request(clickhouse=True)
+        if status is False:
+            return response
+
+        dict_types = {
+            'require': [], 'conflict': [], 'obsolete': [], 'provide': [],
+        }
+
+        for type_ in response:
+            for prop in prop_list:
+                if type_[0] == prop[1]:
+                    dict_types[prop[1]].append(type_[1])
 
         for prop in prop_list:
-            server.request_line = \
-                "SELECT tab.name, tab.version FROM  Package p " \
-                "INNER JOIN {table} tab ON tab.package_id = p.id " \
-                "WHERE p.sha1header = '{sha1}'" \
-                "".format(table=prop[0], sha1=package_sha1)
+            json_retval[elem][prop[0]] = dict_types[prop[1]]
 
-            # logger.debug(server.request_line)
-
-            status, response = server.send_request()
-            if status is False:
-                return response
-
-            json_retval[elem][prop[1]] = utils.join_tuples(response)
-
-    return json.dumps(json_retval)
+    return json.dumps(json_retval, sort_keys=False)
 
 
 @app.route('/misconflict_packages')
