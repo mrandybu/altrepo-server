@@ -224,18 +224,15 @@ class LogicServer:
 
     def get_last_version(self, name, branch):
         self.request_line = \
-            "SELECT p.version FROM Package p " \
-            "INNER JOIN Assigment a ON a.package_id = p.id " \
-            "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-            "WHERE p.name = '{name}' AND an.name = '{branch}' " \
-            "AND an.id IN {b_id} ORDER BY p.buildtime DESC LIMIT 1" \
-            "".format(
-                name=name, branch=branch, b_id=self.get_last_repo_id(branch)
+            "SELECT version FROM Package WHERE name = '{name}' " \
+            "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
+            "ORDER BY buildtime DESC LIMIT 1".format(
+                name=name, uuids=server.get_last_repo_id(branch)
             )
 
         # logger.debug(self.request_line)
 
-        status, response = self.send_request()
+        status, response = self.send_request(clickhouse=True)
         if status is False:
             return False, response
 
@@ -751,9 +748,6 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
-    return utils.json_str_error("IN MODERNIZATION..:)")
-    server.url_logging()
-
     check_params = server.check_input_params()
     if check_params is not True:
         return check_params
@@ -793,18 +787,15 @@ def broken_build():
 
     # binary packages of input package
     server.request_line = \
-        "SELECT DISTINCT p.name, ar.value FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "INNER JOIN Arch ar ON ar.id = p.arch_id " \
-        "WHERE an.name = '{branch}' AND an.id IN {b_id} " \
-        "AND p.sourcerpm LIKE '{name}-{version}-%'".format(
-            name=pname, version=pversion, branch=pbranch, b_id=last_repo_id
+        "SELECT DISTINCT name, arch FROM Package WHERE " \
+        "pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
+        "AND sourcerpm LIKE '{name}-{version}-%'".format(
+            uuids=last_repo_id, name=pname, version=pversion
         )
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
@@ -821,23 +812,18 @@ def broken_build():
 
     # packages with require on binary
     server.request_line = \
-        "SELECT DISTINCT p.sha1header, p.name, p.version, " \
-        "p.release, an.name FROM Package p " \
-        "INNER JOIN Require r ON r.package_id = p.id " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "WHERE p.sourcepackage IS TRUE AND an.name = '{branch}' " \
-        "AND an.id IN {b_id} AND r.name IN {bp} " \
-        "AND (r.version = '' OR r.version LIKE '{vers}-%')".format(
-            branch=pbranch, b_id=last_repo_id,
-            bp=binary_packages, vers=pversion
-        )
+        "SELECT DISTINCT pkgcs, name, version, release FROM Package WHERE " \
+        "sourcepackage = 1 AND pkgcs IN " \
+        "(SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
+        "AND pkgcs IN (SELECT pkgcs FROM Depends where dptype = 'require' " \
+        "AND name IN {bp} AND (version = '' OR version LIKE '{vers}-%'))" \
+        "".format(uuids=last_repo_id, bp=binary_packages, vers=pversion)
 
-    # logger.debug(server.request_line)
-
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
+
+    # logger.debug(server.request_line)
 
     if not response:
         return json.dumps({})
@@ -858,13 +844,12 @@ def broken_build():
 
     # binary package with req on input
     server.request_line = \
-        "SELECT DISTINCT p.name, ar.value, p.sourcerpm FROM Package p " \
-        "INNER JOIN Arch ar ON ar.id = p.arch_id WHERE p.sourcerpm IN {}" \
-        "".format(source_names_tuple)
+        "SELECT DISTINCT name, arch, sourcerpm FROM Package " \
+        "WHERE sourcerpm IN {}".format(source_names_tuple)
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
@@ -886,7 +871,7 @@ def broken_build():
         mod_package = (package[1], package[2], package[4])
 
         for source in source_name_archs_list:
-            if source[0] == package[5]:
+            if source[0] == package[4]:
                 broken_archs = []
 
                 for arch in source[1]:
@@ -901,7 +886,7 @@ def broken_build():
         sources_with_archs.append(mod_package)
 
     return utils.convert_to_json(
-        ['name', 'version', 'branch', 'archs'], sources_with_archs
+        ['name', 'version', 'source', 'archs'], sources_with_archs
     )
 
 
