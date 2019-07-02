@@ -341,44 +341,41 @@ def package_info():
         utils.convert_to_json(server.package_params, response)
     )
 
+    sha1_list = tuple([iter_[0] for iter_ in response])
+
+    # files
+    server.request_line = \
+        "SELECT pkgcs, filename FROM File WHERE pkgcs IN {}".format(sha1_list)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    files_dict = utils.tuplelist_to_dict(response, 1)
+
+    # depends
+    server.request_line = \
+        "SELECT pkgcs, dptype, name, version FROM Depends WHERE pkgcs IN {}" \
+        "".format(sha1_list)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    depends_dict = utils.tuplelist_to_dict(response, 3)
+
     for elem in json_retval:
-        package_sha1 = json_retval[elem]['pkgcs']
+        pkgcs = json_retval[elem]['pkgcs']
 
-        # files
-        server.request_line = \
-            "SELECT filename FROM File WHERE pkgcs = '{}'".format(package_sha1)
+        json_retval[elem]['files'] = files_dict[pkgcs]
 
-        # logger.debug(server.request_line)
+        prop_dict_vlaues = utils.tuplelist_to_dict(depends_dict[pkgcs], 2)
 
-        status, response = server.send_request(clickhouse=True)
-        if status is False:
-            return response
-
-        json_retval[elem]['files'] = utils.join_tuples(response)
-
-        # package properties
-        prop_list = [('requires', 'require'), ('conflicts', 'conflict'),
-                     ('obsoletes', 'obsolete'), ('provides', 'provide')]
-
-        server.request_line = \
-            "SELECT dptype, concat(name, ' ', version) FROM Depends " \
-            "WHERE pkgcs = '{}'".format(package_sha1)
-
-        status, response = server.send_request(clickhouse=True)
-        if status is False:
-            return response
-
-        dict_types = {
-            'require': [], 'conflict': [], 'obsolete': [], 'provide': [],
-        }
-
-        for type_ in response:
-            for prop in prop_list:
-                if type_[0] == prop[1]:
-                    dict_types[prop[1]].append(type_[1])
-
-        for prop in prop_list:
-            json_retval[elem][prop[0]] = dict_types[prop[1]]
+        for prop in ['require', 'conflict', 'obsolete', 'provide']:
+            if prop in prop_dict_vlaues.keys():
+                json_retval[elem][prop + 's'] = [
+                    nv[0] + " " + nv[1] for nv in prop_dict_vlaues[prop]
+                ]
 
     return json.dumps(json_retval, sort_keys=False)
 

@@ -62,6 +62,22 @@ def tuple_to_dict(tuple_):
     return dict_
 
 
+def tuplelist_to_dict(tuplelist, num):
+    result_dict = {}
+    for tuple_ in tuplelist:
+        if tuple_[0] not in result_dict.keys():
+            result_dict[tuple_[0]] = []
+
+        if num == 1:
+            count = tuple_[1]
+        else:
+            count = tuple_[1:num + 1]
+
+        result_dict[tuple_[0]].append(count)
+
+    return result_dict
+
+
 def remove_duplicate(list_):
     return list(set(list_))
 
