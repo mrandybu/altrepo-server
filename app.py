@@ -675,7 +675,6 @@ def package_files():
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
-    return utils.json_str_error("IN MODERNIZATION..:)")
     server.url_logging()
 
     check_params = server.check_input_params(binary_only=True)
@@ -690,23 +689,16 @@ def dependent_packages():
 
     input_params = {
         'name': {
-            'rname': 'r.name',
+            'rname': 'name',
             'type': 's',
             'action': None,
             'notempty': True,
         },
         'version': {
-            'rname': 'r.version',
+            'rname': 'version',
             'type': 's',
             'action': action,
             'notempty': False,
-        },
-        'branch': {
-            'rname': 'an.name',
-            'type': 's',
-            'action': None,
-            'notempty': False,
-
         },
     }
 
@@ -724,14 +716,12 @@ def dependent_packages():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT DISTINCT p.sourcerpm FROM Package p " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "INNER JOIN Require r ON r.package_id = p.id " \
-        "WHERE an.id IN {b_id} AND ".format(
-            b_id=last_repo_id) + " ".join(params_values)
+        "SELECT DISTINCT sourcerpm FROM Package WHERE pkgcs IN " \
+        "(SELECT pkgcs FROM Assigment WHERE uuid IN {}) AND pkgcs IN " \
+        "(SELECT pkgcs FROM Depends WHERE {})" \
+        "".format(last_repo_id, " ".join(params_values))
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
@@ -744,39 +734,21 @@ def dependent_packages():
     if not source_package_fullname:
         return json.dumps('{}')
 
-    pbranch = server.get_one_value('branch', 's')
-    if pbranch:
-        pbranch = "AND an.name = '{}'".format(pbranch)
-    else:
-        pbranch = ''
-
     server.request_line = \
-        "SELECT p.{}, pi.{}, pr.name, an.name, an.datetime_release::date " \
-        "FROM Package p INNER JOIN PackageInfo pi ON pi.package_id = p.id " \
-        "INNER JOIN Assigment a ON a.package_id = p.id " \
-        "INNER JOIN AssigmentName an ON an.id = a.assigmentname_id " \
-        "INNER JOIN Packager pr ON pr.id = p.packager_id " \
-        "WHERE (p.name, p.version, p.release) IN {nvr} " \
-        "AND p.sourcepackage IS TRUE " \
-        "AND an.id IN {b_id} {branch}" \
+        "SELECT {p_params} FROM Package WHERE " \
+        "(name, version, release) IN {nvr} AND sourcepackage = 1 " \
+        "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids})" \
         "".format(
-            ", p.".join(server.package_params),
-            ", pi.".join(server.packageinfo_params),
+            p_params=", ".join(server.package_params),
             nvr=tuple(source_package_fullname),
-            b_id=last_repo_id,
-            branch=pbranch,
+            uuids=last_repo_id
         )
 
-    status, response = server.send_request()
+    status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    return utils.convert_to_json(
-        server.add_extra_package_params(
-            server.packageinfo_params + ['packager', 'branch', 'date']
-        ),
-        response
-    )
+    return utils.convert_to_json(server.package_params, response)
 
 
 @app.route('/what_depends_src')
