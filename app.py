@@ -416,159 +416,131 @@ def conflict_packages():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    # version
+    last_repo_id = server.get_last_repo_id(pbranch)
+    if not last_repo_id:
+        message = 'No records of branch with current date.'
+        return utils.json_str_error(message)
+
+    # allowed packages sha1
+    allowed_pkgcs = "SELECT pkgcs FROM Assigment WHERE uuid IN {}" \
+                    "".format(last_repo_id)
+
+    # input package sha1
+    server.request_line = \
+        "SELECT pkgcs FROM Package WHERE name = '{name}' " \
+        "AND pkgcs IN ({ids}) ORDER BY buildtime DESC LIMIT 1" \
+        "".format(name=pname, ids=allowed_pkgcs)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    input_pkgcs = response[0][0]
+
+    # detect version
     pversion = server.get_one_value('version', 's')
     if not pversion:
         status, pversion = server.get_last_version(pname, pbranch)
         if status is False:
             return pversion
 
-    last_repo_id = server.get_last_repo_id(pbranch)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
-        return utils.json_str_error(message)
-
+    # package without conflicts
     server.request_line = \
-        "SELECT DISTINCT arch FROM Package WHERE sourcepackage = 0 " \
-        "AND name = '{name}' AND version = '{version}' " \
-        "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids})" \
-        "".format(name=pname, version=pversion, uuids=last_repo_id)
+        "SELECT MAX(pkgcs), name, version FROM Package WHERE pkgcs IN " \
+        "(SELECT pkgcs FROM File WHERE fileclass != 'directory' " \
+        "AND filename IN (SELECT filename FROM File WHERE pkgcs = '{pkgcs}') " \
+        "AND pkgcs IN ({ids})) AND pkgcs NOT IN (SELECT pkgcs FROM Depends " \
+        "WHERE name = '{name}' AND (version LIKE '{vers}-%' " \
+        "OR version LIKE '%:{vers}-%' OR version LIKE '')) " \
+        "AND sourcepackage = 0 GROUP BY (name, version)".format(
+            ids=allowed_pkgcs, pkgcs=input_pkgcs, name=pname, vers=pversion
+        )
 
     status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    with_archs = ''
+    if not response:
+        return json.dumps({})
 
-    archs = utils.normalize_tuple(tuple([arch[0] for arch in response]))
-    if not archs:
-        message = "Architectures for {} not found in database.".format(pname)
-        return utils.json_str_error(message)
+    packages_without_conflicts = response
 
-    if archs[0] != 'noarch':
-        with_archs = "AND arch IN {}".format(archs)
+    # input package conflict
+    server.request_line = \
+        "SELECT name, version FROM Depends WHERE dptype = 'conflict' " \
+        "AND pkgcs = '{}'".format(input_pkgcs)
+
+    status, response = server.send_request(clickhouse=True)
+    if status is False:
+        return response
+
+    input_package_conflicts = response
+
+    # remove release from version
+    for conflict in input_package_conflicts:
+        input_package_conflicts[input_package_conflicts.index(conflict)] = \
+            (conflict[0], conflict[1].split('-')[0])
+
+    result_packages = []
+    for package in packages_without_conflicts:
+        if (package[1], '') not in input_package_conflicts \
+                and (package[1], package[2]) not in input_package_conflicts:
+            result_packages.append(package)
 
     # input package files
     server.request_line = \
-        "SELECT DISTINCT pkgcs, buildtime FROM Package " \
-        "WHERE sourcepackage = 0 AND name = '{name}' AND version = '{vers}' " \
-        "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
-        "ORDER BY buildtime DESC LIMIT 1".format(
-            name=pname, vers=pversion, uuids=last_repo_id
-        )
+        "SELECT filename FROM File WHERE pkgcs = '{}'".format(input_pkgcs)
 
     status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    package_id = response[0][0]
+    input_package_files = utils.normalize_tuple(utils.join_tuples(response))
 
+    # input package archs
     server.request_line = \
-        "SELECT DISTINCT filename FROM File WHERE fileclass != 'directory' " \
-        "AND pkgcs = '{}'".format(package_id)
+        "SELECT DISTINCT arch FROM Package " \
+        "WHERE (name, version) = ('{}', '{}')".format(pname, pversion)
 
     status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    input_package_files = utils.normalize_tuple(
-        tuple([file[0] for file in response])
-    )
-    if not input_package_files:
-        return utils.json_str_error("Package has no files.")
+    input_package_archs = utils.join_tuples(response)
 
-    server.request_line = \
-        "SELECT DISTINCT pkgcs, filename FROM File WHERE filename IN {}" \
-        "".format(input_package_files)
-
-    status, response = server.send_request(clickhouse=True)
-    if status is False:
-        return response
-
-    id_filename_dict = utils.tuple_to_dict(response)
-
-    ids = tuple(id_ for id_ in id_filename_dict.keys())
-    if len(ids) == 1:
-        ids += (-1,)
-
-    server.request_line = \
-        "SELECT pkgcs, name, version, arch FROM Package " \
-        "WHERE name != '{name}' AND pkgcs IN " \
-        "(SELECT pkgcs FROM Assigment WHERE uuid IN {uuid}) " \
-        "AND sourcepackage = 0 {archs} AND pkgcs IN {p_id}".format(
-            name=pname, archs=with_archs, p_id=ids, uuid=last_repo_id
-        )
-
-    status, response = server.send_request(clickhouse=True)
-    if status is False:
-        return response
-
-    packages_with_ident_files = [
-        (package[0], package[1], package[2], package[3]) for package in response
-    ]
-
-    # input package conflicts
-    server.request_line = \
-        "SELECT name, version FROM Depends WHERE dptype='conflict' " \
-        "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuid}) " \
-        "AND pkgcs IN (SELECT pkgcs FROM Package WHERE name='{name}' " \
-        "AND version = '{version}' AND sourcepackage = 0)".format(
-            name=pname, version=pversion, uuid=last_repo_id,
-        )
-
-    # logger.debug(server.request_line)
-
-    status, response = server.send_request(clickhouse=True)
-    if status is False:
-        return response
-
-    input_package_conflicts = [
-        (conflict[0], conflict[1].split('-')[0]) for conflict in response
-    ]
-
-    ident_package_without_conflicts = []
-    for ident_package in packages_with_ident_files:
-
-        i_p = (ident_package[1], ident_package[2], ident_package[3])
-
-        # ident package conflicts
+    # add archs, files to result list
+    for package in result_packages:
+        # conflict files
         server.request_line = \
-            "SELECT DISTINCT name, version FROM Depends WHERE dptype = 'conflict' " \
-            "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuid}) " \
-            "AND pkgcs IN (SELECT pkgcs FROM Package WHERE sourcepackage = 0 " \
-            "AND (name, version, arch) = {i_p})".format(uuid=last_repo_id, i_p=i_p)
-
-        # logger.debug(server.request_line)
+            "SELECT filename FROM File WHERE pkgcs = '{}' AND filename IN {}" \
+            "".format(package[0], input_package_files)
 
         status, response = server.send_request(clickhouse=True)
         if status is False:
             return response
 
-        ident_package_conflicts = [
-            (conflict[0], conflict[1].split('-')[0]) for conflict in response
-        ]
+        conflict_files = utils.join_tuples(response)
 
-        if (pname, pversion) not in ident_package_conflicts \
-                and (pname, '') not in ident_package_conflicts:
-            if (ident_package[0], ident_package[1]) not in \
-                    input_package_conflicts and (ident_package[0], '') \
-                    not in input_package_conflicts:
-                ident_package += (tuple(id_filename_dict[ident_package[0]]),)
+        # archs of conflict packages
+        server.request_line = \
+            "SELECT DISTINCT arch FROM Package WHERE " \
+            "(name, version) = ('{}', '{}')".format(package[1], package[2])
 
-                ident_package_without_conflicts.append(ident_package)
+        status, response = server.send_request(clickhouse=True)
+        if status is False:
+            return response
 
-    misconflicts = []
-    for _, name, version, _, files in ident_package_without_conflicts:
-        archs = [package[3] for package in ident_package_without_conflicts
-                 if (package[1], package[2]) == (name, version)]
+        archs = []
+        for arch in response:
+            if arch[0] in input_package_archs or arch[0] == 'noarch':
+                archs.append(arch[0])
 
-        result_tuple = (name, version, archs, files)
-
-        if result_tuple not in misconflicts:
-            misconflicts.append(result_tuple)
+        result_packages[result_packages.index(package)] = (
+            package[1], package[2], archs, conflict_files
+        )
 
     return utils.convert_to_json(['name', 'version', 'archs', 'files'],
-                                 misconflicts)
+                                 result_packages)
 
 
 @app.route('/package_by_file')
@@ -732,7 +704,7 @@ def dependent_packages():
             source_package_fullname.append(re.findall(reg, fullname[0])[0])
 
     if not source_package_fullname:
-        return json.dumps('{}')
+        return json.dumps({})
 
     server.request_line = \
         "SELECT {p_params} FROM Package WHERE " \
