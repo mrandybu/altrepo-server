@@ -82,7 +82,6 @@ Request parameters:
 
 * python3-module-flask
 * python3-module-numpy
-* python3-module-psycopg2
 * python3-module-clickhouse-driver
 
 ## Components
@@ -146,12 +145,6 @@ Make file
 	/etc/altrepo_server/dbconfig.conf
 
 ..with next content
-
-	[DBParams]
-	DataBaseName = DB name
-	User = DB username
-	Password = DB password
-	Host = DB host
 
 	[ClickHouse]
     Host = clickhouse db host

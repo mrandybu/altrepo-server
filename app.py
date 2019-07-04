@@ -26,14 +26,6 @@ class LogicServer:
             'payloadflags', 'platform',
         ]
         self.request_line = request_line
-
-        section = 'DBParams'
-        self.db_connection = {
-            'dbname': self._get_config(section, 'DataBaseName'),
-            'user': self._get_config(section, 'User'),
-            'password': self._get_config(section, 'Password'),
-            'host': self._get_config(section, 'Host'),
-        }
         self.clickhouse_host = self._get_config('ClickHouse', 'Host')
 
     @staticmethod
@@ -48,15 +40,14 @@ class LogicServer:
             raise Exception("No needed section or field in config file.")
 
     def _get_connection(self):
-        return DBConnection(dbconn_struct=self.db_connection,
-                            clickhouse_host=self.clickhouse_host)
+        return DBConnection(clickhouse_host=self.clickhouse_host)
 
     @func_time(logger)
-    def send_request(self, clickhouse=False):
+    def send_request(self):
         db_connection = self._get_connection()
         db_connection.db_query = self.request_line
 
-        return db_connection.send_request(clickhouse)
+        return db_connection.send_request()
 
     def get_last_repo_id(self, pbranch=None, date=None):
 
@@ -73,7 +64,7 @@ class LogicServer:
 
             self.request_line = default_query.format(args=args)
 
-            status, response = self.send_request(clickhouse=True)
+            status, response = self.send_request()
             if status is False:
                 return response
 
@@ -148,7 +139,7 @@ class LogicServer:
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
-            status, response = self.send_request(clickhouse=True)
+            status, response = self.send_request()
             if status is False:
                 return response
 
@@ -223,7 +214,7 @@ class LogicServer:
 
         # logger.debug(self.request_line)
 
-        status, response = self.send_request(clickhouse=True)
+        status, response = self.send_request()
         if status is False:
             return False, response
 
@@ -337,7 +328,7 @@ def package_info():
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -353,7 +344,7 @@ def package_info():
         server.request_line = \
             "SELECT pkgcs, filename FROM File WHERE pkgcs IN {}".format(sha1_list)
 
-        status, response = server.send_request(clickhouse=True)
+        status, response = server.send_request()
         if status is False:
             return response
 
@@ -364,7 +355,7 @@ def package_info():
             "SELECT pkgcs, dptype, name, version FROM Depends WHERE pkgcs IN {}" \
             "".format(sha1_list)
 
-        status, response = server.send_request(clickhouse=True)
+        status, response = server.send_request()
         if status is False:
             return response
 
@@ -418,7 +409,7 @@ def conflict_packages():
         "AND pkgcs IN ({ids}) ORDER BY buildtime DESC LIMIT 1" \
         "".format(name=pname, ids=allowed_pkgcs)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -443,7 +434,7 @@ def conflict_packages():
             ids=allowed_pkgcs, pkgcs=input_pkgcs, name=pname, vers=pversion
         )
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -457,7 +448,7 @@ def conflict_packages():
         "SELECT name, version FROM Depends WHERE dptype = 'conflict' " \
         "AND pkgcs = '{}'".format(input_pkgcs)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -478,7 +469,7 @@ def conflict_packages():
     server.request_line = \
         "SELECT filename FROM File WHERE pkgcs = '{}'".format(input_pkgcs)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -489,7 +480,7 @@ def conflict_packages():
         "SELECT DISTINCT arch FROM Package " \
         "WHERE (name, version) = ('{}', '{}')".format(pname, pversion)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -502,7 +493,7 @@ def conflict_packages():
             "SELECT filename FROM File WHERE pkgcs = '{}' AND filename IN {}" \
             "".format(package[0], input_package_files)
 
-        status, response = server.send_request(clickhouse=True)
+        status, response = server.send_request()
         if status is False:
             return response
 
@@ -513,7 +504,7 @@ def conflict_packages():
             "SELECT DISTINCT arch FROM Package WHERE " \
             "(name, version) = ('{}', '{}')".format(package[1], package[2])
 
-        status, response = server.send_request(clickhouse=True)
+        status, response = server.send_request()
         if status is False:
             return response
 
@@ -567,7 +558,7 @@ def package_by_file():
 
     server.request_line = base_query.format(query)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -579,7 +570,7 @@ def package_by_file():
         "SELECT pkgcs, name, version, release, disttag, arch FROM Package " \
         "WHERE sourcepackage = 0 AND pkgcs IN {}".format(ids)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -614,7 +605,7 @@ def package_files():
 
     # logger.debug(server.request_line)
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -636,7 +627,7 @@ def package_files():
 def dependent_packages():
     server.url_logging()
 
-    check_params = server.check_input_params(binary_only=True)
+    check_params = server.check_input_params()
     if check_params is not True:
         return check_params
 
@@ -680,7 +671,7 @@ def dependent_packages():
         "(SELECT pkgcs FROM Depends WHERE {})" \
         "".format(last_repo_id, " ".join(params_values))
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -703,7 +694,7 @@ def dependent_packages():
             uuids=last_repo_id
         )
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -773,7 +764,7 @@ def broken_build():
             name=pname, vers=pversion, ids=allowed_pkgcs
         )
 
-    status, response = server.send_request(clickhouse=True)
+    status, response = server.send_request()
     if status is False:
         return response
 

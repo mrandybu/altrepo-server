@@ -1,55 +1,18 @@
 import unittest
-import psycopg2
 import datetime
-from psycopg2.extensions import ISOLATION_LEVEL_AUTOCOMMIT
-from subprocess import Popen, PIPE
-import app
 from app import LogicServer
 import json
 
 
 class TestApp(unittest.TestCase):
     def setUp(self):
-        self.conn = psycopg2.connect(
-            dbname='postgres',
-            user='postgres',
-            password='',
-            host='localhost',
-        )
-
-        self.TEST_DB_NAME = 'altrepo_test'
-        self.conn.set_isolation_level(ISOLATION_LEVEL_AUTOCOMMIT)
-        self.cursor = self.conn.cursor()
-
-        restore_cmd = '/usr/bin/pg_restore -U postgres -d {db} {db}.dump' \
-                      ''.format(db=self.TEST_DB_NAME).split()
-
-        try:
-            self.cursor.execute("CREATE DATABASE {}".format(self.TEST_DB_NAME))
-            Popen(restore_cmd, stdout=PIPE, stderr=PIPE).wait()
-        except psycopg2.DatabaseError as err:
-            if err.pgcode != '42P04':
-                self.tearDown()
-                return 'db err'
-
-        app.server = self.get_server_with_test_config()
-        self.test = app.app.test_client()
+        pass
 
     def tearDown(self) -> None:
-        self.cursor.execute("DROP DATABASE {}".format(self.TEST_DB_NAME))
-
-        self.cursor.close()
-        self.conn.close()
+        pass
 
     def get_server_with_test_config(self):
         logic_server = LogicServer()
-
-        logic_server.db_connection = {
-            'dbname': self.TEST_DB_NAME,
-            'user': 'postgres',
-            'password': '',
-            'host': 'localhost',
-        }
 
         return logic_server
 
