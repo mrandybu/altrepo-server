@@ -547,16 +547,18 @@ def package_by_file():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    base_query = "SELECT pkgcs, filename FROM File WHERE pkgcs IN " \
-                 "(SELECT pkgcs FROM Assigment WHERE uuid IN {}) AND {}" \
-                 "".format(last_repo_id, '{}')
+    base_query = "SELECT pkgcs{in_} FROM File WHERE pkgcs IN " \
+                 "(SELECT pkgcs FROM Assigment WHERE uuid IN {ids}) " \
+                 "AND {param}".format(in_='{}', ids=last_repo_id, param='{}')
 
     if file:
         query = "filename LIKE '{}'".format(file)
     else:
         query = "filemd5 = '{}'".format(md5)
 
-    server.request_line = base_query.format(query)
+    pkgcs_query = base_query.format('', query)
+
+    server.request_line = base_query.format(', filename', query)
 
     status, response = server.send_request()
     if status is False:
@@ -564,11 +566,9 @@ def package_by_file():
 
     ids_filename_dict = utils.tuple_to_dict(response)
 
-    ids = utils.normalize_tuple(utils.join_tuples(response))
-
     server.request_line = \
         "SELECT pkgcs, name, version, release, disttag, arch FROM Package " \
-        "WHERE sourcepackage = 0 AND pkgcs IN {}".format(ids)
+        "WHERE sourcepackage = 0 AND pkgcs IN ({})".format(pkgcs_query)
 
     status, response = server.send_request()
     if status is False:
