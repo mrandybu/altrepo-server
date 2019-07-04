@@ -23,16 +23,7 @@ class LogicServer:
             'postinprog', 'preunprog', 'postunprog', 'buildarchs',
             'verifyscript', 'verifyscriptprog', 'prefixes', 'instprefixes',
             'optflags', 'disturl', 'payloadformat', 'payloadcompressor',
-            'payloadflags', 'platform'
-        ]
-        self.packageinfo_params = [
-            'summary', 'description', 'changelog', 'distribution', 'vendor',
-            'gif', 'xpm', 'license', 'group_', 'source', 'patch', 'url',
-            'os', 'prein', 'postin', 'preun', 'postun', 'icon', 'preinprog',
-            'postinprog', 'preunprog', 'postunprog', 'buildarchs',
-            'verifyscript', 'verifyscriptprog', 'prefixes', 'instprefixes',
-            'optflags', 'disturl', 'payloadformat', 'payloadcompressor',
-            'payloadflags', 'platform'
+            'payloadflags', 'platform',
         ]
         self.request_line = request_line
 
@@ -356,15 +347,11 @@ def package_info():
 
     if full:
 
-        sha1_list = utils.normalize_tuple(
-            tuple([iter_[0] for iter_ in response])
-        )
+        sha1_list = utils.normalize_tuple(utils.join_tuples(response))
 
         # files
         server.request_line = \
             "SELECT pkgcs, filename FROM File WHERE pkgcs IN {}".format(sha1_list)
-
-        print(server.request_line)
 
         status, response = server.send_request(clickhouse=True)
         if status is False:
@@ -388,12 +375,12 @@ def package_info():
 
             json_retval[elem]['files'] = files_dict[pkgcs]
 
-            prop_dict_vlaues = utils.tuplelist_to_dict(depends_dict[pkgcs], 2)
+            prop_dict_values = utils.tuplelist_to_dict(depends_dict[pkgcs], 2)
 
             for prop in ['require', 'conflict', 'obsolete', 'provide']:
-                if prop in prop_dict_vlaues.keys():
+                if prop in prop_dict_values.keys():
                     json_retval[elem][prop + 's'] = [
-                        nv[0] + " " + nv[1] for nv in prop_dict_vlaues[prop]
+                        nv[0] + " " + nv[1] for nv in prop_dict_values[prop]
                     ]
 
     return json.dumps(json_retval, sort_keys=False)
@@ -732,13 +719,13 @@ def broken_build():
 
     input_params = {
         'name': {
-            'rname': 'r.name',
+            'rname': 'name',
             'type': 's',
             'action': None,
             'notempty': True,
         },
         'branch': {
-            'rname': 'an.name',
+            'rname': 'name',
             'type': 's',
             'action': None,
             'notempty': True,
@@ -763,107 +750,38 @@ def broken_build():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    # binary packages of input package
+    # allowed packages sha1
+    allowed_pkgcs = "SELECT pkgcs FROM Assigment WHERE uuid IN {}" \
+                    "".format(last_repo_id)
+
     server.request_line = \
-        "SELECT DISTINCT name, arch FROM Package WHERE " \
-        "pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
-        "AND sourcerpm LIKE '{name}-{version}-%'".format(
-            uuids=last_repo_id, name=pname, version=pversion
+        "SELECT T1.name, T1.version, T2.archs FROM " \
+        "(SELECT concat(name, '-', version, '-', release, '.src.rpm') " \
+        "AS sourcerpm, name, version FROM Package WHERE sourcepackage = 1 " \
+        "AND pkgcs IN (SELECT DISTINCT pkgcs FROM Depends WHERE name IN " \
+        "(SELECT DISTINCT name FROM Package WHERE sourcerpm LIKE " \
+        "'{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
+        "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN " \
+        "({ids}))) T1, (SELECT sourcerpm, groupUniqArray(arch) AS archs " \
+        "FROM Package WHERE sourcerpm IN (SELECT " \
+        "concat(name, '-', version, '-', release, '.src.rpm') FROM Package " \
+        "WHERE sourcepackage = 1 AND pkgcs IN (SELECT DISTINCT pkgcs FROM " \
+        "Depends WHERE name IN (SELECT DISTINCT name FROM Package WHERE " \
+        "sourcerpm LIKE '{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
+        "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN ({ids}))) " \
+        "GROUP BY (sourcerpm)) T2 WHERE T2.sourcerpm = T1.sourcerpm".format(
+            name=pname, vers=pversion, ids=allowed_pkgcs
         )
 
-    # logger.debug(server.request_line)
-
     status, response = server.send_request(clickhouse=True)
     if status is False:
         return response
 
-    if not response:
-        return json.dumps({})
-
-    input_package_archs_list = list(
-        set([package[1] for package in response])
-    )
-
-    binary_packages = utils.normalize_tuple(
-        tuple([package[0] for package in response])
-    )
-
-    # packages with require on binary
-    server.request_line = \
-        "SELECT DISTINCT pkgcs, name, version, release FROM Package WHERE " \
-        "sourcepackage = 1 AND pkgcs IN " \
-        "(SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
-        "AND pkgcs IN (SELECT pkgcs FROM Depends where dptype = 'require' " \
-        "AND name IN {bp} AND (version = '' OR version LIKE '{vers}-%'))" \
-        "".format(uuids=last_repo_id, bp=binary_packages, vers=pversion)
-
-    status, response = server.send_request(clickhouse=True)
-    if status is False:
-        return response
-
-    # logger.debug(server.request_line)
-
-    if not response:
-        return json.dumps({})
-
-    req_src_packages = response
-
-    # source package name
-    source_names_tuple = ()
-    for package in req_src_packages:
-        source_name = ("{}-{}-{}.src.rpm".format(
-            package[1], package[2], package[3]),
-        )
-        req_src_packages[req_src_packages.index(package)] += source_name
-        source_names_tuple += source_name
-
-    source_names_tuple = utils.normalize_tuple(source_names_tuple)
-
-    # binary package with req on input
-    server.request_line = \
-        "SELECT DISTINCT name, arch, sourcerpm FROM Package " \
-        "WHERE sourcerpm IN {}".format(source_names_tuple)
-
-    # logger.debug(server.request_line)
-
-    status, response = server.send_request(clickhouse=True)
-    if status is False:
-        return response
-
-    binary_packages_with_arch = response
-
-    # add archs to binary packages
-    source_name_archs_list = []
-    for package in binary_packages_with_arch:
-        archs = [bp[1] for bp in binary_packages_with_arch
-                 if bp[2] == package[2]]
-
-        source_name_archs = (package[2], set(archs))
-        if source_name_archs not in source_name_archs_list:
-            source_name_archs_list.append(source_name_archs)
-
-    # add archs to source packages
-    sources_with_archs = []
-    for package in req_src_packages:
-        mod_package = (package[1], package[2], package[4])
-
-        for source in source_name_archs_list:
-            if source[0] == package[4]:
-                broken_archs = []
-
-                for arch in source[1]:
-                    if arch == 'noarch' or arch in input_package_archs_list:
-                        broken_archs.append(arch)
-
-                if 'noarch' in broken_archs and len(broken_archs) > 1:
-                    broken_archs.remove('noarch')
-
-                mod_package += (broken_archs,)
-
-        sources_with_archs.append(mod_package)
+    for elem in response:
+        response[response.index(elem)] = elem + (pbranch,)
 
     return utils.convert_to_json(
-        ['name', 'version', 'source', 'archs'], sources_with_archs
+        ['name', 'version', 'archs', 'branch'], response
     )
 
 
