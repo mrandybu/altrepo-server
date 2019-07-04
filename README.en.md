@@ -1,4 +1,4 @@
-# ALTRepo Server
+# ALTRepo Server (clickhouse database)
 
 ALTRepo Server is a jquery interface for the repository database of ALT
 distribution. ALTRepo allows users to get the necessary information regards
@@ -8,7 +8,8 @@ The following types of queries are currently implemented:
 
 #### /package_info
 
-Returns full information on the requested package.
+Returns main or full (if full option is true) information on the requested
+package.
 
 Request parameters:
 
@@ -22,6 +23,8 @@ Request parameters:
 * branch
 * date (ex. date=2019-06-21)
 * packager
+* sha1
+* full (true, false)
 
 #### /misconflict_packages
 
@@ -80,6 +83,7 @@ Request parameters:
 * python3-module-flask
 * python3-module-numpy
 * python3-module-psycopg2
+* python3-module-clickhouse-driver
 
 ## Components
 
@@ -99,6 +103,7 @@ Best to use a bunch of nginx and gunicorm servers to run.
 First step
 
 	git clone http://git.altlinux.org/people/mrdrew/private/altrepo_server.git
+	git checkout clickhouse-support
 
 ### Simple example of nginx setting
 
@@ -148,6 +153,9 @@ Make file
 	Password = DB password
 	Host = DB host
 
+	[ClickHouse]
+    Host = clickhouse db host
+
 ### Starting application
 
 Start application from git catalog
@@ -164,6 +172,7 @@ mapping is convenient to use jq utility.
 #### /package_info
 
 	curl "http://apphost/package_info?name=glibc&branch=Sisyphus" | jq
+	curl "http://apphost/package_info?name=glibc&branch=Sisyphus&full=true" | jq
 
 #### /misconflict_packages
 
