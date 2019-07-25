@@ -720,12 +720,6 @@ def broken_build():
         return check_params
 
     input_params = {
-        'name': {
-            'rname': 'name',
-            'type': 's',
-            'action': None,
-            'notempty': True,
-        },
         'branch': {
             'rname': 'name',
             'type': 's',
@@ -740,12 +734,26 @@ def broken_build():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    pname = params_values['name']
-    pbranch = params_values['branch']
+    pname = server.get_one_value('name', 's')
+    task_id = server.get_one_value('task', 'i')
 
-    status, pversion = server.get_last_version(pname, pbranch)
-    if status is False:
-        return pversion
+    message = None
+    if pname and task_id:
+        message = "Only one parameter 'name' or 'task'."
+    elif not pname and not task_id:
+        message = "'name' or 'task' is require parameters."
+
+    if message:
+        logger.debug(message)
+        return utils.json_str_error(message)
+
+    pbranch = params_values['branch']
+    arch = server.get_one_value('arch', 's')
+
+    if pname:
+        status, pversion = server.get_last_version(pname, pbranch)
+        if status is False:
+            return pversion
 
     last_repo_id = server.get_last_repo_id(pbranch)
     if not last_repo_id:
@@ -756,35 +764,68 @@ def broken_build():
     allowed_pkgcs = "SELECT pkgcs FROM Assigment WHERE uuid IN {}" \
                     "".format(last_repo_id)
 
-    server.request_line = \
-        "SELECT T1.name, T1.version, T2.archs FROM " \
-        "(SELECT concat(name, '-', version, '-', release, '.src.rpm') " \
-        "AS sourcerpm, name, version FROM Package WHERE sourcepackage = 1 " \
-        "AND pkgcs IN (SELECT DISTINCT pkgcs FROM Depends WHERE name IN " \
-        "(SELECT DISTINCT name FROM Package WHERE sourcerpm LIKE " \
-        "'{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
-        "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN " \
-        "({ids}))) T1, (SELECT sourcerpm, groupUniqArray(arch) AS archs " \
-        "FROM Package WHERE sourcerpm IN (SELECT " \
-        "concat(name, '-', version, '-', release, '.src.rpm') FROM Package " \
-        "WHERE sourcepackage = 1 AND pkgcs IN (SELECT DISTINCT pkgcs FROM " \
-        "Depends WHERE name IN (SELECT DISTINCT name FROM Package WHERE " \
-        "sourcerpm LIKE '{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
-        "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN ({ids}))) " \
-        "GROUP BY (sourcerpm)) T2 WHERE T2.sourcerpm = T1.sourcerpm".format(
-            name=pname, vers=pversion, ids=allowed_pkgcs
-        )
+    if pname:
+        server.request_line = \
+            "SELECT T1.name, T1.version, T2.archs FROM " \
+            "(SELECT concat(name, '-', version, '-', release, '.src.rpm') " \
+            "AS sourcerpm, name, version FROM Package WHERE sourcepackage = 1 " \
+            "AND pkgcs IN (SELECT DISTINCT pkgcs FROM Depends WHERE name IN " \
+            "(SELECT DISTINCT name FROM Package WHERE sourcerpm LIKE " \
+            "'{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
+            "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN " \
+            "({ids}))) T1, (SELECT sourcerpm, groupUniqArray(arch) AS archs " \
+            "FROM Package WHERE sourcerpm IN (SELECT " \
+            "concat(name, '-', version, '-', release, '.src.rpm') FROM Package " \
+            "WHERE sourcepackage = 1 AND pkgcs IN (SELECT DISTINCT pkgcs FROM " \
+            "Depends WHERE name IN (SELECT DISTINCT name FROM Package WHERE " \
+            "sourcerpm LIKE '{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
+            "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN ({ids}))) " \
+            "GROUP BY (sourcerpm)) T2 WHERE T2.sourcerpm = T1.sourcerpm".format(
+                name=pname, vers=pversion, ids=allowed_pkgcs
+            )
+    else:
+        # binary packages in task
+        server.request_line = "SELECT pkgs FROM Tasks WHERE id = {}".format(task_id)
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        binary_packages = ()
+        for tp_package in response:
+            for package in tp_package[0]:
+                binary_packages += (package,)
+
+        binary_packages = utils.normalize_tuple(binary_packages)
+
+        server.request_line = \
+            "SELECT DISTINCT concat(name, '-', 'version', '-', release) " \
+            "FROM Package WHERE pkgcs IN (SELECT pkgcs FROM Depends " \
+            "WHERE name IN (SELECT name FROM Package WHERE pkgcs IN {bp}))" \
+            "".format(bp=binary_packages)
+
+        if arch:
+            server.request_line += " AND arch = '{}'".format(arch)
 
     status, response = server.send_request()
     if status is False:
         return response
 
     for elem in response:
-        response[response.index(elem)] = elem + (pbranch,)
+        add = elem + (pbranch,)
+        if task_id and arch:
+            add += (arch,)
 
-    return utils.convert_to_json(
-        ['name', 'version', 'archs', 'branch'], response
-    )
+        response[response.index(elem)] = add
+
+    if pname:
+        js_keys = ['name', 'version', 'archs', 'branch']
+    else:
+        js_keys = ['name', 'branch']
+        if arch:
+            js_keys.append('arch')
+
+    return utils.convert_to_json(js_keys, response)
 
 
 @app.errorhandler(404)
@@ -793,7 +834,7 @@ def page_404(e):
 
 
 server = LogicServer()
+server.init()
 
 if __name__ == '__main__':
-    server.init()
     app.run()
