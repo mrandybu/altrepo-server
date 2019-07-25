@@ -5,10 +5,18 @@ logger = get_logger(__name__)
 
 
 class DBConnection:
-    def __init__(self, clickhouse_host=None, db_query=None):
+    def __init__(self, clickhouse_host=None, clickhouse_name=None,
+                 db_query=None):
 
         self.db_query = db_query
+        self.clickhouse_name = clickhouse_name
         self.clickhouse_client = Client(clickhouse_host)
+
+        if clickhouse_name:
+            try:
+                self.clickhouse_client.execute("USE {}".format(clickhouse_name))
+            except Exception as err:
+                logger.error(exception_to_logger(err))
 
     def send_request(self):
         response_status = False

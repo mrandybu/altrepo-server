@@ -27,9 +27,16 @@ class LogicServer:
         ]
         self.request_line = request_line
         self.clickhouse_host = self._get_config('ClickHouse', 'Host')
+        self.clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
 
     @staticmethod
-    def _get_config(section, field):
+    def init():
+        utils.print_statusbar(
+            "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
+        )
+
+    @staticmethod
+    def _get_config(section, field, req=True):
         config = utils.read_config(paths.DB_CONFIG_FILE)
         if config is False:
             raise Exception("Unable read config file.")
@@ -37,10 +44,14 @@ class LogicServer:
         try:
             return config.get(section, field)
         except:
-            raise Exception("No needed section or field in config file.")
+            if req:
+                raise Exception("No needed section or field in config file.")
+            else:
+                pass
 
     def _get_connection(self):
-        return DBConnection(clickhouse_host=self.clickhouse_host)
+        return DBConnection(clickhouse_host=self.clickhouse_host,
+                            clickhouse_name=self.clickhouse_name)
 
     @func_time(logger)
     def send_request(self):
@@ -784,4 +795,5 @@ def page_404(e):
 server = LogicServer()
 
 if __name__ == '__main__':
+    server.init()
     app.run()

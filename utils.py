@@ -51,6 +51,17 @@ def join_tuples(tuple_list):
     return tuple([tuple_[0] for tuple_ in tuple_list])
 
 
+def print_statusbar(message, type_):
+    types = {
+        'i': "[INFO]",
+        'w': "[WARNING]",
+        'd': "[DEBUG]",
+        'e': "[ERROR]",
+    }
+    print("[ALTREPO SERVER]{type_}: {msg}"
+          "".format(type_=types[type_], msg=message))
+
+
 def tuple_to_dict(tuple_):
     dict_ = {}
     for key, value in tuple_:
