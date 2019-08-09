@@ -60,6 +60,7 @@ class LogicServer:
 
         return db_connection.send_request()
 
+    # FIXME need fix according new db struct
     def get_last_repo_id(self, pbranch=None, date=None):
 
         default_query = \
@@ -134,16 +135,15 @@ class LogicServer:
         # check package params
         pname = self.get_one_value('name', 's')
         if pname:
-            default_req = "SELECT name FROM Package"
+            default_req = "SELECT name FROM last_packages"
             args = "name = '{}'".format(pname)
 
             pversion = self.get_one_value('version', 's')
             if pversion:
                 args = "{} AND version = '{}'".format(args, pversion)
 
-            args = \
-                "{} AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {})" \
-                "".format(args, self.get_last_repo_id(pbranch, date))
+            args = "{} AND assigment_name = '{branch}'" \
+                   "".format(args, branch=pbranch)
 
             if binary_only:
                 args = "{} AND sourcepackage = 0".format(args)
@@ -217,11 +217,8 @@ class LogicServer:
 
     def get_last_version(self, name, branch):
         self.request_line = \
-            "SELECT version FROM Package WHERE name = '{name}' " \
-            "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids}) " \
-            "ORDER BY buildtime DESC LIMIT 1".format(
-                name=name, uuids=server.get_last_repo_id(branch)
-            )
+            "SELECT version FROM last_packages WHERE name = '{name}' AND " \
+            "assigment_name = '{branch}'".format(name=name, branch=branch)
 
         # logger.debug(self.request_line)
 
@@ -410,15 +407,11 @@ def conflict_packages():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    # allowed packages sha1
-    allowed_pkgcs = "SELECT pkgcs FROM Assigment WHERE uuid IN {}" \
-                    "".format(last_repo_id)
-
     # input package sha1
     server.request_line = \
-        "SELECT pkgcs FROM Package WHERE name = '{name}' " \
-        "AND pkgcs IN ({ids}) ORDER BY buildtime DESC LIMIT 1" \
-        "".format(name=pname, ids=allowed_pkgcs)
+        "SELECT max(pkgcs) FROM last_packages WHERE name = '{name}' AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0" \
+        "".format(name=pname, branch=pbranch)
 
     status, response = server.send_request()
     if status is False:
@@ -435,15 +428,15 @@ def conflict_packages():
 
     # package without conflicts
     server.request_line = \
-        "SELECT MAX(pkgcs), name, version FROM Package WHERE pkgcs IN " \
-        "(SELECT pkgcs FROM File WHERE fileclass != 'directory' " \
-        "AND filename IN (SELECT filename FROM File WHERE pkgcs = '{pkgcs}') " \
-        "AND pkgcs IN ({ids})) AND pkgcs NOT IN (SELECT pkgcs FROM Depends " \
-        "WHERE name = '{name}' AND (version LIKE '{vers}-%' " \
-        "OR version LIKE '%:{vers}-%' OR version LIKE '')) " \
-        "AND sourcepackage = 0 GROUP BY (name, version)".format(
-            ids=allowed_pkgcs, pkgcs=input_pkgcs, name=pname, vers=pversion
-        )
+        "SELECT MAX(pkgcs), name, version FROM last_packages WHERE pkgcs IN (" \
+        "SELECT DISTINCT pkgcs FROM File WHERE filename IN (" \
+        "SELECT filename FROM File WHERE fileclass != 'directory' AND " \
+        "pkgcs = '{pkgcs}') AND pkgcs NOT IN (" \
+        "SELECT pkgcs FROM Depends WHERE dptype = 'conflict' AND dpname = '{name}' " \
+        "AND (dpversion LIKE '{vers}-%' OR dpversion LIKE '%:{vers}-%' OR " \
+        "dpversion LIKE ''))) AND name != '{name}' AND sourcepackage = 0 AND " \
+        "assigment_name = '{branch}' GROUP BY (name, version)" \
+        "".format(pkgcs=input_pkgcs, name=pname, vers=pversion, branch=pbranch)
 
     status, response = server.send_request()
     if status is False:
@@ -456,7 +449,7 @@ def conflict_packages():
 
     # input package conflict
     server.request_line = \
-        "SELECT name, version FROM Depends WHERE dptype = 'conflict' " \
+        "SELECT dpname, dpversion FROM Depends WHERE dptype = 'conflict' " \
         "AND pkgcs = '{}'".format(input_pkgcs)
 
     status, response = server.send_request()
