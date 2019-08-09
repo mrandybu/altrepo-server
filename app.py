@@ -142,8 +142,9 @@ class LogicServer:
             if pversion:
                 args = "{} AND version = '{}'".format(args, pversion)
 
-            args = "{} AND assigment_name = '{branch}'" \
-                   "".format(args, branch=pbranch)
+            if pbranch:
+                args = "{} AND assigment_name = '{branch}'" \
+                       "".format(args, branch=pbranch)
 
             if binary_only:
                 args = "{} AND sourcepackage = 0".format(args)
@@ -599,6 +600,7 @@ def package_files():
         return check_params
 
     sha1 = server.get_one_value('sha1', 's')
+    # FIXME never return false
     if sha1 is False:
         message = 'Error in request arguments.'
         logger.debug(message)
@@ -643,13 +645,13 @@ def dependent_packages():
 
     input_params = {
         'name': {
-            'rname': 'name',
+            'rname': 'dpname',
             'type': 's',
             'action': None,
             'notempty': True,
         },
         'version': {
-            'rname': 'version',
+            'rname': 'dpversion',
             'type': 's',
             'action': action,
             'notempty': False,
@@ -663,6 +665,10 @@ def dependent_packages():
         return utils.json_str_error(message)
 
     pbranch = server.get_one_value('branch', 's')
+    if not pbranch:
+        message = 'Branch is required parameter.'
+        logger.debug(message)
+        return utils.json_str_error(message)
 
     last_repo_id = server.get_last_repo_id(pbranch)
     if not last_repo_id:
@@ -670,10 +676,10 @@ def dependent_packages():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT DISTINCT sourcerpm FROM Package WHERE pkgcs IN " \
-        "(SELECT pkgcs FROM Assigment WHERE uuid IN {}) AND pkgcs IN " \
-        "(SELECT pkgcs FROM Depends WHERE {})" \
-        "".format(last_repo_id, " ".join(params_values))
+        "SELECT DISTINCT sourcerpm FROM last_packages WHERE pkgcs IN (" \
+        "SELECT pkgcs FROM Depends WHERE {args}) AND " \
+        "assigment_name = '{branch}'" \
+        "".format(branch=pbranch, args=" ".join(params_values))
 
     status, response = server.send_request()
     if status is False:
@@ -689,13 +695,12 @@ def dependent_packages():
         return json.dumps({})
 
     server.request_line = \
-        "SELECT {p_params} FROM Package WHERE " \
-        "(name, version, release) IN {nvr} AND sourcepackage = 1 " \
-        "AND pkgcs IN (SELECT pkgcs FROM Assigment WHERE uuid IN {uuids})" \
+        "SELECT {p_params} FROM last_packages WHERE (name, version, release) " \
+        "IN {nvr} AND sourcepackage = 1 AND assigment_name = '{branch}'" \
         "".format(
             p_params=", ".join(server.package_params),
-            nvr=tuple(source_package_fullname),
-            uuids=last_repo_id
+            nvr=utils.normalize_tuple(tuple(source_package_fullname)),
+            branch=pbranch,
         )
 
     status, response = server.send_request()
