@@ -753,32 +753,22 @@ def broken_build():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    # allowed packages sha1
-    allowed_pkgcs = "SELECT pkgcs FROM Assigment WHERE uuid IN {}" \
-                    "".format(last_repo_id)
-
     if pname:
         server.request_line = \
-            "SELECT T1.name, T1.version, T2.archs FROM " \
-            "(SELECT concat(name, '-', version, '-', release, '.src.rpm') " \
-            "AS sourcerpm, name, version FROM Package WHERE sourcepackage = 1 " \
-            "AND pkgcs IN (SELECT DISTINCT pkgcs FROM Depends WHERE name IN " \
-            "(SELECT DISTINCT name FROM Package WHERE sourcerpm LIKE " \
-            "'{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
-            "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN " \
-            "({ids}))) T1, (SELECT sourcerpm, groupUniqArray(arch) AS archs " \
-            "FROM Package WHERE sourcerpm IN (SELECT " \
-            "concat(name, '-', version, '-', release, '.src.rpm') FROM Package " \
-            "WHERE sourcepackage = 1 AND pkgcs IN (SELECT DISTINCT pkgcs FROM " \
-            "Depends WHERE name IN (SELECT DISTINCT name FROM Package WHERE " \
-            "sourcerpm LIKE '{name}-{vers}-%.src.rpm' AND pkgcs IN ({ids})) AND " \
-            "(version LIKE '{vers}-%' OR version = '') AND pkgcs IN ({ids}))) " \
-            "GROUP BY (sourcerpm)) T2 WHERE T2.sourcerpm = T1.sourcerpm".format(
-                name=pname, vers=pversion, ids=allowed_pkgcs
-            )
+            "SELECT DISTINCT name, version, groupUniqArray(arch), " \
+            "assigment_name FROM last_packages WHERE name IN (SELECT " \
+            "DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
+            "DISTINCT name FROM last_packages WHERE sourcerpm IN (SELECT " \
+            "concat(name, '-', version, '-', release, '.src.rpm') FROM " \
+            "last_packages WHERE name = '{name}' AND sourcepackage = 1 AND " \
+            "assigment_name = '{branch}') AND assigment_name = '{branch}') " \
+            "AND sourcepackage = 1 AND assigment_name = '{branch}') AND " \
+            "assigment_name = '{branch}' GROUP BY (name, version, " \
+            "assigment_name)".format(name=pname, branch=pbranch)
     else:
         # binary packages in task
-        server.request_line = "SELECT pkgs FROM Tasks WHERE id = {}".format(task_id)
+        server.request_line = \
+            "SELECT pkgs FROM Tasks WHERE task_id = {}".format(task_id)
 
         status, response = server.send_request()
         if status is False:
@@ -792,31 +782,30 @@ def broken_build():
         binary_packages = utils.normalize_tuple(binary_packages)
 
         server.request_line = \
-            "SELECT DISTINCT concat(name, '-', 'version', '-', release) " \
-            "FROM Package WHERE pkgcs IN (SELECT pkgcs FROM Depends " \
-            "WHERE name IN (SELECT name FROM Package WHERE pkgcs IN {bp}))" \
-            "".format(bp=binary_packages)
+            "SELECT DISTINCT concat(name, '-', version, '-', release) " \
+            "AS fullname, assigment_name, groupUniqArray(arch) " \
+            "FROM last_packages WHERE pkgcs IN (SELECT pkgcs FROM Depends " \
+            "WHERE dpname IN (SELECT name FROM Package WHERE pkgcs IN {bp})) " \
+            "AND assigment_name = '{branch}' {arch} " \
+            "GROUP BY (fullname, assigment_name)".format(
+                bp=binary_packages, branch=pbranch, arch='{arch}'
+            )
 
         if arch:
-            server.request_line += " AND arch = '{}'".format(arch)
+            server.request_line = server.request_line.format(
+                arch="AND arch = '{}'".format(arch)
+            )
+        else:
+            server.request_line = server.request_line.format(arch='')
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    for elem in response:
-        add = elem + (pbranch,)
-        if task_id and arch:
-            add += (arch,)
-
-        response[response.index(elem)] = add
-
     if pname:
         js_keys = ['name', 'version', 'archs', 'branch']
     else:
-        js_keys = ['name', 'branch']
-        if arch:
-            js_keys.append('arch')
+        js_keys = ['fullname', 'branch', 'archs']
 
     return utils.convert_to_json(js_keys, response)
 
