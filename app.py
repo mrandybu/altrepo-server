@@ -552,16 +552,15 @@ def package_by_file():
         message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
-    base_query = "SELECT pkgcs{in_} FROM File WHERE pkgcs IN " \
-                 "(SELECT pkgcs FROM Assigment WHERE uuid IN {ids}) " \
-                 "AND {param}".format(in_='{}', ids=last_repo_id, param='{}')
+    base_query = \
+        "SELECT pkgcs{in_} FROM File WHERE pkgcs IN (SELECT pkgcs FROM " \
+        "last_packages WHERE assigment_name = '{branch}') AND {param}" \
+        "".format(in_='{}', branch=pbranch, param='{}')
 
     if file:
         query = "filename LIKE '{}'".format(file)
     else:
         query = "filemd5 = '{}'".format(md5)
-
-    pkgcs_query = base_query.format('', query)
 
     server.request_line = base_query.format(', filename', query)
 
@@ -571,9 +570,12 @@ def package_by_file():
 
     ids_filename_dict = utils.tuple_to_dict(response)
 
+    pkgcs = utils.normalize_tuple([key for key in ids_filename_dict.keys()])
+
     server.request_line = \
-        "SELECT pkgcs, name, version, release, disttag, arch FROM Package " \
-        "WHERE sourcepackage = 0 AND pkgcs IN ({})".format(pkgcs_query)
+        "SELECT pkgcs, name, version, release, disttag, arch, assigment_name " \
+        "FROM last_packages WHERE sourcepackage = 0 AND pkgcs IN {} AND " \
+        "assigment_name = '{}'".format(pkgcs, pbranch)
 
     status, response = server.send_request()
     if status is False:
@@ -581,11 +583,11 @@ def package_by_file():
 
     output_values = []
     for package in response:
-        package += (ids_filename_dict[package[0]], pbranch)
+        package += (ids_filename_dict[package[0]],)
         output_values.append(package)
 
     output_params = ['pkgcs', 'name', 'version', 'release',
-                     'disttag', 'arch', 'files', 'branch']
+                     'disttag', 'arch', 'branch', 'files']
 
     return utils.convert_to_json(output_params, tuple(output_values))
 

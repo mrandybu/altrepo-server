@@ -94,6 +94,9 @@ def remove_duplicate(list_):
 
 
 def normalize_tuple(tuple_):
+    if type(tuple_) == list:
+        tuple_ = tuple(tuple_)
+
     if len(tuple_) == 1:
         tuple_ += (tuple_[0],)
 
