@@ -327,13 +327,19 @@ def package_info():
         output_params = server.package_params
 
     server.request_line = \
-        "SELECT {p_params} FROM Package WHERE pkgcs IN " \
-        "(SELECT pkgcs FROM Assigment WHERE uuid IN {repo_ids}) AND {p_values}" \
+        "SELECT {p_params} FROM last_packages WHERE {p_values} {branch}" \
         "".format(
             p_params=", ".join(output_params),
-            repo_ids=last_repo_id,
-            p_values=" ".join(params_values)
+            p_values=" ".join(params_values),
+            branch='{}'
         )
+
+    if pbranch:
+        server.request_line = server.request_line.format(
+            "AND assigment_name = '{}'".format(pbranch)
+        )
+    else:
+        server.request_line = server.request_line.format('')
 
     # logger.debug(server.request_line)
 
@@ -350,8 +356,8 @@ def package_info():
         sha1_list = utils.normalize_tuple(utils.join_tuples(response))
 
         # files
-        server.request_line = \
-            "SELECT pkgcs, filename FROM File WHERE pkgcs IN {}".format(sha1_list)
+        server.request_line = "SELECT pkgcs, filename FROM File WHERE " \
+                              "pkgcs IN {}".format(sha1_list)
 
         status, response = server.send_request()
         if status is False:
@@ -361,8 +367,8 @@ def package_info():
 
         # depends
         server.request_line = \
-            "SELECT pkgcs, dptype, name, version FROM Depends WHERE pkgcs IN {}" \
-            "".format(sha1_list)
+            "SELECT pkgcs, dptype, dpname, dpversion FROM last_depends " \
+            "WHERE pkgcs IN {}".format(sha1_list)
 
         status, response = server.send_request()
         if status is False:
@@ -602,8 +608,7 @@ def package_files():
         return check_params
 
     sha1 = server.get_one_value('sha1', 's')
-    # FIXME never return false
-    if sha1 is False:
+    if not sha1:
         message = 'Error in request arguments.'
         logger.debug(message)
         return utils.json_str_error(message)
