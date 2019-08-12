@@ -1,15 +1,15 @@
 # ALTRepo Server (clickhouse database)
 
 ALTRepo Server is a jquery interface for the repository database of ALT
-distribution. ALTRepo allows users to get the necessary information regards
-to the repository by GET requests.
+distribution. ALTRepo allows users to get the necessary information 
+regards to the repository by GET requests.
 
 The following types of queries are currently implemented:
 
 #### /package_info
 
-Returns main or full (if full option is true) information on the requested
-package.
+Returns main or full (if full option is true) information on the 
+requested package.
 
 Request parameters:
 
@@ -21,15 +21,14 @@ Request parameters:
 * buildtime (><=)
 * source - show source packages (true, false)
 * branch
-* date (ex. date=2019-06-21)
 * packager
 * sha1
 * full (true, false)
 
 #### /misconflict_packages
 
-Returns a list of binary packages with intersecting files and no conflict
-with a given package.
+Returns a list of binary packages with intersecting files and no 
+conflict with a given package.
 
 Request parameters:
 
@@ -44,7 +43,8 @@ It is possible to set the full file name, file name mask, md5 of file.
 
 Request parameters:
 
-* file - file name, can be set as a file name mask (ex. file='/usr/bin/%')
+* file - file name, can be set as a file name mask 
+(ex. file='/usr/bin/%')
 * md5 - file md5
 
 #### /package_files
@@ -86,8 +86,8 @@ Request parameters:
 
 ## Components
 
-* app.py - main module of application, contains the base class of the server
-and processes requests
+* app.py - main module of application, contains the base class of the 
+server and processes requests
 * db_connection.py - module of database connection
 * utils.py - contains auxiliary functions used by the main module
 * paths.py - provides of namespace for using in application
@@ -97,7 +97,7 @@ specified number packages (used for test queries)
 
 ## Starting application
 
-Best to use a bunch of nginx and gunicorm servers to run.
+Best to use a bunch of nginx and gunicorn servers to run.
 
 First step
 
@@ -159,8 +159,8 @@ Start application from git catalog
 
 ## Examples of query
 
-The response from the server is returned as json data, for their formatted
-mapping is convenient to use jq utility.
+The response from the server is returned as json data, for their 
+formatted mapping is convenient to use jq utility.
 
 #### /package_info
 
