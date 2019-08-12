@@ -46,6 +46,7 @@ Request parameters:
 * file - file name, can be set as a file name mask 
 (ex. file='/usr/bin/%')
 * md5 - file md5
+* arch
 
 #### /package_files
 

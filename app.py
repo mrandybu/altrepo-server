@@ -67,6 +67,7 @@ class LogicServer:
                     'file': "file name, can be set as a file name mask "
                             "(ex. file='/usr/bin/%')",
                     'md5': 'file md5',
+                    'arch': '',
                 }
             },
             '/package_files': {
@@ -557,10 +558,19 @@ def package_by_file():
     if not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
+    arch = server.get_one_value('arch', 's')
+    if arch:
+        arch = "AND arch = '{}'".format(arch)
+    else:
+        arch = ''
+
+    pkgcs = \
+        "SELECT pkgcs FROM last_packages WHERE assigment_name = '{branch}' " \
+        "{arch}".format(branch=pbranch, arch=arch)
+
     base_query = \
-        "SELECT pkgcs{in_} FROM File WHERE pkgcs IN (SELECT pkgcs FROM " \
-        "last_packages WHERE assigment_name = '{branch}') AND {param}" \
-        "".format(in_='{}', branch=pbranch, param='{}')
+        "SELECT pkgcs{in_} FROM File WHERE pkgcs IN ({pkgcs}) AND {param}" \
+        "".format(in_='{}', pkgcs=pkgcs, param='{}')
 
     if file:
         query = "filename LIKE '{}'".format(file)
