@@ -39,6 +39,59 @@ class LogicServer:
         )
 
     @staticmethod
+    def helper(query):
+        helper = {
+            '/package_info': {
+                '##### /package_info arguments #####': {
+                    'name': '',
+                    'version': '',
+                    'release': '',
+                    'disttag': '',
+                    'buildtime': '><=',
+                    'source': 'show source packages (true, false)',
+                    'branch': '',
+                    'packager': '',
+                    'sha1': '',
+                    'full': 'full package info',
+                }
+            },
+            '/misconflict_packages': {
+                '##### /misconflict_packages argunents #####': {
+                    'name': 'name of binary package',
+                    'branch': '',
+                    'version': '',
+                }
+            },
+            '/package_by_file': {
+                '##### /package_by_file arguments #####': {
+                    'file': "file name, can be set as a file name mask "
+                            "(ex. file='/usr/bin/%')",
+                    'md5': 'file md5',
+                }
+            },
+            '/package_files': {
+                '##### /package_files arguments #####': {
+                    'sha1': 'package sha1',
+                }
+            },
+            '/dependent_packages': {
+                '##### /dependent_packages arguments #####': {
+                    'name': 'name of binary package',
+                    'version': '',
+                    'branch': '',
+                }
+            },
+            '/what_depends_src': {
+                '##### /what_depends_src arguments #####': {
+                    'name': 'name of source package',
+                    'branch': '',
+                }
+            }
+        }
+
+        return helper[query]
+
+    @staticmethod
     def _get_config(section, field, req=True):
         config = utils.read_config(paths.DB_CONFIG_FILE)
         if config is False:
@@ -89,7 +142,10 @@ class LogicServer:
 
         return value
 
-    def check_input_params(self, binary_only=False, date=None):
+    def check_input_params(self, binary_only=False):
+        if not request.args:
+            return self.helper(request.path)
+
         # check arch
         parch = self.get_one_value('arch', 's')
         if parch and parch not in ['aarch64', 'armh', 'i586',
@@ -273,9 +329,7 @@ def package_info():
 
     params_values = server.get_values_by_params(intput_params)
     if params_values is False:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     full = bool(server.get_one_value('full', 'b'))
 
@@ -364,9 +418,7 @@ def conflict_packages():
     pbranch = server.get_one_value('branch', 's')
 
     if not pname or not pbranch:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     # input package sha1
     server.request_line = \
@@ -499,9 +551,7 @@ def package_by_file():
     md5 = server.get_one_value('md5', 's')
 
     if len([param for param in [file, md5] if param]) != 1:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -558,9 +608,7 @@ def package_files():
 
     sha1 = server.get_one_value('sha1', 's')
     if not sha1:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     server.request_line = "SELECT filename FROM File WHERE pkgcs = '{sha1}'" \
                           "".format(sha1=sha1)
@@ -614,9 +662,7 @@ def dependent_packages():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -677,9 +723,7 @@ def broken_build():
 
     params_values = server.get_values_by_params(input_params, True)
     if params_values is False:
-        message = 'Error in request arguments.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+        return json.dumps(server.helper(request.path))
 
     pname = server.get_one_value('name', 's')
     task_id = server.get_one_value('task', 'i')
@@ -761,7 +805,20 @@ def broken_build():
 
 @app.errorhandler(404)
 def page_404(e):
-    return utils.json_str_error("Page not found!")
+    helper = {
+        'Valid queries': {
+            '/package_info': 'information about given package',
+            '/misconflict_packages': 'binary packages with intersecting '
+                                     'files and no conflict with a given package',
+            '/package_by_file': 'binary packages that contain the specified file',
+            '/package_files': 'files by current sha1 of package',
+            '/dependent_packages': 'source packages whose binary packages '
+                                   'depend on the given package',
+            '/what_depends_src': 'binary packages with build dependency on a '
+                                 'given package',
+        }
+    }
+    return json.dumps(helper)
 
 
 server = LogicServer()
