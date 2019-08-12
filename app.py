@@ -26,9 +26,12 @@ class LogicServer:
             'payloadflags', 'platform',
         ]
         self.request_line = request_line
+
+        # db params
         self.clickhouse_host = self._get_config('ClickHouse', 'Host')
         self.clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
 
+    # init method, starts before application starts
     @staticmethod
     def init():
         utils.print_statusbar(
@@ -53,6 +56,7 @@ class LogicServer:
         return DBConnection(clickhouse_host=self.clickhouse_host,
                             clickhouse_name=self.clickhouse_name)
 
+    # measures the execution time of func
     @func_time(logger)
     def send_request(self):
         db_connection = self._get_connection()
@@ -60,47 +64,12 @@ class LogicServer:
 
         return db_connection.send_request()
 
-    # FIXME need fix according new db struct
-    def get_last_repo_id(self, pbranch=None, date=None):
-
-        default_query = \
-            "SELECT toString(id) FROM AssigmentName " \
-            "WHERE complete = 1 {args} ORDER BY datetime_release DESC LIMIT 1"
-
-        branch_id = {}
-        for branch in self.known_branches:
-            args = "AND name = '{}'".format(branch)
-            if date:
-                args = "{} AND toDate(datetime_release) = '{}'" \
-                       "".format(args, date)
-
-            self.request_line = default_query.format(args=args)
-
-            status, response = self.send_request()
-            if status is False:
-                return response
-
-            if len(response) > 0:
-                branch_id[branch] = response[0][0]
-
-        if pbranch:
-            if pbranch in branch_id:
-                # always return a tuple to use 'IN' everywhere
-                return utils.normalize_tuple((branch_id[pbranch],))
-
-            return ()
-
-        return tuple([branch for branch in branch_id.values()])
-
-    def add_extra_package_params(self, extra_package_params):
-        return self.package_params + extra_package_params
-
     @staticmethod
     def get_one_value(param, type_):
         value = request.args.get(param)
 
         if value:
-            # fix err when package name contains '+'
+            # fixed err when package name contains '+'
             if param == 'name':
                 value = value.replace(' ', '+')
 
@@ -221,8 +190,6 @@ class LogicServer:
             "SELECT version FROM last_packages WHERE name = '{name}' AND " \
             "assigment_name = '{branch}'".format(name=name, branch=branch)
 
-        # logger.debug(self.request_line)
-
         status, response = self.send_request()
         if status is False:
             return False, response
@@ -246,12 +213,6 @@ def package_info():
         buildtime_action = "{} = {}"
 
     pbranch = server.get_one_value('branch', 's')
-    date_value = server.get_one_value('date', 's')
-
-    last_repo_id = server.get_last_repo_id(pbranch, date_value)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
-        return utils.json_str_error(message)
 
     intput_params = {
         'sha1': {
@@ -341,8 +302,6 @@ def package_info():
     else:
         server.request_line = server.request_line.format('')
 
-    # logger.debug(server.request_line)
-
     status, response = server.send_request()
     if status is False:
         return response
@@ -407,11 +366,6 @@ def conflict_packages():
     if not pname or not pbranch:
         message = 'Error in request arguments.'
         logger.debug(message)
-        return utils.json_str_error(message)
-
-    last_repo_id = server.get_last_repo_id(pbranch)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
     # input package sha1
@@ -553,11 +507,6 @@ def package_by_file():
     if not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
-    last_repo_id = server.get_last_repo_id(pbranch)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
-        return utils.json_str_error(message)
-
     base_query = \
         "SELECT pkgcs{in_} FROM File WHERE pkgcs IN (SELECT pkgcs FROM " \
         "last_packages WHERE assigment_name = '{branch}') AND {param}" \
@@ -616,8 +565,6 @@ def package_files():
     server.request_line = "SELECT filename FROM File WHERE pkgcs = '{sha1}'" \
                           "".format(sha1=sha1)
 
-    # logger.debug(server.request_line)
-
     status, response = server.send_request()
     if status is False:
         return response
@@ -675,11 +622,6 @@ def dependent_packages():
     if not pbranch:
         message = 'Branch is required parameter.'
         logger.debug(message)
-        return utils.json_str_error(message)
-
-    last_repo_id = server.get_last_repo_id(pbranch)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
         return utils.json_str_error(message)
 
     server.request_line = \
@@ -759,11 +701,6 @@ def broken_build():
         status, pversion = server.get_last_version(pname, pbranch)
         if status is False:
             return pversion
-
-    last_repo_id = server.get_last_repo_id(pbranch)
-    if not last_repo_id:
-        message = 'No records of branch with current date.'
-        return utils.json_str_error(message)
 
     if pname:
         server.request_line = \
