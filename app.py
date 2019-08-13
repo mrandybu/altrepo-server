@@ -145,7 +145,7 @@ class LogicServer:
 
     def check_input_params(self, binary_only=False):
         if not request.args:
-            return self.helper(request.path)
+            return json.dumps(server.helper(request.path))
 
         # check arch
         parch = self.get_one_value('arch', 's')
@@ -423,8 +423,8 @@ def conflict_packages():
 
     # input package sha1
     server.request_line = \
-        "SELECT max(pkgcs) FROM last_packages WHERE name = '{name}' AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0" \
+        "SELECT pkgcs FROM last_packages WHERE name = '{name}' AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0 LIMIT 1" \
         "".format(name=pname, branch=pbranch)
 
     status, response = server.send_request()
@@ -442,7 +442,7 @@ def conflict_packages():
 
     # package without conflicts
     server.request_line = \
-        "SELECT MAX(pkgcs), name, version FROM last_packages WHERE pkgcs IN (" \
+        "SELECT max(pkgcs), name, version FROM last_packages WHERE pkgcs IN (" \
         "SELECT DISTINCT pkgcs FROM File WHERE filename IN (" \
         "SELECT filename FROM File WHERE fileclass != 'directory' AND " \
         "pkgcs = '{pkgcs}') AND pkgcs NOT IN (" \
