@@ -443,14 +443,15 @@ def conflict_packages():
     # package without conflicts
     server.request_line = \
         "SELECT max(pkgcs), name, version FROM last_packages WHERE pkgcs IN (" \
-        "SELECT DISTINCT pkgcs FROM File WHERE filename IN (" \
-        "SELECT filename FROM File WHERE fileclass != 'directory' AND " \
-        "pkgcs = '{pkgcs}') AND pkgcs NOT IN (" \
-        "SELECT pkgcs FROM Depends WHERE dptype = 'conflict' AND dpname = '{name}' " \
-        "AND (dpversion LIKE '{vers}-%' OR dpversion LIKE '%:{vers}-%' OR " \
-        "dpversion LIKE ''))) AND name != '{name}' AND sourcepackage = 0 AND " \
-        "assigment_name = '{branch}' GROUP BY (name, version)" \
-        "".format(pkgcs=input_pkgcs, name=pname, vers=pversion, branch=pbranch)
+        "SELECT DISTINCT pkgcs FROM File WHERE hashname IN (SELECT hashname " \
+        "FROM File WHERE fileclass != 'directory' AND pkgcs = '{pkgcs}') AND " \
+        "pkgcs NOT IN (SELECT pkgcs FROM Depends WHERE dptype = 'conflict' " \
+        "AND dpname = '{name}' AND (dpversion LIKE '{vers}-%' OR dpversion " \
+        "LIKE '%:{vers}-%' OR dpversion LIKE ''))) AND name != '{name}' AND " \
+        "sourcepackage = 0 AND assigment_name = '{branch}' GROUP BY " \
+        "(name, version)".format(
+            pkgcs=input_pkgcs, name=pname, vers=pversion, branch=pbranch
+        )
 
     status, response = server.send_request()
     if status is False:
@@ -483,24 +484,10 @@ def conflict_packages():
                 and (package[1], package[2]) not in input_package_conflicts:
             result_packages.append(package)
 
-    # input package files
-    server.request_line = \
-        "SELECT filename FROM File WHERE pkgcs = '{}'".format(input_pkgcs)
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    input_package_files = utils.normalize_tuple(utils.join_tuples(response))
-
     # input package archs
     server.request_line = \
         "SELECT DISTINCT arch FROM Package " \
         "WHERE (name, version) = ('{}', '{}')".format(pname, pversion)
-
-    status, response = server.send_request()
-    if status is False:
-        return response
 
     input_package_archs = utils.join_tuples(response)
 
@@ -508,8 +495,9 @@ def conflict_packages():
     for package in result_packages:
         # conflict files
         server.request_line = \
-            "SELECT filename FROM File WHERE pkgcs = '{}' AND filename IN {}" \
-            "".format(package[0], input_package_files)
+            "SELECT filename FROM File WHERE pkgcs = '{}' AND filename IN " \
+            "(SELECT filename FROM File WHERE pkgcs = '{}')" \
+            "".format(package[0], input_pkgcs)
 
         status, response = server.send_request()
         if status is False:
