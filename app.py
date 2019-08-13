@@ -148,10 +148,12 @@ class LogicServer:
             return json.dumps(server.helper(request.path))
 
         # check arch
-        parch = self.get_one_value('arch', 's')
-        if parch and parch not in ['aarch64', 'armh', 'i586',
-                                   'noarch', 'x86_64', 'x86_64-i586']:
-            return utils.json_str_error('Unknown arch of package!')
+        parchs = self.get_one_value('arch', 's')
+        if parchs:
+            for arch in parchs.split(','):
+                if arch and arch not in ['aarch64', 'armh', 'i586',
+                                         'noarch', 'x86_64', 'x86_64-i586']:
+                    return utils.json_str_error('Unknown arch of package!')
 
         # check branch
         pbranch = self.get_one_value('branch', 's')
@@ -421,11 +423,20 @@ def conflict_packages():
     if not pname or not pbranch:
         return json.dumps(server.helper(request.path))
 
+    allowed_archs = ('noarch',)
+    parchs = server.get_one_value('arch', 's')
+    if parchs:
+        for arch in parchs.split(','):
+            if arch not in allowed_archs:
+                allowed_archs += (arch,)
+    else:
+        allowed_archs += ('x86_64',)
+
     # input package sha1
     server.request_line = \
         "SELECT pkgcs FROM last_packages WHERE name = '{name}' AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0 LIMIT 1" \
-        "".format(name=pname, branch=pbranch)
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND " \
+        "arch IN {arch}".format(name=pname, branch=pbranch, arch=allowed_archs)
 
     status, response = server.send_request()
     if status is False:
@@ -442,16 +453,15 @@ def conflict_packages():
 
     # package without conflicts
     server.request_line = \
-        "SELECT max(pkgcs), name, version FROM last_packages WHERE pkgcs IN (" \
+        "SELECT pkgcs, name, version FROM last_packages WHERE pkgcs IN (" \
         "SELECT DISTINCT pkgcs FROM File WHERE hashname IN (SELECT hashname " \
         "FROM File WHERE fileclass != 'directory' AND pkgcs = '{pkgcs}') AND " \
         "pkgcs NOT IN (SELECT pkgcs FROM Depends WHERE dptype = 'conflict' " \
         "AND dpname = '{name}' AND (dpversion LIKE '{vers}-%' OR dpversion " \
         "LIKE '%:{vers}-%' OR dpversion LIKE ''))) AND name != '{name}' AND " \
-        "sourcepackage = 0 AND assigment_name = '{branch}' GROUP BY " \
-        "(name, version)".format(
-            pkgcs=input_pkgcs, name=pname, vers=pversion, branch=pbranch
-        )
+        "sourcepackage = 0 AND assigment_name = '{branch}' AND arch IN {arch} " \
+        "".format(pkgcs=input_pkgcs, name=pname, vers=pversion, branch=pbranch,
+                  arch=allowed_archs)
 
     status, response = server.send_request()
     if status is False:
@@ -484,13 +494,7 @@ def conflict_packages():
                 and (package[1], package[2]) not in input_package_conflicts:
             result_packages.append(package)
 
-    # input package archs
-    server.request_line = \
-        "SELECT DISTINCT arch FROM Package " \
-        "WHERE (name, version) = ('{}', '{}')".format(pname, pversion)
-
-    input_package_archs = utils.join_tuples(response)
-
+    f_result_packages = []
     # add archs, files to result list
     for package in result_packages:
         # conflict files
@@ -516,15 +520,16 @@ def conflict_packages():
 
         archs = []
         for arch in response:
-            if arch[0] in input_package_archs or arch[0] == 'noarch':
+            if arch[0] in allowed_archs:
                 archs.append(arch[0])
 
-        result_packages[result_packages.index(package)] = (
-            package[1], package[2], archs, conflict_files
-        )
+        f_package = (package[1], package[2], archs, conflict_files)
+
+        if f_package not in f_result_packages:
+            f_result_packages.append(f_package)
 
     return utils.convert_to_json(['name', 'version', 'archs', 'files'],
-                                 result_packages)
+                                 f_result_packages)
 
 
 @app.route('/package_by_file')
