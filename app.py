@@ -39,7 +39,6 @@ class LogicServer:
             "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
         )
 
-    # FIXME add new params in helper
     @staticmethod
     def helper(query):
         helper = {
@@ -62,6 +61,7 @@ class LogicServer:
                     'name': 'name of binary package',
                     'branch': '',
                     'version': '',
+                    'arch': '',
                 }
             },
             '/package_by_file': {
@@ -87,7 +87,9 @@ class LogicServer:
             '/what_depends_src': {
                 '##### /what_depends_src arguments #####': {
                     'name': 'name of source package',
+                    'task': "task id (can't used with 'name')",
                     'branch': '',
+                    'sort': '/beta/ for sort by dependencies',
                 }
             }
         }

@@ -35,6 +35,7 @@ Request parameters:
 * name * - name of binary package
 * branch *
 * version
+* arch
 
 #### /package_by_file
 
@@ -75,7 +76,9 @@ specified package from the repository.
 Request parameters:
 
 * name - name of source package
-* branch *
+* task - task id (can't used with 'name')
+* branch (* - only 'name')
+* sort - /beta/ for sort by dependencies
 
 \* - require parameters
 
