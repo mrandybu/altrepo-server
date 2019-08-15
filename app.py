@@ -567,7 +567,7 @@ def package_by_file():
 
     arch = server.get_one_value('arch', 's')
     if arch:
-        arch = "AND arch = '{}'".format(arch)
+        arch = "AND arch IN {}".format((arch, 'noarch'))
     else:
         arch = ''
 
@@ -589,6 +589,9 @@ def package_by_file():
     status, response = server.send_request()
     if status is False:
         return response
+
+    if not response:
+        return json.dumps({})
 
     ids_filename_dict = utils.tuple_to_dict(response)
 
