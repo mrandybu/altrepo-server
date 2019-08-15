@@ -646,7 +646,6 @@ def package_files():
     return json.dumps(js, sort_keys=False)
 
 
-# FIXME remove param 'branch' from task request
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
@@ -688,11 +687,10 @@ def dependent_packages():
         return utils.json_str_error(message)
 
     server.request_line = \
-        "SELECT DISTINCT sourcerpm FROM last_packages WHERE pkg.pkghash IN (" \
-        "SELECT pkghash FROM Depends WHERE {args}) AND " \
-        "assigment_name = '{branch}'".format(
-            branch=pbranch, args=" ".join(params_values)
-        )
+        "SELECT DISTINCT sourcerpm, epoch, serial_, disttag FROM " \
+        "last_packages WHERE pkg.pkghash IN (SELECT pkghash FROM " \
+        "Depends WHERE {args}) AND assigment_name = '{branch}'" \
+        "".format(branch=pbranch, args=" ".join(params_values))
 
     status, response = server.send_request()
     if status is False:
@@ -702,16 +700,17 @@ def dependent_packages():
     for fullname in response:
         if fullname[0]:
             reg = re.compile("(.*)-([0-9.]+)-(alt.*).src.rpm")
-            source_package_fullname.append(re.findall(reg, fullname[0])[0])
+            source_package_fullname.append(
+                re.findall(reg, fullname[0])[0] + fullname[1:]
+            )
 
     if not source_package_fullname:
         return json.dumps({})
 
-    # FIXME add epoch, serial, disttag
     server.request_line = \
-        "SELECT {p_params} FROM last_packages WHERE (name, version, release) " \
-        "IN {nvr} AND sourcepackage = 1 AND assigment_name = '{branch}'" \
-        "".format(
+        "SELECT {p_params} FROM last_packages WHERE (name, version, release, " \
+        "epoch, serial_, disttag) IN {nvr} AND sourcepackage = 1 AND " \
+        "assigment_name = '{branch}'".format(
             p_params=", ".join(server.package_params),
             nvr=utils.normalize_tuple(tuple(source_package_fullname)),
             branch=pbranch,
@@ -731,19 +730,6 @@ def broken_build():
     if check_params is not True:
         return check_params
 
-    input_params = {
-        'branch': {
-            'rname': 'name',
-            'type': 's',
-            'action': None,
-            'notempty': True,
-        },
-    }
-
-    params_values = server.get_values_by_params(input_params, True)
-    if params_values is False:
-        return json.dumps(server.helper(request.path))
-
     pname = server.get_one_value('name', 's')
     task_id = server.get_one_value('task', 'i')
 
@@ -757,7 +743,10 @@ def broken_build():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    pbranch = params_values['branch']
+    pbranch = server.get_one_value('branch', 's')
+    if pname and not pbranch:
+        return json.dumps(server.helper(request.path))
+
     arch = server.get_one_value('arch', 's')
 
     if pname:
@@ -765,21 +754,21 @@ def broken_build():
         if status is False:
             return pversion
 
-    # FIXME add release, epoch, serial, disttag
     if pname:
         server.request_line = \
-            "SELECT DISTINCT name, version, groupUniqArray(arch), " \
-            "assigment_name FROM last_packages WHERE name IN (SELECT " \
-            "DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
-            "DISTINCT name FROM last_packages WHERE sourcerpm IN (SELECT " \
-            "concat(name, '-', version, '-', release, '.src.rpm') FROM " \
-            "last_packages WHERE name = '{name}' AND sourcepackage = 1 AND " \
-            "assigment_name = '{branch}') AND assigment_name = '{branch}') " \
+            "SELECT DISTINCT name, version, release, epoch, serial_, disttag, " \
+            "assigment_name, groupUniqArray(arch) FROM last_packages WHERE " \
+            "name IN (SELECT DISTINCT pkgname FROM last_depends WHERE dpname " \
+            "IN (SELECT DISTINCT name FROM last_packages WHERE sourcerpm IN " \
+            "(SELECT concat(name, '-', version, '-', release, '.src.rpm') " \
+            "FROM last_packages WHERE name = '{name}' AND sourcepackage = 1 " \
+            "AND assigment_name = '{branch}') AND assigment_name = '{branch}') " \
             "AND sourcepackage = 1 AND assigment_name = '{branch}') AND " \
-            "assigment_name = '{branch}' GROUP BY (name, version, " \
-            "assigment_name)".format(name=pname, branch=pbranch)
+            "assigment_name = '{branch}' GROUP BY (name, version, release, " \
+            "epoch, serial_, disttag, assigment_name)".format(
+                name=pname, branch=pbranch
+            )
     else:
-        # FIXME not show packages that are in the task
         # binary packages in task
         server.request_line = \
             "SELECT pkgs FROM Tasks WHERE task_id = {}".format(task_id)
@@ -797,12 +786,14 @@ def broken_build():
 
         server.request_line = \
             "SELECT DISTINCT concat(name, '-', version, '-', release) AS " \
-            "fullname, assigment_name, groupUniqArray(arch) FROM " \
-            "last_packages WHERE pkg.pkghash IN (SELECT pkghash FROM Depends " \
-            "WHERE dpname IN (SELECT name FROM Package WHERE pkghash IN {bp})) " \
-            "AND assigment_name = '{branch}' {arch} GROUP BY " \
-            "(fullname, assigment_name)".format(
-                bp=binary_packages, branch=pbranch, arch='{arch}'
+            "fullname, epoch, serial_, disttag, assigment_name, " \
+            "groupUniqArray(arch) FROM last_packages WHERE pkg.pkghash IN (" \
+            "SELECT pkghash FROM Depends WHERE dpname IN (SELECT name FROM " \
+            "Package WHERE pkghash IN {bp})) AND assigment_name IN (" \
+            "SELECT branch FROM Tasks WHERE task_id = {task_id}) {arch} AND " \
+            "pkg.pkghash NOT IN {bp} GROUP BY (fullname, epoch, serial_, " \
+            "disttag, assigment_name)".format(
+                bp=binary_packages, branch=pbranch, arch='{arch}', task_id=task_id
             )
 
         if arch:
@@ -883,9 +874,10 @@ def broken_build():
         return json.dumps(result_dict, sort_keys=False)
 
     if pname:
-        js_keys = ['name', 'version', 'archs', 'branch']
+        js_keys = ['name', 'version', 'release', 'epoch', 'serial_',
+                   'disttag', 'branch', 'archs']
     else:
-        js_keys = ['fullname', 'branch', 'archs']
+        js_keys = ['fullname', 'epoch', 'serial_', 'disttag', 'branch', 'archs']
 
     return utils.convert_to_json(js_keys, response)
 
