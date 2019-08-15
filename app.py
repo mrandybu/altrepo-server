@@ -5,6 +5,7 @@ from db_connection import DBConnection
 import utils
 from utils import func_time
 from paths import paths
+from deps_sorting import SortList
 
 app = Flask(__name__)
 logger = utils.get_logger(__name__)
@@ -136,8 +137,11 @@ class LogicServer:
                 except:
                     value = False
             if type_ == 'b':
-                if value.lower() not in ['true', 'false']:
+                b_value = value.lower()
+                if b_value not in ['true', 'false'] or b_value == 'false':
                     value = False
+                else:
+                    value = True
             # type for using pattern in /package_by_file
             if type_ == 'r':
                 value = [el for el in value.split("'") if el][0]
@@ -811,6 +815,72 @@ def broken_build():
     status, response = server.send_request()
     if status is False:
         return response
+
+    sort = server.get_one_value('sort', 'b')
+    if sort:
+        packages_ls = [package[0] for package in response]
+
+        server.request_line = \
+            "SELECT pkghash, groupUniqArray(dpname) FROM last_depends WHERE " \
+            "pkghash IN (SELECT pkg.pkghash FROM last_packages WHERE " \
+            "name IN {pkgs} AND assigment_name = '{branch}' AND " \
+            "sourcepackage = 1) GROUP BY pkghash".format(
+                pkgs=tuple(packages_ls), branch=pbranch
+            )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pkgreqs = [list(req[1]) for req in response]
+        pkghashs = [phash[0] for phash in response]
+
+        server.request_line = \
+            "SELECT DISTINCT pkg.pkghash, name FROM last_packages WHERE " \
+            "pkg.pkghash IN {}".format(tuple(pkghashs))
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        hash_name_list = response
+
+        sorted_name_list = []
+        for phash in pkghashs:
+            for name in hash_name_list:
+                if phash == name[0]:
+                    sorted_name_list.append(name[1])
+
+        name_reqs_dict = {}
+        for i in range(len(pkgreqs)):
+            name_reqs_dict[sorted_name_list[i]] = pkgreqs[i]
+
+        sort = SortList(name_reqs_dict)
+        circle_deps, sorted_list = sort.sort_list()
+
+        circle_deps_dict = {}
+        for cdep in circle_deps:
+            if cdep[0] not in circle_deps_dict.keys():
+                circle_deps_dict[cdep[0]] = []
+            circle_deps_dict[cdep[0]].append(cdep[1])
+
+        for name, deps in circle_deps_dict.items():
+            for pac in sorted_list:
+                if pac == name:
+                    sorted_list[sorted_list.index(pac)] = (pac, deps)
+
+        reversed_list = []
+        for package in reversed(sorted_list):
+            reversed_list.append(package)
+
+        result_dict = {}
+        for package in reversed_list:
+            if isinstance(package, tuple):
+                result_dict[package[0]] = package[1]
+            else:
+                result_dict[package] = []
+
+        return json.dumps(result_dict, sort_keys=False)
 
     if pname:
         js_keys = ['name', 'version', 'archs', 'branch']
