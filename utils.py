@@ -73,6 +73,7 @@ def tuple_to_dict(tuple_):
     return dict_
 
 
+# FIXME if tuplelist is tuple
 def tuplelist_to_dict(tuplelist, num):
     result_dict = {}
     for tuple_ in tuplelist:
