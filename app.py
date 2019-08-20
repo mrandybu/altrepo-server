@@ -800,10 +800,10 @@ def broken_build():
             "fullname, epoch, serial_, disttag, assigment_name, " \
             "groupUniqArray(arch) FROM last_packages WHERE pkg.pkghash IN (" \
             "SELECT pkghash FROM Depends WHERE dpname IN (SELECT name FROM " \
-            "Package WHERE pkghash IN {bp})) AND assigment_name IN (" \
-            "SELECT branch FROM Tasks WHERE task_id = {task_id}) {arch} AND " \
-            "pkg.pkghash NOT IN {bp} GROUP BY (fullname, epoch, serial_, " \
-            "disttag, assigment_name)".format(
+            "Package WHERE pkghash IN {bp} AND sourcepackage = 1)) AND " \
+            "assigment_name IN (SELECT branch FROM Tasks WHERE " \
+            "task_id = {task_id}) {arch} AND pkg.pkghash NOT IN {bp} GROUP BY " \
+            "(fullname, epoch, serial_, disttag, assigment_name)".format(
                 bp=binary_packages, branch=pbranch, arch='{arch}', task_id=task_id
             )
 
