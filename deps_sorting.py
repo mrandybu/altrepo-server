@@ -75,10 +75,8 @@ class SortList:
 
         self._remove_reqs_out_of_list(packages_ls)
 
-        # reverse packages
-        normalize_req_list = {}
-        for key in packages_ls:
-            normalize_req_list[key] = []
+        # reverse (packages -> dependencies)
+        normalize_req_list = defaultdict(list)
 
         for key, val in self.package_reqs.items():
             for req in val:

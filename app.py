@@ -762,21 +762,20 @@ def broken_build():
     if pname:
         server.request_line = \
             "SELECT DISTINCT name, version, release, epoch, serial_ " \
-            "FROM last_packages WHERE name IN " \
-            "(SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
-            "(SELECT DISTINCT name FROM last_packages WHERE sourcerpm IN " \
-            "(SELECT filename FROM last_packages WHERE name IN " \
-            "(SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
-            "(SELECT DISTINCT name FROM last_packages WHERE sourcerpm IN " \
-            "(SELECT filename FROM last_packages WHERE name = '{name}' AND " \
-            "sourcepackage = 1 AND assigment_name = '{branch}') AND " \
-            "assigment_name = '{branch}' AND name NOT LIKE '%-debuginfo') " \
-            "AND sourcepackage = 1 AND assigment_name = '{branch}') " \
-            "AND assigment_name = '{branch}' AND sourcepackage = 1) " \
-            "AND name NOT LIKE '%-debuginfo' AND assigment_name = '{branch}') " \
-            "AND sourcepackage = 1 AND assigment_name = '{branch}') " \
-            "AND sourcepackage = 1 AND assigment_name = '{branch}'" \
-            "".format(name=pname, branch=pbranch)
+            "FROM last_packages WHERE name IN (SELECT DISTINCT pkgname FROM " \
+            "last_depends WHERE dpname IN (SELECT DISTINCT name FROM " \
+            "last_packages WHERE sourcerpm IN (SELECT filename FROM " \
+            "last_packages WHERE name IN (SELECT DISTINCT pkgname FROM " \
+            "last_depends WHERE dpname IN (SELECT DISTINCT name FROM " \
+            "last_packages WHERE sourcerpm IN (SELECT filename FROM " \
+            "last_packages WHERE name = '{name}' AND sourcepackage = 1 AND " \
+            "assigment_name = '{branch}') AND assigment_name = '{branch}' " \
+            "AND name NOT LIKE '%-debuginfo') AND sourcepackage = 1 AND " \
+            "assigment_name = '{branch}') AND assigment_name = '{branch}' " \
+            "AND sourcepackage = 1) AND name NOT LIKE '%-debuginfo' AND " \
+            "assigment_name = '{branch}') AND sourcepackage = 1 AND " \
+            "assigment_name = '{branch}') AND sourcepackage = 1 AND " \
+            "assigment_name = '{branch}'".format(name=pname, branch=pbranch)
     else:
         # binary packages in task
         server.request_line = \
@@ -821,26 +820,29 @@ def broken_build():
         server.request_line = \
             "SELECT Dps.pkgname, groupUniqArray(sourcepkgname) FROM " \
             "last_packages_with_source LEFT JOIN (SELECT * FROM last_depends " \
-            "WHERE (assigment_name = '{branch}') AND (pkgname NOT LIKE '%-debuginfo') " \
-            "AND (dptype = 'require') AND (sourcepackage = 1)) AS Dps ON Dps.dpname = name " \
-            "WHERE (name NOT LIKE '%-debuginfo') AND (assigment_name = '{branch}') " \
-            "AND (sourcepkghash IN (SELECT DISTINCT pkghash FROM last_depends WHERE " \
-            "(dpname IN (SELECT name FROM last_packages_with_source WHERE " \
-            "(assigment_name = '{branch}') AND (sourcepkgname IN " \
-            "(SELECT DISTINCT pkgname FROM last_depends WHERE (dpname IN " \
-            "(SELECT name FROM last_packages_with_source WHERE (assigment_name = '{branch}') " \
-            "AND (sourcepkgname = '{name}') AND (arch IN ('x86_64', 'noarch')) AND " \
-            "(name NOT LIKE '%-debuginfo'))) AND (assigment_name = '{branch}') AND " \
-            "(arch IN ('x86_64', 'noarch')) AND (dptype = 'require') AND (sourcepackage = 0) " \
-            "UNION ALL SELECT name FROM last_packages WHERE (assigment_name = '{branch}') " \
-            "AND (name = '{name}') AND (arch IN ('x86_64', 'noarch')) AND (sourcepackage = 1))) " \
-            "AND (arch IN ('x86_64', 'noarch')) AND (name NOT LIKE '%-debuginfo'))) AND " \
-            "(assigment_name = '{branch}') AND (arch IN ('x86_64', 'noarch')) AND " \
-            "(dptype = 'require') AND (sourcepackage = 1) UNION ALL SELECT pkghash FROM last_packages " \
-            "WHERE (assigment_name = '{branch}') AND (name = '{name}') AND (arch IN ('x86_64', 'noarch')) " \
-            "AND (sourcepackage = 1))) AND (arch IN ('x86_64', 'noarch')) AND " \
-            "(assigment_name = '{branch}') AND (pkgname != '') GROUP BY Dps.pkgname" \
-            "".format(branch=pbranch, name=pname)
+            "WHERE assigment_name = '{branch}' AND pkgname NOT LIKE " \
+            "'%-debuginfo' AND dptype = 'require' AND sourcepackage = 1) AS " \
+            "Dps ON Dps.dpname = name WHERE name NOT LIKE '%-debuginfo' AND " \
+            "assigment_name = '{branch}' AND sourcepkghash IN (SELECT DISTINCT " \
+            "pkghash FROM last_depends WHERE assigment_name = '{branch}' AND " \
+            "arch IN ('x86_64', 'noarch') AND dptype = 'require' AND " \
+            "sourcepackage = 1 AND dpname IN (SELECT DISTINCT name FROM " \
+            "last_packages_with_source WHERE sourcepkgname IN (SELECT DISTINCT " \
+            "pkgname FROM last_depends WHERE dpname IN (SELECT name FROM " \
+            "last_packages_with_source WHERE assigment_name = '{branch}' AND " \
+            "sourcepkgname = '{pkgname}' AND arch IN ('x86_64', 'noarch') AND " \
+            "name NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND " \
+            "arch IN ('x86_64', 'noarch') AND dptype = 'require' AND " \
+            "sourcepackage = 0 AND pkgname NOT LIKE '%-debuginfo' UNION ALL " \
+            "SELECT name FROM last_packages WHERE assigment_name = '{branch}' " \
+            "AND name = '{pkgname}' AND arch IN ('x86_64', 'noarch') AND " \
+            "sourcepackage = 1) AND assigment_name = '{branch}' AND arch IN " \
+            "('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') UNION ALL " \
+            "SELECT pkghash FROM last_packages WHERE assigment_name = '{branch}' " \
+            "AND name = '{pkgname}' AND arch IN ('x86_64', 'noarch') AND " \
+            "sourcepackage = 1) AND arch IN ('x86_64', 'noarch') AND " \
+            "assigment_name = '{branch}' AND pkgname != '' GROUP BY Dps.pkgname" \
+            "".format(branch=pbranch, pkgname=pname)
 
         status, response = server.send_request()
 
@@ -860,10 +862,10 @@ def broken_build():
         circle_deps = cleanup_circle_deps
 
         circle_deps_dict = {}
-        for cdep in circle_deps:
-            if cdep[0] not in circle_deps_dict.keys():
-                circle_deps_dict[cdep[0]] = []
-            circle_deps_dict[cdep[0]].append(cdep[1])
+        for c_dep in circle_deps:
+            if c_dep[0] not in circle_deps_dict.keys():
+                circle_deps_dict[c_dep[0]] = []
+            circle_deps_dict[c_dep[0]].append(c_dep[1])
 
         for name, deps in circle_deps_dict.items():
             for pac in sorted_list:
