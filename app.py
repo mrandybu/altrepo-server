@@ -839,7 +839,7 @@ def broken_build():
             "(dptype = 'require') AND (sourcepackage = 1) UNION ALL SELECT pkghash FROM last_packages " \
             "WHERE (assigment_name = '{branch}') AND (name = '{name}') AND (arch IN ('x86_64', 'noarch')) " \
             "AND (sourcepackage = 1))) AND (arch IN ('x86_64', 'noarch')) AND " \
-            "(assigment_name = 'Sisyphus') AND (pkgname != '') GROUP BY Dps.pkgname" \
+            "(assigment_name = '{branch}') AND (pkgname != '') GROUP BY Dps.pkgname" \
             "".format(branch=pbranch, name=pname)
 
         status, response = server.send_request()
@@ -849,20 +849,7 @@ def broken_build():
             reqs = [req for req in elem[1] if req != '']
             name_reqs_dict[elem[0]] = reqs
 
-        # name_reqs_dict[pname] = list(name_reqs_dict.keys())
-
-        key_array = list(name_reqs_dict.keys())
-
-        normal_name_reqs_dict = {}
-        for key in key_array:
-            normal_name_reqs_dict[key] = []
-
-        for key, val in name_reqs_dict.items():
-            for req in val:
-                if req != pname:
-                    normal_name_reqs_dict[req].append(key)
-
-        sort = SortList(normal_name_reqs_dict)
+        sort = SortList(name_reqs_dict, pname)
         circle_deps, sorted_list = sort.sort_list()
 
         cleanup_circle_deps = []
@@ -883,19 +870,12 @@ def broken_build():
                 if pac == name:
                     sorted_list[sorted_list.index(pac)] = (pac, deps)
 
-        '''n_sl = []
-        for i in reversed(sorted_list):
-            sorted_list.remove(i)
-            n_sl.append(i)'''
-
         result_dict = {}
         for package in sorted_list:
             if isinstance(package, tuple):
                 result_dict[package[0]] = package[1]
             else:
                 result_dict[package] = []
-
-        # del result_dict[pname]
 
         return json.dumps(result_dict, sort_keys=False)
 

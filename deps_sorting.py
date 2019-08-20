@@ -30,8 +30,9 @@ class Graph:
 
 
 class SortList:
-    def __init__(self, package_reqs):
+    def __init__(self, package_reqs, pkgname):
         self.package_reqs = package_reqs
+        self.pkgname = pkgname
 
     @staticmethod
     def _numbered_list(list_):
@@ -73,6 +74,18 @@ class SortList:
         packages_ls = list(self.package_reqs.keys())
 
         self._remove_reqs_out_of_list(packages_ls)
+
+        # reverse packages
+        normalize_req_list = {}
+        for key in packages_ls:
+            normalize_req_list[key] = []
+
+        for key, val in self.package_reqs.items():
+            for req in val:
+                if req != self.pkgname:
+                    normalize_req_list[req].append(key)
+
+        self.package_reqs = normalize_req_list
 
         circle_deps = self._search_circle_deps()
         for dep in circle_deps:
