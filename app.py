@@ -785,6 +785,9 @@ def broken_build():
         if status is False:
             return response
 
+        if not response:
+            return json.dumps({})
+
         binary_packages = ()
         for tp_package in response:
             for package in tp_package[0]:
