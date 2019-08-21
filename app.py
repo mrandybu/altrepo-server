@@ -728,6 +728,7 @@ def dependent_packages():
     return utils.convert_to_json(server.package_params, response)
 
 
+# FIXME needed optimization
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
@@ -800,22 +801,28 @@ def broken_build():
         binary_packages = utils.normalize_tuple(binary_packages)
 
         server.request_line = \
-            "SELECT srcname, vr, epoch, s_serial, assigment_name, " \
-            "groupUniqArray(arch) FROM (SELECT srcname, vr, epoch, s_serial, " \
-            "assigment_name, arch, sourcerpm AS filename FROM last_packages " \
-            "INNER JOIN (SELECT filename, name AS srcname, " \
+            "SELECT s_name, vr, epoch, s_serial, assigment_name, " \
+            "groupUniqArray(arch) FROM (SELECT arch, sourcerpm AS filename, " \
+            "s_name, vr, epoch, s_serial, assigment_name FROM last_packages " \
+            "INNER JOIN (SELECT filename, name AS s_name, " \
             "concat(version, release) AS vr, epoch, serial_ AS s_serial, " \
-            "assigment_name FROM last_packages WHERE pkg.pkghash IN (SELECT " \
-            "pkghash FROM last_depends WHERE dpname IN (SELECT name FROM " \
-            "Package WHERE pkghash IN {bp}) AND sourcepackage = 1 AND " \
+            "assigment_name FROM last_packages WHERE name IN (SELECT " \
+            "DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT name " \
+            "FROM last_packages WHERE sourcerpm IN (SELECT filename FROM " \
+            "last_packages WHERE name IN (SELECT DISTINCT pkgname FROM " \
+            "last_depends WHERE dpname IN (SELECT name FROM Package WHERE " \
+            "pkghash IN {bp}) AND sourcepackage = 1 AND assigment_name IN (" \
+            "SELECT branch FROM Tasks WHERE task_id = {t_id})) AND " \
             "assigment_name IN (SELECT branch FROM Tasks WHERE " \
             "task_id = {t_id})) AND assigment_name IN (SELECT branch FROM " \
-            "Tasks WHERE task_id = {t_id})) USING filename WHERE " \
-            "assigment_name IN (SELECT branch FROM Tasks WHERE " \
-            "task_id = {t_id}) {arch}) GROUP BY (srcname, vr, epoch, " \
-            "s_serial, assigment_name)".format(
-                bp=binary_packages, t_id=task_id, arch='{arch}'
-            )
+            "Tasks WHERE task_id = {t_id}) AND name NOT LIKE '%-debuginfo') " \
+            "AND assigment_name IN (SELECT branch FROM Tasks WHERE " \
+            "task_id = {t_id}) AND sourcepackage = 1) AND assigment_name IN " \
+            "(SELECT branch FROM Tasks WHERE task_id = {t_id}) AND " \
+            "sourcepackage = 1) USING filename WHERE assigment_name IN (" \
+            "SELECT branch FROM Tasks WHERE task_id = {t_id}) {arch}) " \
+            "GROUP BY (s_name, vr, epoch, s_serial, assigment_name)" \
+            "".format(bp=binary_packages, t_id=task_id, arch='{arch}')
 
         if arch:
             server.request_line = server.request_line.format(
