@@ -753,6 +753,10 @@ def broken_build():
         return json.dumps(server.helper(request.path))
 
     arch = server.get_one_value('arch', 's')
+    if arch:
+        arch = [arch]
+        if 'noarch' not in arch:
+            arch.append('noarch')
 
     if pname:
         status, pversion = server.get_last_version(pname, pbranch)
@@ -796,22 +800,26 @@ def broken_build():
         binary_packages = utils.normalize_tuple(binary_packages)
 
         server.request_line = \
-            "SELECT concat(name, version, release) AS fullname, epoch, " \
-            "serial_, disttag, assigment_name, groupUniqArray(arch) FROM " \
-            "last_packages WHERE sourcerpm IN (SELECT DISTINCT filename " \
-            "FROM last_packages WHERE pkg.pkghash IN (SELECT pkghash FROM " \
-            "last_depends WHERE dpname IN (SELECT name FROM Package WHERE " \
-            "pkghash IN {bp}) AND assigment_name IN (SELECT branch FROM " \
-            "Tasks WHERE task_id = {t_id}) AND sourcepackage = 1)) AND " \
+            "SELECT srcname, vr, epoch, s_serial, assigment_name, " \
+            "groupUniqArray(arch) FROM (SELECT srcname, vr, epoch, s_serial, " \
+            "assigment_name, arch, sourcerpm AS filename FROM last_packages " \
+            "INNER JOIN (SELECT filename, name AS srcname, " \
+            "concat(version, release) AS vr, epoch, serial_ AS s_serial, " \
+            "assigment_name FROM last_packages WHERE pkg.pkghash IN (SELECT " \
+            "pkghash FROM last_depends WHERE dpname IN (SELECT name FROM " \
+            "Package WHERE pkghash IN {bp}) AND sourcepackage = 1 AND " \
             "assigment_name IN (SELECT branch FROM Tasks WHERE " \
-            "task_id = {t_id}) {arch} GROUP BY (fullname, epoch, serial_, " \
-            "disttag, assigment_name)".format(
+            "task_id = {t_id})) AND assigment_name IN (SELECT branch FROM " \
+            "Tasks WHERE task_id = {t_id})) USING filename WHERE " \
+            "assigment_name IN (SELECT branch FROM Tasks WHERE " \
+            "task_id = {t_id}) {arch}) GROUP BY (srcname, vr, epoch, " \
+            "s_serial, assigment_name)".format(
                 bp=binary_packages, t_id=task_id, arch='{arch}'
             )
 
         if arch:
             server.request_line = server.request_line.format(
-                arch="AND arch = '{}'".format(arch)
+                arch="AND arch IN {}".format(utils.normalize_tuple(arch))
             )
         else:
             server.request_line = server.request_line.format(arch='')
@@ -822,6 +830,9 @@ def broken_build():
 
     sort = server.get_one_value('sort', 'b')
     if sort:
+        if not pname:
+            return utils.json_str_error("With 'name' parameter only.")
+
         server.request_line = \
             "SELECT Dps.pkgname, groupUniqArray(sourcepkgname) FROM " \
             "last_packages_with_source LEFT JOIN (SELECT * FROM last_depends " \
@@ -892,7 +903,7 @@ def broken_build():
         for package in response:
             response[response.index(package)] = package + (pbranch,)
     else:
-        js_keys = ['fullname', 'epoch', 'serial_', 'disttag', 'branch', 'archs']
+        js_keys = ['name', 'version', 'epoch', 'serial', 'branch', 'archs']
 
     return utils.convert_to_json(js_keys, response)
 
