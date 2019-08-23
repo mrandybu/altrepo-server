@@ -13,6 +13,10 @@ logger = utils.get_logger(__name__)
 class LogicServer:
     def __init__(self, request_line=None):
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
+        self.known_archs = ['x86_64', 'noarch', 'x86_64-i586', 'armh', 'arm',
+                            'i586', 'pentium4', 'athlon', 'pentium3', 'i686',
+                            'armv5tel', 'k6', 'aarch64', 'ppc64le', 'e2kv4',
+                            'e2k', 'mipsel']
         self.package_params = [
             'pkgcs', 'packager', 'packager_email', 'name', 'arch', 'version',
             'release', 'epoch', 'serial_', 'buildtime', 'buildhost', 'size',
@@ -419,7 +423,6 @@ def package_info():
     return json.dumps(json_retval, sort_keys=False)
 
 
-# FIXME needed optimization
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
@@ -435,18 +438,17 @@ def conflict_packages():
     if not pname or not pbranch:
         return json.dumps(server.helper(request.path))
 
-    allowed_archs = ('noarch',)
-    filter_archs = ''
+    allowed_archs = server.known_archs
     parchs = server.get_one_value('arch', 's')
     if parchs:
-        for arch in parchs.split(','):
-            if arch not in allowed_archs:
-                allowed_archs += (arch,)
+        parchs = parchs.split(',')
 
-        filter_archs = "WHERE arch IN {}".format(allowed_archs)
+        if 'noarch' in parchs and len(parchs) == 1:
+            allowed_archs = tuple(server.known_archs)
+        else:
+            allowed_archs = parchs
 
-    else:
-        allowed_archs += ('x86_64',)
+    allowed_archs = utils.normalize_tuple(allowed_archs)
 
     # detect version
     pversion = server.get_one_value('version', 's')
@@ -455,34 +457,72 @@ def conflict_packages():
         if status is False:
             return pversion
 
+    # packages with ident files
     server.request_line = \
-        "SELECT name, version, release, groupUniqArray(arch), filelist FROM " \
-        "(SELECT name, version, release, arch, groupUniqArray(pkgfile) AS " \
-        "filelist FROM (SELECT pkg.pkghash AS hsh, name, version, release, " \
-        "arch, pkgfile FROM last_packages INNER JOIN (SELECT pkghash AS hsh, " \
-        "filename AS pkgfile FROM File WHERE filename IN (SELECT filename " \
-        "FROM File WHERE pkghash IN (SELECT pkg.pkghash FROM last_packages " \
-        "WHERE name = '{name}' AND assigment_name = '{branch}' AND " \
-        "sourcepackage = 0 AND arch IN {archs}) AND fileclass != 'directory')) " \
-        "USING hsh WHERE assigment_name = '{branch}' AND sourcepackage = 0 AND " \
-        "name != '{name}' AND hsh NOT IN (SELECT pkghash FROM last_depends " \
-        "WHERE dpname = '{name}' AND (dpversion LIKE '{vers}-%' OR dpversion " \
-        "LIKE '%:{vers}-%' OR dpversion = '') AND assigment_name = '{branch}' " \
-        "AND dptype = 'conflict' AND sourcepackage = 0) AND name NOT IN (" \
-        "SELECT dpname FROM last_depends WHERE pkgname = 'postgresql10' AND " \
-        "dptype = 'conflict' AND assigment_name = '{branch}' AND " \
-        "sourcepackage = 0)) GROUP BY (name, version, release, arch)) " \
-        "{filter_archs} GROUP BY (name, version, release, filelist)".format(
-            name=pname, vers=pversion, branch=pbranch, archs=allowed_archs,
-            filter_archs=filter_archs
+        "SELECT pkghash, groupUniqArray(filename) FROM File WHERE hashname IN (" \
+        "SELECT hashname FROM File WHERE pkghash IN (SELECT pkg.pkghash FROM " \
+        "last_packages WHERE name = '{name}' AND assigment_name = '{branch}' " \
+        "AND sourcepackage = 0 LIMIT 1) AND fileclass != 'directory') GROUP BY " \
+        "pkghash".format(name=pname, branch=pbranch)
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    if not response:
+        return json.dumps({})
+
+    package_files_dict = {}
+    for package in response:
+        package_files_dict[package[0]] = list(package[1])
+
+    pkghashs = tuple(package_files_dict.keys())
+
+    # conflict packages
+    server.request_line = \
+        "SELECT pkg.pkghash, name, version, release, arch, assigment_name " \
+        "FROM last_packages WHERE pkg.pkghash IN {pkgs} AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN " \
+        "{archs} AND pkg.pkghash NOT IN (SELECT pkghash FROM last_depends " \
+        "WHERE dpname = '{name}' AND dptype = 'conflict' AND (dpversion LIKE " \
+        "'{vers}-%' OR dpversion LIKE '%:{vers}-%' OR dpversion = '') AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN " \
+        "{archs}) AND pkg.pkghash NOT IN (SELECT pkg.pkghash FROM " \
+        "last_packages WHERE name IN (SELECT dpname FROM last_depends WHERE " \
+        "pkgname = '{name}' AND dptype = 'conflict' AND assigment_name = " \
+        "'{branch}' AND arch IN {archs} AND sourcepackage = 0) AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN {archs})" \
+        "".format(
+            name=pname, branch=pbranch, vers=pversion, archs=allowed_archs,
+            pkgs=pkghashs
         )
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    return utils.convert_to_json(['name', 'version', 'release', 'archs',
-                                  'files_with_conflict'], response)
+    for package in response:
+        idx = response.index(package)
+        package = list(package)
+        package.append(package_files_dict[package[0]])
+        response[idx] = package[1:]
+
+    result_list = []
+    for package in response:
+        name, archs = package[0], []
+        for arch in response:
+            if arch[0] == name:
+                archs.append(arch[3])
+
+        result = [
+            package[0], package[1], package[2], archs, package[4], package[5]
+        ]
+
+        if result not in result_list:
+            result_list.append(result)
+
+    return utils.convert_to_json(['name', 'version', 'release', 'archs', 'branch',
+                                  'files_with_conflict'], result_list)
 
 
 @app.route('/package_by_file')
