@@ -732,16 +732,34 @@ def broken_build():
             "FROM last_packages_with_source WHERE assigment_name = '{branch}' " \
             "AND sourcepkgname = '{pkgname}' AND arch IN {arch} AND name " \
             "NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND " \
-            "arch IN {arch} AND dptype = 'require' AND sourcepackage = 0 AND " \
-            "pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT name FROM " \
+            "arch IN {arch} AND dptype = 'require' AND sourcepackage IN (0,1) " \
+            "AND pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT name FROM " \
             "last_packages WHERE assigment_name = '{branch}' AND name = " \
             "'{pkgname}' AND arch IN {arch} AND sourcepackage = 1) AND " \
             "assigment_name = '{branch}' AND arch IN {arch} AND name NOT LIKE " \
             "'%-debuginfo') UNION ALL SELECT pkghash FROM last_packages WHERE " \
             "assigment_name = '{branch}' AND name = '{pkgname}' AND arch IN " \
             "{arch} AND sourcepackage = 1) AND arch IN {arch} AND " \
-            "assigment_name = '{branch}' AND pkgname != '' GROUP BY " \
-            "Dps.pkgname".format(branch=pbranch, pkgname=pname, arch=tuple(arch))
+            "assigment_name = '{branch}' AND notEmpty(pkgname) AND Dps.pkghash " \
+            "IN (SELECT DISTINCT pkghash FROM last_depends WHERE " \
+            "assigment_name = '{branch}' AND arch IN {arch} AND " \
+            "dptype = 'require' AND sourcepackage = 1 AND dpname IN (SELECT " \
+            "DISTINCT name FROM last_packages_with_source WHERE sourcepkgname " \
+            "IN (SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (" \
+            "SELECT name FROM last_packages_with_source WHERE " \
+            "assigment_name = '{branch}' AND sourcepkgname = '{pkgname}' AND " \
+            "arch IN {arch} AND name NOT LIKE '%-debuginfo') AND " \
+            "assigment_name = '{branch}' AND arch IN {arch} AND " \
+            "dptype = 'require' AND sourcepackage IN (0,1) AND pkgname NOT " \
+            "LIKE '%-debuginfo' UNION ALL SELECT name FROM last_packages WHERE " \
+            "assigment_name = '{branch}' AND name = '{pkgname}' AND arch IN " \
+            "{arch} AND sourcepackage = 1) AND assigment_name = '{branch}' AND " \
+            "arch IN {arch} AND name NOT LIKE '%-debuginfo') UNION ALL SELECT " \
+            "pkghash FROM last_packages WHERE assigment_name = '{branch}' AND " \
+            "name = '{pkgname}' AND arch IN {arch} AND sourcepackage = 1) " \
+            "GROUP BY Dps.pkgname".format(
+                branch=pbranch, pkgname=pname, arch=tuple(arch)
+            )
 
         status, response = server.send_request()
         if status is False:
