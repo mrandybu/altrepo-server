@@ -841,22 +841,25 @@ def broken_build():
         input_pkgs = utils.normalize_tuple((pname,))
 
     server.request_line = \
-        "SELECT DISTINCT name, version, release, epoch, serial_, filename, " \
-        "assigment_name, groupUniqArray(arch) FROM last_packages WHERE name " \
-        "IN (SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (" \
-        "SELECT DISTINCT name FROM last_packages WHERE sourcerpm IN (SELECT " \
-        "filename FROM last_packages WHERE name IN (SELECT DISTINCT pkgname " \
+        "SELECT DISTINCT pkgname, version, release, epoch, serial_, " \
+        "sourcerpm AS filename, assigment_name, groupUniqArray(arch) " \
+        "FROM last_packages INNER JOIN (SELECT DISTINCT pkgname, filename " \
         "FROM last_depends WHERE dpname IN (SELECT DISTINCT name FROM " \
         "last_packages WHERE sourcerpm IN (SELECT filename FROM last_packages " \
-        "WHERE name IN {name} AND sourcepackage = 1 AND assigment_name = " \
-        "'{branch}') AND assigment_name = '{branch}' AND name NOT LIKE " \
-        "'%-debuginfo') AND sourcepackage = 1 AND assigment_name = '{branch}') " \
-        "AND assigment_name = '{branch}' AND sourcepackage = 1) AND name " \
-        "NOT LIKE '%-debuginfo' AND assigment_name = '{branch}') AND " \
+        "WHERE name IN (SELECT DISTINCT pkgname FROM last_depends WHERE " \
+        "dpname IN (SELECT DISTINCT name FROM last_packages WHERE sourcerpm " \
+        "IN (SELECT filename FROM last_packages WHERE name IN {name} AND " \
         "sourcepackage = 1 AND assigment_name = '{branch}') AND " \
-        "sourcepackage = 1 AND assigment_name = '{branch}' {arch} GROUP BY (" \
-        "name, version, release, epoch, serial_, filename, assigment_name)" \
-        "".format(name=input_pkgs, branch=pbranch, arch='{arch}')
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND name NOT LIKE " \
+        "'%-debuginfo') AND sourcepackage = 1 AND assigment_name = '{branch}') " \
+        "AND assigment_name = '{branch}' AND sourcepackage = 1) AND " \
+        "assigment_name = '{branch}' AND name NOT LIKE '%-debuginfo' AND " \
+        "sourcepackage = 0) AND sourcepackage = 1 AND assigment_name = " \
+        "'{branch}') USING filename WHERE assigment_name = '{branch}' AND " \
+        "sourcepackage = 0 {arch} GROUP BY (pkgname, version, release, epoch, " \
+        "serial_, filename, assigment_name)".format(
+            name=input_pkgs, branch=pbranch, arch='{arch}'
+        )
 
     if arch:
         server.request_line = server.request_line.format(
