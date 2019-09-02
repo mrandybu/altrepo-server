@@ -93,7 +93,8 @@ class LogicServer:
                     'name': 'name of source package',
                     'task': "task id (can't used with 'name')",
                     'branch': '',
-                    'sort': '/beta/ for sort by dependencies',
+                    'sort': 'for sort by dependencies',
+                    'leaf': "show assembly dependency chain (only with 'sort')",
                 }
             }
         }

@@ -78,7 +78,8 @@ Request parameters:
 * name - name of source package
 * task - task id (can't used with 'name')
 * branch (* - only 'name')
-* sort - /beta/ for sort by dependencies
+* sort - for sort by dependencies
+* leaf - show assembly dependency chain (only with 'sort')
 
 \* - require parameters
 
@@ -191,3 +192,5 @@ formatted mapping is convenient to use jq utility.
 #### /what_depends_src
 
 	curl "http://apphost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
+	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&sort=true" | jq
+	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&sort=true&leaf=dune" | jq
