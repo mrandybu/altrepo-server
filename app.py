@@ -1,5 +1,6 @@
 from urllib.parse import unquote
 from flask import Flask, request, json
+from collections import defaultdict
 from db_connection import DBConnection
 import utils
 from utils import func_time
@@ -713,6 +714,10 @@ def broken_build():
     if sort and task_id:
         return utils.json_str_error("With 'name' parameter only.")
 
+    leaf = server.get_one_value('leaf', 's')
+    if leaf and not sort:
+        return utils.json_str_error("With 'sort' parameter only.")
+
     if sort:
         if not arch:
             arch = ('x86_64', 'noarch')
@@ -770,6 +775,14 @@ def broken_build():
             reqs = [req for req in elem[1] if req != '']
             name_reqs_dict[elem[0]] = reqs
 
+        if leaf:
+            if leaf not in name_reqs_dict.keys():
+                return utils.json_str_error(
+                    "Package '{}' not in dependencies list.".format(leaf)
+                )
+            else:
+                leaf_deps = name_reqs_dict[leaf]
+
         sort = SortList(name_reqs_dict, pname)
         circle_deps, sorted_list = sort.sort_list()
 
@@ -797,6 +810,23 @@ def broken_build():
                 result_dict[package[0]] = package[1]
             else:
                 result_dict[package] = []
+
+        if leaf:
+            result_dict_leaf = defaultdict(list)
+            result_dict_leaf[pname] = []
+
+            for package, c_deps in result_dict.items():
+                if package in leaf_deps:
+                    if c_deps:
+                        for dep in c_deps:
+                            if dep in leaf_deps:
+                                result_dict_leaf[package].append(dep)
+                    else:
+                        result_dict_leaf[package] = []
+
+            result_dict_leaf[leaf] = []
+
+            result_dict = result_dict_leaf
 
         return json.dumps(result_dict, sort_keys=False)
 
