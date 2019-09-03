@@ -133,7 +133,7 @@ class LogicServer:
 
         if value:
             # fixed err when package name contains '+'
-            if param == 'name':
+            if param == 'name' or param == 'file':
                 value = value.replace(' ', '+')
 
             if type_ == 's':
