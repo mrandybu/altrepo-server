@@ -858,7 +858,7 @@ def broken_build():
             "dpname WHERE assigment_name = '{branch}' AND sourcepackage = 0)) " \
             "USING sourcerpm WHERE assigment_name = '{branch}' AND " \
             "sourcepackage = 1) GROUP BY (pkgname)".format(
-                pkgs=requires_list, branch=pbranch
+                pkgs=tuple(requires_list), branch=pbranch
             )
 
         status, response = server.send_request()
