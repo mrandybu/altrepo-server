@@ -73,15 +73,12 @@ class SortList:
     def sort_list(self):
         packages_ls = list(self.package_reqs.keys())
 
-        self._remove_reqs_out_of_list(packages_ls)
-
         # reverse (packages -> dependencies)
         normalize_req_list = defaultdict(list)
 
         for key, val in self.package_reqs.items():
             for req in val:
-                if req != self.pkgname:
-                    normalize_req_list[req].append(key)
+                normalize_req_list[req].append(key)
 
         self.package_reqs = normalize_req_list
 

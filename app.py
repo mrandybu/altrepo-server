@@ -461,11 +461,15 @@ def conflict_packages():
 
     # packages with ident files
     server.request_line = \
-        "SELECT pkghash, groupUniqArray(filename) FROM File WHERE hashname IN (" \
-        "SELECT hashname FROM File WHERE pkghash IN (SELECT pkg.pkghash FROM " \
-        "last_packages WHERE name = '{name}' AND assigment_name = '{branch}' " \
-        "AND sourcepackage = 0 LIMIT 1) AND fileclass != 'directory') GROUP BY " \
-        "pkghash".format(name=pname, branch=pbranch)
+        "SELECT pkghash, groupUniqArray(filename) FROM File WHERE pkghash IN " \
+        "(SELECT pkg.pkghash FROM last_packages WHERE pkg.pkghash IN (SELECT " \
+        "DISTINCT pkghash FROM File WHERE hashname IN (SELECT hashname FROM " \
+        "File WHERE pkghash IN (SELECT pkg.pkghash FROM last_packages WHERE " \
+        "name = '{name}' AND assigment_name = '{branch}' AND sourcepackage = 0 " \
+        "LIMIT 1))) AND assigment_name = '{branch}' AND sourcepackage = 0 AND " \
+        "arch IN {arch} AND name != '{name}') GROUP BY pkghash".format(
+            name=pname, branch=pbranch, arch=allowed_archs
+        )
 
     status, response = server.send_request()
     if status is False:
@@ -759,44 +763,6 @@ def broken_build():
     else:
         input_pkgs = utils.normalize_tuple((pname,))
 
-    server.request_line = \
-        "SELECT name, version, release, epoch, serial_, filename, " \
-        "assigment_name, groupUniqArray(bin_arch) FROM (SELECT name, version, " \
-        "release, epoch, serial_, filename, assigment_name, pkghash, bin_arch " \
-        "FROM last_packages INNER JOIN (SELECT sourcepkghash AS pkghash, " \
-        "arch AS bin_arch FROM last_packages_with_source WHERE sourcepkghash " \
-        "IN (SELECT DISTINCT pkghash FROM last_depends WHERE dpname IN (SELECT " \
-        "DISTINCT name FROM last_packages_with_source WHERE sourcepkgname IN (" \
-        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
-        "name FROM last_packages_with_source WHERE sourcepkgname IN {pkgs} " \
-        "AND assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-        "name NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND " \
-        "sourcepackage IN (0, 1) AND arch IN ('x86_64', 'noarch') AND " \
-        "dptype = 'require' AND pkgname NOT LIKE '%-debuginfo' UNION ALL " \
-        "SELECT name FROM last_packages WHERE name IN {pkgs} AND " \
-        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-        "sourcepackage = 1) AND assigment_name = '{branch}' AND arch IN " \
-        "('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') AND " \
-        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-        "dptype = 'require' AND sourcepackage = 1 UNION ALL SELECT pkghash " \
-        "FROM last_packages WHERE name IN {pkgs} AND " \
-        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-        "sourcepackage = 1) AND assigment_name = '{branch}' {arch}) USING " \
-        "pkghash WHERE assigment_name = '{branch}' AND sourcepackage = 1) " \
-        "GROUP BY (name, version, release, epoch, serial_, filename, " \
-        "assigment_name)".format(pkgs=input_pkgs, branch=pbranch, arch='{arch}')
-
-    if arch:
-        server.request_line = server.request_line.format(
-            arch="AND arch IN {}".format(utils.normalize_tuple(arch))
-        )
-    else:
-        server.request_line = server.request_line.format(arch='')
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
     if sort:
 
         deep_level = server.get_one_value('deep', 'i')
@@ -804,39 +770,41 @@ def broken_build():
             deep_level = 0
 
         base_query = \
-            "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
-            "name FROM last_packages_with_source WHERE sourcepkgname = '{name}' " \
-            "AND assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-            "name NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND " \
-            "sourcepackage IN {srcpkg} AND arch IN ('x86_64', 'noarch') AND " \
-            "dptype = 'require' AND pkgname NOT LIKE '%-debuginfo' UNION ALL " \
-            "SELECT name FROM last_packages WHERE name = '{name}' AND " \
-            "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-            "sourcepackage = 1".format(name=pname, branch=pbranch, srcpkg='{srcpkg}')
+            "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
+            "(SELECT name FROM last_packages_with_source WHERE " \
+            "sourcepkgname = '{name}' AND assigment_name = '{branch}' AND " \
+            "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
+            "AND assigment_name = '{branch}' AND sourcepackage = 1 AND " \
+            "pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT name FROM " \
+            "last_packages WHERE name = '{name}' AND assigment_name = " \
+            "'{branch}' AND sourcepackage = 1".format(name=pname, branch=pbranch)
 
         deep_wrapper = \
-            "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
-            "DISTINCT name FROM last_packages_with_source WHERE sourcepkgname IN ({b_q}) " \
-            "AND assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-            "name NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND arch IN " \
-            "('x86_64', 'noarch') AND dptype = 'require' AND sourcepackage = 1 " \
-            "UNION ALL SELECT name FROM last_packages WHERE name = '{name}' AND " \
-            "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
-            "sourcepackage = 1".format(b_q='{b_q}', name=pname, branch=pbranch)
+            "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
+            "(SELECT DISTINCT name FROM last_packages_with_source WHERE " \
+            "sourcepkgname IN ({b_q}) AND assigment_name = '{branch}' AND " \
+            "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
+            "AND assigment_name = '{branch}' AND dptype = 'require' AND " \
+            "sourcepackage = 1".format(branch=pbranch, b_q='{b_q}')
 
         if deep_level == 0:
-            server.request_line = base_query.format(srcpkg=utils.normalize_tuple((1,)))
+            server.request_line = base_query
         else:
 
             if deep_level > 2:
                 return utils.json_str_error("Deep cannot exceed 2")
 
-            base_query = base_query.format(srcpkg=(0, 1))
-
             server.request_line = deep_wrapper.format(b_q=base_query)
 
+            server.request_line = "SELECT DISTINCT pkgname FROM ({} UNION ALL {})" \
+                                  "".format(server.request_line, base_query)
+
             if deep_level == 2:
+                pre_query = server.request_line
                 server.request_line = deep_wrapper.format(b_q=server.request_line)
+
+                server.request_line = "SELECT DISTINCT pkgname FROM ({} UNION ALL {})" \
+                                      "".format(server.request_line, pre_query)
 
         status, response = server.send_request()
         if status is False:
@@ -849,15 +817,19 @@ def broken_build():
             requires_list.append(require[0])
 
         server.request_line = \
-            "SELECT pkgname, groupUniqArray(name) FROM (SELECT pkgname, " \
-            "filename AS sourcerpm, name FROM last_packages INNER JOIN (" \
-            "SELECT DISTINCT pkgname, sourcerpm FROM (SELECT pkgname, " \
-            "name AS dpname, sourcerpm FROM last_packages INNER JOIN (" \
-            "SELECT pkgname, dpname FROM last_depends WHERE pkgname IN {pkgs} " \
-            "AND assigment_name = '{branch}' AND dptype = 'require') USING " \
-            "dpname WHERE assigment_name = '{branch}' AND sourcepackage = 0)) " \
-            "USING sourcerpm WHERE assigment_name = '{branch}' AND " \
-            "sourcepackage = 1) GROUP BY (pkgname)".format(
+            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> x != BinDeps.pkgname, " \
+            "groupUniqArray(sourcepkgname)) AS srcarray " \
+            "FROM (SELECT DISTINCT BinDeps.pkgname, name AS pkgname, " \
+            "sourcepkgname FROM last_packages_with_source INNER JOIN (SELECT " \
+            "DISTINCT BinDeps.pkgname, pkgname FROM (SELECT DISTINCT " \
+            "BinDeps.pkgname, pkgname, dpname FROM last_depends INNER JOIN " \
+            "(SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname " \
+            "IN {pkgs} AND assigment_name = '{branch}' AND dptype = 'require') " \
+            "AS BinDeps USING dpname WHERE assigment_name = '{branch}' AND " \
+            "dptype = 'provide' AND sourcepackage = 0 AND arch IN ('x86_64', " \
+            "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' ORDER BY " \
+            "sourcepkgname) WHERE sourcepkgname IN {pkgs} GROUP BY " \
+            "BinDeps.pkgname ORDER BY length(srcarray)".format(
                 pkgs=tuple(requires_list), branch=pbranch
             )
 
@@ -868,15 +840,17 @@ def broken_build():
             reqs = [req for req in elem[1] if req != '']
             name_reqs_dict[elem[0]] = reqs
 
+        name_reqs_dict_cleanup = name_reqs_dict
+
         if leaf:
-            if leaf not in name_reqs_dict.keys():
+            if leaf not in name_reqs_dict_cleanup.keys():
                 return utils.json_str_error(
                     "Package '{}' not in dependencies list.".format(leaf)
                 )
             else:
-                leaf_deps = name_reqs_dict[leaf]
+                leaf_deps = name_reqs_dict_cleanup[leaf]
 
-        sort = SortList(name_reqs_dict, pname)
+        sort = SortList(name_reqs_dict_cleanup, pname)
         circle_deps, sorted_list = sort.sort_list()
 
         cleanup_circle_deps = []
@@ -923,9 +897,54 @@ def broken_build():
 
             result_dict = result_dict_leaf
 
-        del result_dict[pname]
+        '''new_dict = {}
+        for package in result_dict.keys():
+            cleanup_reqs = []
+            for req in name_reqs_dict_cleanup[package]:
+                if req in result_dict.keys():
+                    cleanup_reqs.append(req)
+            new_dict[package] = cleanup_reqs
 
+        return json.dumps(new_dict, sort_keys=False)'''
         return json.dumps(result_dict, sort_keys=False)
+
+    server.request_line = \
+        "SELECT name, version, release, epoch, serial_, filename, " \
+        "assigment_name, groupUniqArray(bin_arch) FROM (SELECT name, version, " \
+        "release, epoch, serial_, filename, assigment_name, pkghash, bin_arch " \
+        "FROM last_packages INNER JOIN (SELECT sourcepkghash AS pkghash, " \
+        "arch AS bin_arch FROM last_packages_with_source WHERE sourcepkghash " \
+        "IN (SELECT DISTINCT pkghash FROM last_depends WHERE dpname IN (SELECT " \
+        "DISTINCT name FROM last_packages_with_source WHERE sourcepkgname IN (" \
+        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN (SELECT " \
+        "name FROM last_packages_with_source WHERE sourcepkgname IN {pkgs} " \
+        "AND assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
+        "name NOT LIKE '%-debuginfo') AND assigment_name = '{branch}' AND " \
+        "sourcepackage IN (0, 1) AND arch IN ('x86_64', 'noarch') AND " \
+        "dptype = 'require' AND pkgname NOT LIKE '%-debuginfo' UNION ALL " \
+        "SELECT name FROM last_packages WHERE name IN {pkgs} AND " \
+        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
+        "sourcepackage = 1) AND assigment_name = '{branch}' AND arch IN " \
+        "('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') AND " \
+        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
+        "dptype = 'require' AND sourcepackage = 1 UNION ALL SELECT pkghash " \
+        "FROM last_packages WHERE name IN {pkgs} AND " \
+        "assigment_name = '{branch}' AND arch IN ('x86_64', 'noarch') AND " \
+        "sourcepackage = 1) AND assigment_name = '{branch}' {arch}) USING " \
+        "pkghash WHERE assigment_name = '{branch}' AND sourcepackage = 1) " \
+        "GROUP BY (name, version, release, epoch, serial_, filename, " \
+        "assigment_name)".format(pkgs=input_pkgs, branch=pbranch, arch='{arch}')
+
+    if arch:
+        server.request_line = server.request_line.format(
+            arch="AND arch IN {}".format(utils.normalize_tuple(arch))
+        )
+    else:
+        server.request_line = server.request_line.format(arch='')
+
+    status, response = server.send_request()
+    if status is False:
+        return response
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
                'branch', 'archs']
