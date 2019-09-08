@@ -812,12 +812,12 @@ def broken_build():
 
         # get requires
 
-        requires_list = []
+        requires_list = ['']
         for require in response:
             requires_list.append(require[0])
 
         server.request_line = \
-            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> x != BinDeps.pkgname, " \
+            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != BinDeps.pkgname AND notEmpty(x)), " \
             "groupUniqArray(sourcepkgname)) AS srcarray " \
             "FROM (SELECT DISTINCT BinDeps.pkgname, name AS pkgname, " \
             "sourcepkgname FROM last_packages_with_source INNER JOIN (SELECT " \
@@ -828,9 +828,9 @@ def broken_build():
             "AS BinDeps USING dpname WHERE assigment_name = '{branch}' AND " \
             "dptype = 'provide' AND sourcepackage = 0 AND arch IN ('x86_64', " \
             "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' ORDER BY " \
-            "sourcepkgname) WHERE sourcepkgname IN {pkgs} GROUP BY " \
+            "sourcepkgname ASC UNION ALL SELECT '{head}', '{head}', '') WHERE sourcepkgname IN {pkgs} GROUP BY " \
             "BinDeps.pkgname ORDER BY length(srcarray)".format(
-                pkgs=tuple(requires_list), branch=pbranch
+                pkgs=utils.normalize_tuple(tuple(requires_list)), branch=pbranch, head=pname
             )
 
         status, response = server.send_request()
