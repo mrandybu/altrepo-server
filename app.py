@@ -767,7 +767,7 @@ def broken_build():
 
         deep_level = server.get_one_value('deep', 'i')
         if not deep_level:
-            deep_level = 0
+            deep_level = 1
 
         base_query = \
             "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
@@ -786,11 +786,11 @@ def broken_build():
             "AND assigment_name = '{branch}' AND dptype = 'require' AND " \
             "sourcepackage = 1".format(branch=pbranch, b_q='{b_q}')
 
-        if deep_level == 0:
+        if deep_level == 1:
             server.request_line = base_query
         else:
 
-            if deep_level > 2:
+            if deep_level > 3:
                 return utils.json_str_error("Deep cannot exceed 2")
 
             server.request_line = \
@@ -798,7 +798,7 @@ def broken_build():
                     deep_wrapper.format(b_q=base_query), base_query
                 )
 
-            if deep_level == 2:
+            if deep_level == 3:
                 pre_query = server.request_line
 
                 server.request_line = \
