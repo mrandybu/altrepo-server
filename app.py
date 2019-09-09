@@ -775,9 +775,8 @@ def broken_build():
             "sourcepkgname = '{name}' AND assigment_name = '{branch}' AND " \
             "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
             "AND assigment_name = '{branch}' AND sourcepackage = 1 AND " \
-            "pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT name FROM " \
-            "last_packages WHERE name = '{name}' AND assigment_name = " \
-            "'{branch}' AND sourcepackage = 1".format(name=pname, branch=pbranch)
+            "pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT '{name}'" \
+            "".format(name=pname, branch=pbranch)
 
         deep_wrapper = \
             "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
@@ -794,17 +793,18 @@ def broken_build():
             if deep_level > 2:
                 return utils.json_str_error("Deep cannot exceed 2")
 
-            server.request_line = deep_wrapper.format(b_q=base_query)
-
-            server.request_line = "SELECT DISTINCT pkgname FROM ({} UNION ALL {})" \
-                                  "".format(server.request_line, base_query)
+            server.request_line = \
+                "SELECT DISTINCT pkgname FROM ({} UNION ALL {})".format(
+                    deep_wrapper.format(b_q=base_query), base_query
+                )
 
             if deep_level == 2:
                 pre_query = server.request_line
-                server.request_line = deep_wrapper.format(b_q=server.request_line)
 
-                server.request_line = "SELECT DISTINCT pkgname FROM ({} UNION ALL {})" \
-                                      "".format(server.request_line, pre_query)
+                server.request_line = \
+                    "SELECT DISTINCT pkgname FROM ({} UNION ALL {})".format(
+                        deep_wrapper.format(b_q=server.request_line), pre_query
+                    )
 
         status, response = server.send_request()
         if status is False:
@@ -817,23 +817,27 @@ def broken_build():
             requires_list.append(require[0])
 
         server.request_line = \
-            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != BinDeps.pkgname AND notEmpty(x)), " \
-            "groupUniqArray(sourcepkgname)) AS srcarray " \
-            "FROM (SELECT DISTINCT BinDeps.pkgname, name AS pkgname, " \
-            "sourcepkgname FROM last_packages_with_source INNER JOIN (SELECT " \
-            "DISTINCT BinDeps.pkgname, pkgname FROM (SELECT DISTINCT " \
+            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != " \
+            "BinDeps.pkgname AND notEmpty(x)), groupUniqArray(sourcepkgname)) " \
+            "AS srcarray FROM (SELECT DISTINCT BinDeps.pkgname, name AS " \
+            "pkgname, sourcepkgname FROM last_packages_with_source INNER JOIN " \
+            "(SELECT DISTINCT BinDeps.pkgname, pkgname FROM (SELECT DISTINCT " \
             "BinDeps.pkgname, pkgname, dpname FROM last_depends INNER JOIN " \
             "(SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname " \
             "IN {pkgs} AND assigment_name = '{branch}' AND dptype = 'require') " \
             "AS BinDeps USING dpname WHERE assigment_name = '{branch}' AND " \
             "dptype = 'provide' AND sourcepackage = 0 AND arch IN ('x86_64', " \
-            "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' ORDER BY " \
-            "sourcepkgname ASC UNION ALL SELECT '{head}', '{head}', '') WHERE sourcepkgname IN {pkgs} GROUP BY " \
-            "BinDeps.pkgname ORDER BY length(srcarray)".format(
-                pkgs=utils.normalize_tuple(tuple(requires_list)), branch=pbranch, head=pname
+            "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' " \
+            "ORDER BY sourcepkgname ASC UNION ALL SELECT '{head}', '{head}', " \
+            "'') WHERE sourcepkgname IN {pkgs} GROUP BY BinDeps.pkgname " \
+            "ORDER BY length(srcarray)".format(
+                pkgs=utils.normalize_tuple(tuple(requires_list)),
+                branch=pbranch, head=pname
             )
 
         status, response = server.send_request()
+        if status is False:
+            return response
 
         name_reqs_dict = {}
         for elem in response:
@@ -897,15 +901,6 @@ def broken_build():
 
             result_dict = result_dict_leaf
 
-        '''new_dict = {}
-        for package in result_dict.keys():
-            cleanup_reqs = []
-            for req in name_reqs_dict_cleanup[package]:
-                if req in result_dict.keys():
-                    cleanup_reqs.append(req)
-            new_dict[package] = cleanup_reqs
-
-        return json.dumps(new_dict, sort_keys=False)'''
         return json.dumps(result_dict, sort_keys=False)
 
     server.request_line = \
