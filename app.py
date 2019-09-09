@@ -461,14 +461,21 @@ def conflict_packages():
 
     # packages with ident files
     server.request_line = \
-        "SELECT pkghash, groupUniqArray(filename) FROM File WHERE pkghash IN " \
-        "(SELECT pkg.pkghash FROM last_packages WHERE pkg.pkghash IN (SELECT " \
-        "DISTINCT pkghash FROM File WHERE hashname IN (SELECT hashname FROM " \
-        "File WHERE pkghash IN (SELECT pkg.pkghash FROM last_packages WHERE " \
-        "name = '{name}' AND assigment_name = '{branch}' AND sourcepackage = 0 " \
-        "LIMIT 1))) AND assigment_name = '{branch}' AND sourcepackage = 0 AND " \
-        "arch IN {arch} AND name != '{name}') GROUP BY pkghash".format(
-            name=pname, branch=pbranch, arch=allowed_archs
+        "SELECT pkghash, filename FROM File WHERE hashname IN (SELECT " \
+        "hashname FROM File WHERE pkghash IN (SELECT pkghash FROM " \
+        "last_packages WHERE name = '{name}' AND assigment_name = '{branch}' " \
+        "AND sourcepackage = 0 AND arch IN {arch}) AND fileclass != " \
+        "'directory') AND pkghash NOT IN (SELECT pkghash FROM last_packages " \
+        "WHERE name = '{name}') AND pkghash NOT IN (SELECT pkghash FROM " \
+        "last_depends WHERE dpname = '{name}' AND dptype = 'conflict' AND " \
+        "assigment_name = '{branch}' AND sourcepackage = 0 AND (dpversion " \
+        "LIKE '{vers}-%' OR dpversion LIKE '%:{vers}-%' OR dpversion = '')) " \
+        "AND pkghash NOT IN (SELECT pkghash FROM last_packages WHERE name IN " \
+        "(SELECT DISTINCT dpname FROM last_depends WHERE pkgname = '{name}' " \
+        "AND assigment_name = '{branch}' AND dptype = 'conflict' AND arch IN " \
+        "{arch}) AND assigment_name = '{branch}' AND sourcepackage = 0 AND " \
+        "arch IN {arch})".format(
+            name=pname, branch=pbranch, vers=pversion, arch=allowed_archs
         )
 
     status, response = server.send_request()
@@ -478,39 +485,29 @@ def conflict_packages():
     if not response:
         return json.dumps({})
 
-    package_files_dict = {}
-    for package in response:
-        package_files_dict[package[0]] = list(package[1])
+    hsh_files_dict = defaultdict(list)
+    for pkg in response:
+        hsh_files_dict[pkg[0]].append(pkg[1])
 
-    pkghashs = tuple(package_files_dict.keys())
-
-    # conflict packages
     server.request_line = \
-        "SELECT pkg.pkghash, name, version, release, arch, assigment_name " \
-        "FROM last_packages WHERE pkg.pkghash IN {pkgs} AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN " \
-        "{archs} AND pkg.pkghash NOT IN (SELECT pkghash FROM last_depends " \
-        "WHERE dpname = '{name}' AND dptype = 'conflict' AND (dpversion LIKE " \
-        "'{vers}-%' OR dpversion LIKE '%:{vers}-%' OR dpversion = '') AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN " \
-        "{archs}) AND pkg.pkghash NOT IN (SELECT pkg.pkghash FROM " \
-        "last_packages WHERE name IN (SELECT dpname FROM last_depends WHERE " \
-        "pkgname = '{name}' AND dptype = 'conflict' AND assigment_name = " \
-        "'{branch}' AND arch IN {archs} AND sourcepackage = 0) AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN {archs})" \
-        "".format(
-            name=pname, branch=pbranch, vers=pversion, archs=allowed_archs,
-            pkgs=pkghashs
+        "SELECT pkghash, name, version, release, arch, assigment_name " \
+        "FROM last_packages WHERE pkghash IN {hshs} AND assigment_name = " \
+        "'{branch}' AND sourcepackage = 0 AND arch IN {arch}".format(
+            hshs=utils.normalize_tuple(tuple(hsh_files_dict.keys())),
+            branch=pbranch, arch=allowed_archs
         )
 
     status, response = server.send_request()
     if status is False:
         return response
 
+    if not response:
+        return json.dumps({})
+
     for package in response:
         idx = response.index(package)
         package = list(package)
-        package.append(package_files_dict[package[0]])
+        package.append(hsh_files_dict[package[0]])
         response[idx] = package[1:]
 
     result_list = []
