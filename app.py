@@ -824,7 +824,8 @@ def broken_build():
             "(SELECT DISTINCT BinDeps.pkgname, pkgname FROM (SELECT DISTINCT " \
             "BinDeps.pkgname, pkgname, dpname FROM last_depends INNER JOIN " \
             "(SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname " \
-            "IN {pkgs} AND assigment_name = '{branch}' AND dptype = 'require') " \
+            "IN {pkgs} AND assigment_name = '{branch}' AND dptype = 'require' " \
+            "AND sourcepackage = 1) " \
             "AS BinDeps USING dpname WHERE assigment_name = '{branch}' AND " \
             "dptype = 'provide' AND sourcepackage = 0 AND arch IN ('x86_64', " \
             "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' " \
