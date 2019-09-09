@@ -775,8 +775,8 @@ def broken_build():
             "sourcepkgname = '{name}' AND assigment_name = '{branch}' AND " \
             "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
             "AND assigment_name = '{branch}' AND sourcepackage = 1 AND " \
-            "pkgname NOT LIKE '%-debuginfo' UNION ALL SELECT '{name}'" \
-            "".format(name=pname, branch=pbranch)
+            "dptype = 'require' AND pkgname NOT LIKE '%-debuginfo' UNION ALL " \
+            "SELECT '{name}'".format(name=pname, branch=pbranch)
 
         deep_wrapper = \
             "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
