@@ -95,6 +95,7 @@ class LogicServer:
                     'branch': '',
                     'sort': 'for sort by dependencies',
                     'leaf': "show assembly dependency chain (only with 'sort')",
+                    'deep': 'sets the sorting depth',
                 }
             }
         }

@@ -80,6 +80,7 @@ Request parameters:
 * branch (* - only 'name')
 * sort - for sort by dependencies
 * leaf - show assembly dependency chain (only with 'sort')
+* deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
 
 \* - require parameters
 
