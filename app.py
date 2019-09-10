@@ -163,8 +163,7 @@ class LogicServer:
         parchs = self.get_one_value('arch', 's')
         if parchs:
             for arch in parchs.split(','):
-                if arch and arch not in ['aarch64', 'armh', 'i586',
-                                         'noarch', 'x86_64', 'x86_64-i586']:
+                if arch and arch not in server.known_archs:
                     return utils.json_str_error('Unknown arch of package!')
 
         # check branch
@@ -440,17 +439,42 @@ def conflict_packages():
     if not pname or not pbranch:
         return json.dumps(server.helper(request.path))
 
-    allowed_archs = server.known_archs
+    server.request_line = \
+        "SELECT arch FROM last_packages WHERE name = '{pname}' AND " \
+        "sourcepackage = 0 AND assigment_name = '{pbranch}'".format(
+            pname=pname, pbranch=pbranch
+        )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    real_parchs = [arch[0] for arch in response]
+
+    allowed_archs = real_parchs
+    if 'noarch' in allowed_archs:
+        allowed_archs = server.known_archs
+
     parchs = server.get_one_value('arch', 's')
     if parchs:
         parchs = parchs.split(',')
 
-        if 'noarch' in parchs and len(parchs) == 1:
-            allowed_archs = tuple(server.known_archs)
+        if 'noarch' in parchs:
+            allowed_archs = tuple(allowed_archs)
         else:
-            allowed_archs = parchs
+            add_archs = []
+            for arch in parchs:
+                if arch in allowed_archs:
+                    add_archs.append(arch)
+
+            allowed_archs = add_archs
 
     allowed_archs = utils.normalize_tuple(allowed_archs)
+
+    if len(allowed_archs) == 0:
+        return utils.json_str_error(
+            'The package does not have the specified architectures'
+        )
 
     # detect version
     pversion = server.get_one_value('version', 's')
