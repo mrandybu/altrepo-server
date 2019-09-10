@@ -156,7 +156,7 @@ class LogicServer:
 
         return value
 
-    def check_input_params(self, binary_only=False):
+    def check_input_params(self, binary_only=False, source_only=False):
         if not request.args:
             return json.dumps(server.helper(request.path))
 
@@ -188,6 +188,9 @@ class LogicServer:
 
             if binary_only:
                 args = "{} AND sourcepackage = 0".format(args)
+
+            if source_only:
+                args = "{} AND sourcepackage = 1".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -710,7 +713,7 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
-    check_params = server.check_input_params()
+    check_params = server.check_input_params(source_only=True)
     if check_params is not True:
         return check_params
 
@@ -951,7 +954,7 @@ def broken_build():
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
-               'branch', 'archs', 'circle_requires']
+               'branch', 'archs', 'cycle']
 
     return utils.convert_to_json(js_keys, sorted_dict)
 
