@@ -812,7 +812,7 @@ def broken_build():
         else:
 
             if deep_level > 3:
-                return utils.json_str_error("Deep cannot exceed 2")
+                return utils.json_str_error("Deep cannot exceed 3")
 
             server.request_line = \
                 "SELECT DISTINCT pkgname FROM ({} UNION ALL {})".format(
@@ -832,7 +832,6 @@ def broken_build():
             return response
 
         # get requires
-
         requires_list = ['']
         for require in response:
             requires_list.append(require[0])
@@ -846,16 +845,14 @@ def broken_build():
             "BinDeps.pkgname, pkgname, dpname FROM last_depends INNER JOIN " \
             "(SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname " \
             "IN {pkgs} AND assigment_name = '{branch}' AND dptype = 'require' " \
-            "AND sourcepackage = 1) " \
-            "AS BinDeps USING dpname WHERE assigment_name = '{branch}' AND " \
-            "dptype = 'provide' AND sourcepackage = 0 AND arch IN ('x86_64', " \
-            "'noarch'))) USING pkgname WHERE assigment_name = '{branch}' " \
-            "ORDER BY sourcepkgname ASC UNION ALL SELECT '{head}', '{head}', " \
-            "'') WHERE sourcepkgname IN {pkgs} GROUP BY BinDeps.pkgname " \
-            "ORDER BY length(srcarray)".format(
-                pkgs=utils.normalize_tuple(tuple(requires_list)),
-                branch=pbranch, head=pname
-            )
+            "AND sourcepackage = 1) AS BinDeps USING dpname WHERE " \
+            "assigment_name = '{branch}' AND dptype = 'provide' AND " \
+            "sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING " \
+            "pkgname WHERE assigment_name = '{branch}' ORDER BY sourcepkgname " \
+            "ASC UNION ALL SELECT '{head}', '{head}', '') WHERE sourcepkgname " \
+            "IN {pkgs} GROUP BY BinDeps.pkgname ORDER BY length(srcarray)" \
+            "".format(pkgs=utils.normalize_tuple(tuple(requires_list)),
+                      branch=pbranch, head=pname)
 
         status, response = server.send_request()
         if status is False:
