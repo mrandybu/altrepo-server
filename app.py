@@ -71,7 +71,7 @@ class LogicServer:
             '/package_by_file': {
                 '##### /package_by_file arguments #####': {
                     'file': "file name, can be set as a file name mask "
-                            "(ex. file='/usr/bin/%')",
+                            "(ex. file='/usr/bin/*')",
                     'md5': 'file md5',
                     'arch': '',
                     'branch': '',
@@ -137,6 +137,9 @@ class LogicServer:
             # fixed err when package name contains '+'
             if param == 'name' or param == 'file':
                 value = value.replace(' ', '+')
+
+                if param == 'file':
+                    value = value.replace('*', '%')
 
             if type_ == 's':
                 value = value.split("'")[0]
