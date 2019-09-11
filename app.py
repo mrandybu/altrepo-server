@@ -180,20 +180,25 @@ class LogicServer:
         pname = self.get_one_value('name', 's')
         if pname:
             default_req = "SELECT name FROM last_packages"
-            args = "name = '{}'".format(pname)
+            args = "name = %(name)s"
 
             pversion = self.get_one_value('version', 's')
             if pversion:
-                args = "{} AND version = '{}'".format(args, pversion)
+                args = "{} AND version = %(vers)s".format(args)
 
             if pbranch:
-                args = "{} AND assigment_name = '{branch}'" \
-                       "".format(args, branch=pbranch)
+                args = "{} AND assigment_name = %(branch)s".format(args)
 
             if source in (0, 1):
-                args = "{} AND sourcepackage = {}".format(args, source)
+                args = "{} AND sourcepackage = %(source)d".format(args)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
+
+            self.request_line = (
+                self.request_line,
+                {'name': pname, 'vers': pversion, 'branch': pbranch,
+                 'source': source}
+            )
 
             status, response = self.send_request()
             if status is False:
@@ -641,9 +646,11 @@ def package_files():
     if not sha1:
         return json.dumps(server.helper(request.path))
 
-    server.request_line = \
-        "SELECT filename FROM File WHERE pkghash IN (SELECT pkghash FROM " \
-        "Package WHERE pkgcs = '{sha1}')".format(sha1=sha1)
+    server.request_line = (
+        "SELECT filename FROM File WHERE pkghash IN (SELECT pkghash FROM "
+        "Package WHERE pkgcs = %(sha1)s)",
+        {'sha1': sha1}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -958,6 +965,10 @@ def broken_build():
         sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
 
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
+
+    for pkg in sorted_dict:
+        if pkg[0] in input_pkgs:
+            sorted_dict.remove(pkg)
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
                'branch', 'archs', 'cycle']
