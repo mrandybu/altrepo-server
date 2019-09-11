@@ -156,7 +156,7 @@ class LogicServer:
 
         return value
 
-    def check_input_params(self, binary_only=False, source_only=False):
+    def check_input_params(self, source=None):
         if not request.args:
             return json.dumps(server.helper(request.path))
 
@@ -186,11 +186,8 @@ class LogicServer:
                 args = "{} AND assigment_name = '{branch}'" \
                        "".format(args, branch=pbranch)
 
-            if binary_only:
-                args = "{} AND sourcepackage = 0".format(args)
-
-            if source_only:
-                args = "{} AND sourcepackage = 1".format(args)
+            if source in (0, 1):
+                args = "{} AND sourcepackage = {}".format(args, source)
 
             self.request_line = "{} WHERE {}".format(default_req, args)
 
@@ -433,7 +430,7 @@ def package_info():
 def conflict_packages():
     server.url_logging()
 
-    check_params = server.check_input_params(binary_only=True)
+    check_params = server.check_input_params(source=0)
     if check_params is not True:
         return check_params
 
@@ -713,7 +710,7 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
-    check_params = server.check_input_params(source_only=True)
+    check_params = server.check_input_params(source=1)
     if check_params is not True:
         return check_params
 
@@ -745,7 +742,7 @@ def broken_build():
     if task_id:
         # branch name
         server.request_line = \
-            "SELECT branch FROM Tasks WHERE task_id = {}".format(task_id)
+            "SELECT DISTINCT branch FROM Tasks WHERE task_id = {}".format(task_id)
 
         status, response = server.send_request()
         if status is False:
@@ -794,16 +791,16 @@ def broken_build():
         "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
         "(SELECT name FROM last_packages_with_source WHERE " \
         "sourcepkgname IN {pkgs} AND assigment_name = '{branch}' AND " \
-        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
+        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
         "AND assigment_name = '{branch}' AND sourcepackage = 1 AND " \
-        "dptype = 'require' AND pkgname NOT LIKE '%-debuginfo' {union}" \
-        "".format(pkgs=input_pkgs, branch=pbranch, union=" ".join(union_list))
+        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo' UNION ALL " \
+        "SELECT arrayJoin(%(union)s)".format(pkgs=input_pkgs, branch=pbranch)
 
     deep_wrapper = \
         "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
         "(SELECT DISTINCT name FROM last_packages_with_source WHERE " \
         "sourcepkgname IN ({b_q}) AND assigment_name = '{branch}' AND " \
-        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%-debuginfo') " \
+        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
         "AND assigment_name = '{branch}' AND dptype = 'require' AND " \
         "sourcepackage = 1".format(branch=pbranch, b_q='{b_q}')
 
@@ -828,6 +825,8 @@ def broken_build():
                     deep_wrapper.format(b_q=server.request_line), pre_query
                 )
 
+    server.request_line = (server.request_line, {'union': list(input_pkgs)})
+
     status, response = server.send_request()
     if status is False:
         return response
@@ -850,10 +849,14 @@ def broken_build():
         "assigment_name = '{branch}' AND dptype = 'provide' AND " \
         "sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING " \
         "pkgname WHERE assigment_name = '{branch}' ORDER BY sourcepkgname " \
-        "ASC UNION ALL SELECT '{head}', '{head}', '') WHERE sourcepkgname " \
-        "IN {pkgs} GROUP BY BinDeps.pkgname ORDER BY length(srcarray)" \
-        "".format(pkgs=utils.normalize_tuple(tuple(requires_list)),
-                  branch=pbranch, head=pname)
+        "ASC UNION ALL SELECT arrayJoin(%(union)s), '', '') WHERE " \
+        "sourcepkgname IN {pkgs} GROUP BY BinDeps.pkgname ORDER BY " \
+        "length(srcarray)".format(
+            pkgs=utils.normalize_tuple(tuple(requires_list)),
+            branch=pbranch, head=pname
+        )
+
+    server.request_line = (server.request_line, {'union': list(input_pkgs)})
 
     status, response = server.send_request()
     if status is False:

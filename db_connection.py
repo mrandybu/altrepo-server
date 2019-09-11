@@ -22,7 +22,10 @@ class DBConnection:
         response_status = False
 
         try:
-            response = self.clickhouse_client.execute(self.db_query)
+            if isinstance(self.db_query, tuple):
+                response = self.clickhouse_client.execute(self.db_query[0], self.db_query[1])
+            else:
+                response = self.clickhouse_client.execute(self.db_query)
             response_status = True
         except Exception as error:
             logger.error(exception_to_logger(error))

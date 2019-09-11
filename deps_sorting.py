@@ -75,7 +75,6 @@ class SortList:
 
         # reverse (packages -> dependencies)
         normalize_req_list = defaultdict(list)
-
         for key, val in self.package_reqs.items():
             for req in val:
                 normalize_req_list[req].append(key)
