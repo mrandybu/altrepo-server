@@ -74,6 +74,7 @@ class LogicServer:
                             "(ex. file='/usr/bin/%')",
                     'md5': 'file md5',
                     'arch': '',
+                    'branch': '',
                 }
             },
             '/package_files': {
@@ -808,8 +809,7 @@ def broken_build():
         server.request_line = base_query
     else:
 
-        # TODO for deep=3 needed fix clickhouse
-        if deep_level > 2:
+        if deep_level > 3:
             return utils.json_str_error("Deep cannot exceed 3")
 
         server.request_line = \
@@ -924,7 +924,7 @@ def broken_build():
 
         result_dict = result_dict_leaf
 
-    sorted_pkgs = tuple(result_dict.keys())
+    sorted_pkgs = utils.normalize_tuple(tuple(result_dict.keys()))
 
     server.request_line = \
         "SELECT DISTINCT SrcPkg.name, SrcPkg.version, SrcPkg.release, " \
