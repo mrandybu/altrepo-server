@@ -45,7 +45,7 @@ It is possible to set the full file name, file name mask, md5 of file.
 Request parameters:
 
 * file - file name, can be set as a file name mask 
-(ex. file='/usr/bin/%')
+(ex. file='/usr/bin/*')
 * md5 - file md5
 * arch
 
@@ -180,7 +180,7 @@ formatted mapping is convenient to use jq utility.
 #### /package_by_file
 
 	curl "http://apphost/package_by_file?file=/usr/bin/less&branch=c8.1" | jq
-	curl "http://apphost/package_by_file?file='/etc/sysconfig/c%'&branch=Sisyphus" | jq
+	curl "http://apphost/package_by_file?file='/etc/sysconfig/c*'&branch=Sisyphus" | jq
 
 #### /package_files
 
@@ -193,5 +193,5 @@ formatted mapping is convenient to use jq utility.
 #### /what_depends_src
 
 	curl "http://apphost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
-	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&sort=true" | jq
-	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&sort=true&leaf=dune" | jq
+	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
+	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq
