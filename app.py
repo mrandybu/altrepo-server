@@ -583,24 +583,27 @@ def package_by_file():
 
     arch = server.get_one_value('arch', 's')
     if arch:
-        arch = "AND arch IN {}".format((arch, 'noarch'))
+        arch = (arch, 'noarch')
     else:
-        arch = ''
+        arch = server.known_archs
 
     pkghash = \
         "SELECT pkg.pkghash FROM last_packages WHERE " \
-        "assigment_name = '{branch}' {arch}".format(branch=pbranch, arch=arch)
+        "assigment_name = %(branch)s AND arch IN %(arch)s"
 
     base_query = \
         "SELECT pkghash{in_} FROM File WHERE pkghash IN ({pkghash}) AND " \
         "{param}".format(in_='{}', pkghash=pkghash, param='{}')
 
     if file:
-        query = "filename LIKE '{}'".format(file)
+        elem, query = file, "filename LIKE %(elem)s"
     else:
-        query = "filemd5 = '{}'".format(md5)
+        elem, query = md5, "filemd5 = %(elem)s"
 
-    server.request_line = base_query.format(', filename', query)
+    server.request_line = (
+        base_query.format(', filename', query),
+        {'branch': pbranch, 'arch': tuple(arch), 'elem': elem}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -611,12 +614,14 @@ def package_by_file():
 
     ids_filename_dict = utils.tuple_to_dict(response)
 
-    pkghashs = utils.normalize_tuple([key for key in ids_filename_dict.keys()])
+    pkghashs = tuple([key for key in ids_filename_dict.keys()])
 
-    server.request_line = \
-        "SELECT pkghash, pkgcs, name, version, release, disttag, arch, " \
-        "assigment_name FROM last_packages WHERE sourcepackage = 0 AND " \
-        "pkghash IN {} AND assigment_name = '{}'".format(pkghashs, pbranch)
+    server.request_line = (
+        "SELECT pkghash, pkgcs, name, version, release, disttag, arch, "
+        "assigment_name FROM last_packages WHERE sourcepackage = 0 AND "
+        "pkghash IN %(hashs)s AND assigment_name = %(branch)s",
+        {'hashs': pkghashs, 'branch': pbranch}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -647,8 +652,7 @@ def package_files():
         return json.dumps(server.helper(request.path))
 
     server.request_line = (
-        "SELECT filename FROM File WHERE pkghash IN (SELECT pkghash FROM "
-        "Package WHERE pkgcs = %(sha1)s)",
+        "SELECT filename FROM File WHERE pkghash = murmurHash3_64(%(sha1)s)",
         {'sha1': sha1}
     )
 
@@ -685,8 +689,8 @@ def dependent_packages():
     pversion = server.get_one_value('version', 's')
     if pversion:
         pversion = \
-            "AND (dpversion LIKE '{vers}%' OR dpversion LIKE '%:{vers}%' OR " \
-            "dpversion = '')".format(vers=pversion)
+            "AND (dpversion LIKE %(vers)s OR dpversion LIKE %(vers_epoch)s " \
+            "OR dpversion = '')"
     else:
         pversion = ''
 
@@ -696,17 +700,20 @@ def dependent_packages():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    server.request_line = \
-        "SELECT DISTINCT name, version, release, epoch, serial_, filename " \
-        "AS sourcerpm, assigment_name, groupUniqArray(binary_arch) FROM " \
-        "last_packages INNER JOIN (SELECT sourcerpm, arch AS binary_arch " \
-        "FROM last_packages WHERE name IN (SELECT DISTINCT pkgname FROM " \
-        "last_depends WHERE dpname = '{name}' {vers} AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0) AND " \
-        "assigment_name = '{branch}' AND sourcepackage = 0) USING sourcerpm " \
-        "WHERE assigment_name = '{branch}' AND sourcepackage = 1 GROUP BY " \
-        "(name, version, release, epoch, serial_, filename AS sourcerpm, " \
-        "assigment_name)".format(name=pname, vers=pversion, branch=pbranch)
+    server.request_line = (
+        "SELECT DISTINCT name, version, release, epoch, serial_, filename "
+        "AS sourcerpm, assigment_name, groupUniqArray(binary_arch) FROM "
+        "last_packages INNER JOIN (SELECT sourcerpm, arch AS binary_arch "
+        "FROM last_packages WHERE name IN (SELECT DISTINCT pkgname FROM "
+        "last_depends WHERE dpname = %(name)s {vers} AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0) AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0) USING sourcerpm "
+        "WHERE assigment_name = %(branch)s AND sourcepackage = 1 GROUP BY "
+        "(name, version, release, epoch, serial_, filename AS sourcerpm, "
+        "assigment_name)".format(vers=pversion),
+        {'vers': "{}%".format(pversion), 'vers_epoch': "%:{}%".format(pversion),
+         'name': pname, 'branch': pbranch}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -962,13 +969,10 @@ def broken_build():
     # sort pkg info list
     sorted_dict = {}
     for pkg in pkg_info_list:
-        sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
+        if pkg[0] not in input_pkgs:
+            sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
 
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
-
-    for pkg in sorted_dict:
-        if pkg[0] in input_pkgs:
-            sorted_dict.remove(pkg)
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
                'branch', 'archs', 'cycle']
