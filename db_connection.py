@@ -1,5 +1,5 @@
 from clickhouse_driver import Client
-from utils import get_logger, exception_to_logger, json_str_error
+from utils import get_logger, exception_to_logger, json_str_error, print_statusbar
 
 logger = get_logger(__name__)
 
@@ -18,7 +18,7 @@ class DBConnection:
             except Exception as err:
                 logger.error(exception_to_logger(err))
 
-    def send_request(self):
+    def send_request(self, trace=False):
         response_status = False
 
         try:
@@ -30,5 +30,7 @@ class DBConnection:
         except Exception as error:
             logger.error(exception_to_logger(error))
             response = json_str_error("Error in sql query!")
+            if trace:
+                print_statusbar(error, 'd')
 
         return response_status, response

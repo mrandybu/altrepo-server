@@ -123,11 +123,11 @@ class LogicServer:
 
     # measures the execution time of func
     @func_time(logger)
-    def send_request(self):
+    def send_request(self, trace=False):
         db_connection = self._get_connection()
         db_connection.db_query = self.request_line
 
-        return db_connection.send_request()
+        return db_connection.send_request(trace)
 
     @staticmethod
     def get_one_value(param, type_):
