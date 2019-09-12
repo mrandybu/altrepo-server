@@ -969,7 +969,10 @@ def broken_build():
     # sort pkg info list
     sorted_dict = {}
     for pkg in pkg_info_list:
-        if pkg[0] not in input_pkgs:
+        if task_id:
+            if pkg[0] not in input_pkgs:
+                sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
+        else:
             sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
 
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
