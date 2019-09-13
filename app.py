@@ -513,7 +513,7 @@ def conflict_packages():
         "%(arch)s) AND assigment_name = %(branch)s AND sourcepackage = 0 AND "
         "arch IN %(arch)s)",
         {'name': pname, 'branch': pbranch, 'vers': "{}%".format(pversion),
-         'vers_epoch': "%:{}%".format(pversion), 'arch': allowed_archs}
+         'vers_epoch': "%:{}%".format(pversion), 'arch': tuple(allowed_archs)}
     )
 
     status, response = server.send_request()
@@ -532,7 +532,7 @@ def conflict_packages():
         "FROM last_packages WHERE pkghash IN %(hashs)s AND assigment_name = "
         "%(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
         {'hashs': tuple(hsh_files_dict.keys()), 'branch': pbranch,
-         'arch': allowed_archs}
+         'arch': tuple(allowed_archs)}
     )
 
     status, response = server.send_request()
