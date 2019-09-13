@@ -690,14 +690,6 @@ def dependent_packages():
     if not pname:
         return json.dumps(server.helper(request.path))
 
-    pversion = server.get_one_value('version', 's')
-    if pversion:
-        pversion = \
-            "AND (dpversion LIKE %(vers)s OR dpversion LIKE %(vers_epoch)s " \
-            "OR dpversion = '')"
-    else:
-        pversion = ''
-
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
         message = 'Branch is required parameter.'
@@ -709,14 +701,14 @@ def dependent_packages():
         "AS sourcerpm, assigment_name, groupUniqArray(binary_arch) FROM "
         "last_packages INNER JOIN (SELECT sourcerpm, arch AS binary_arch "
         "FROM last_packages WHERE name IN (SELECT DISTINCT pkgname FROM "
-        "last_depends WHERE dpname = %(name)s {vers} AND "
+        "last_depends WHERE dpname IN (SELECT dpname FROM last_depends "
+        "WHERE pkgname = %(name)s AND dptype = 'provide' AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0) AND "
         "assigment_name = %(branch)s AND sourcepackage = 0) AND "
         "assigment_name = %(branch)s AND sourcepackage = 0) USING sourcerpm "
         "WHERE assigment_name = %(branch)s AND sourcepackage = 1 GROUP BY "
         "(name, version, release, epoch, serial_, filename AS sourcerpm, "
-        "assigment_name)".format(vers=pversion),
-        {'vers': "{}%".format(pversion), 'vers_epoch': "%:{}%".format(pversion),
-         'name': pname, 'branch': pbranch}
+        "assigment_name)", {'name': pname, 'branch': pbranch}
     )
 
     status, response = server.send_request()
