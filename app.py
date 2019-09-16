@@ -449,7 +449,6 @@ def package_info():
     return json.dumps(json_retval, sort_keys=False)
 
 
-# TODO needed add checker of packages
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
@@ -520,6 +519,19 @@ def conflict_packages():
     else:
         pkg_ls = tuple(values['pkg_ls'].split(','))
         pbranch = values['branch']
+
+    # check of packages
+    server.request_line = (
+        "SELECT DISTINCT name FROM Package WHERE name IN %(pkgs)s AND "
+        "sourcepackage = 0", {'pkgs': tuple(pkg_ls)}
+    )
+
+    status, response = server.send_request(trace=True)
+    if status is False:
+        return response
+
+    if len(pkg_ls) != len(utils.join_tuples(response)):
+        return utils.json_str_error("Error of input data.")
 
     server.request_line = (
         "SELECT version FROM last_packages WHERE name IN %(pkgs)s AND "
