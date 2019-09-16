@@ -449,71 +449,66 @@ def conflict_packages():
         return check_params
 
     pname = server.get_one_value('name', 's')
-    pbranch = server.get_one_value('branch', 's')
+    pkg_ls = server.get_one_value('pkg_ls', 's')
 
-    if not pname or not pbranch:
+    if pname and pkg_ls:
+        return utils.json_str_error("'name' or 'pkg_ls' only.")
+
+    pbranch = server.get_one_value('branch', 's')
+    if not pbranch or (not pname and not pkg_ls):
         return json.dumps(server.helper(request.path))
 
+    parch = server.get_one_value('arch', 's')
+    if parch:
+        allowed_archs = parch.split(',')
+        if 'noarch' not in allowed_archs:
+            allowed_archs.apend('noarch')
+    else:
+        allowed_archs = server.known_archs
+
+    allowed_archs = tuple(allowed_archs)
+
+    if pname:
+        pkg_ls = (pname,)
+
+    if pkg_ls:
+        pkg_ls = pkg_ls.split(',')
+
     server.request_line = (
-        "SELECT arch FROM last_packages WHERE name = %(name)s AND "
-        "sourcepackage = 0 AND assigment_name = %(branch)s",
-        {'name': pname, 'branch': pbranch}
+        "SELECT version FROM last_packages WHERE name IN %(pkgs)s AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
+        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs}
     )
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    real_parchs = [arch[0] for arch in response]
+    ptrn_vers = []
+    for ver in response:
+        reg = r"^[0-9:]{}[-alt].*".format(ver[0])
+        ptrn_vers.append(reg)
 
-    allowed_archs = real_parchs
-    if 'noarch' in allowed_archs:
-        allowed_archs = server.known_archs
+    ptrn_vers.append('')
 
-    parchs = server.get_one_value('arch', 's')
-    if parchs:
-        parchs = parchs.split(',')
-
-        if 'noarch' in parchs:
-            allowed_archs = tuple(allowed_archs)
-        else:
-            add_archs = []
-            for arch in parchs:
-                if arch in allowed_archs:
-                    add_archs.append(arch)
-
-            allowed_archs = add_archs
-
-    if len(allowed_archs) == 0:
-        return utils.json_str_error(
-            'The package does not have the specified architectures'
-        )
-
-    # detect version
-    pversion = server.get_one_value('version', 's')
-    if not pversion:
-        status, pversion = server.get_last_version(pname, pbranch)
-        if status is False:
-            return pversion
-
-    # packages with ident files
     server.request_line = (
         "SELECT pkghash, filename FROM File WHERE hashname IN (SELECT "
         "hashname FROM File WHERE pkghash IN (SELECT pkghash FROM "
-        "last_packages WHERE name = %(name)s AND assigment_name = %(branch)s "
+        "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
         "AND sourcepackage = 0 AND arch IN %(arch)s) AND fileclass != "
-        "'directory') AND pkghash NOT IN (SELECT pkghash FROM last_packages "
-        "WHERE name = %(name)s) AND pkghash NOT IN (SELECT pkghash FROM "
-        "last_depends WHERE dpname = %(name)s AND dptype = 'conflict' AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0 AND (dpversion "
-        "LIKE %(vers)s OR dpversion LIKE %(vers_epoch)s OR dpversion = '')) "
-        "AND pkghash NOT IN (SELECT pkghash FROM last_packages WHERE name IN "
-        "(SELECT DISTINCT dpname FROM last_depends WHERE pkgname = %(name)s "
-        "AND assigment_name = %(branch)s AND dptype = 'conflict' AND arch IN "
-        "%(arch)s) AND assigment_name = %(branch)s AND sourcepackage = 0 AND "
-        "arch IN %(arch)s)",
-        {'name': pname, 'branch': pbranch, 'vers': "{}%".format(pversion),
-         'vers_epoch': "%:{}%".format(pversion), 'arch': tuple(allowed_archs)}
+        "'directory') AND pkghash IN (SELECT pkghash FROM last_packages WHERE "
+        "assigment_name = %(branch)s AND sourcepackage = 0 AND name NOT IN "
+        "%(pkgs)s AND arch IN %(arch)s) AND pkghash NOT IN (SELECT pkghash "
+        "FROM last_depends WHERE dpname IN %(pkgs)s AND multiMatchAny("
+        "dpversion, %(ptrn)s) AND dptype = 'conflict' AND sourcepackage = 0 "
+        "AND arch IN %(arch)s AND assigment_name = %(branch)s) AND pkghash "
+        "NOT IN (SELECT pkghash FROM last_packages WHERE name IN (SELECT "
+        "dpname FROM last_depends WHERE pkgname IN %(pkgs)s AND dptype = "
+        "'conflict' AND assigment_name = %(branch)s AND sourcepackage = 0 AND "
+        "arch IN %(arch)s) AND assigment_name = %(branch)s AND "
+        "sourcepackage = 0 AND arch IN %(arch)s)",
+        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'ptrn': ptrn_vers,
+         'arch': allowed_archs}
     )
 
     status, response = server.send_request()
