@@ -504,7 +504,7 @@ def conflict_packages():
                 pkg_hshs.append(hsh)
 
         server.request_line = (
-            "SELECT name FROM Package WHERE pkghash IN %(hshs)s AND "
+            "SELECT DISTINCT name FROM Package WHERE pkghash IN %(hshs)s AND "
             "sourcepackage = 0 AND arch IN %(arch)s AND name NOT LIKE "
             "'%%-debuginfo'",
             {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
@@ -526,7 +526,7 @@ def conflict_packages():
         "sourcepackage = 0", {'pkgs': tuple(pkg_ls)}
     )
 
-    status, response = server.send_request(trace=True)
+    status, response = server.send_request()
     if status is False:
         return response
 
@@ -612,7 +612,7 @@ def conflict_packages():
 
         if nvr_f not in result_dict.keys():
             pkg_f = list(pkg_f)
-            pkg_f[3], pkg_f[5] = archs, list(set(files))
+            pkg_f[3], pkg_f[5] = archs, utils.remove_duplicate(files)
 
             result_dict[nvr_f] = pkg_f
 
@@ -780,6 +780,8 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
+    server.url_logging()
+
     check_params = server.check_input_params(source=1)
     if check_params is not True:
         return check_params
