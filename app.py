@@ -581,31 +581,33 @@ def conflict_packages():
     if status is False:
         return response
 
-    if not response:
-        return json.dumps({})
+    # add files in result
+    pkg_with_files = []
+    for pkg in response:
+        pkg += (hsh_files_dict[pkg[0]],)
+        pkg_with_files.append(pkg[1:])
 
-    for package in response:
-        idx = response.index(package)
-        package = list(package)
-        package.append(hsh_files_dict[package[0]])
-        response[idx] = package[1:]
+    result_dict = {}
+    for pkg_f in pkg_with_files:
+        nvr_f = "{}-{}-{}".format(pkg_f[0], pkg_f[1], pkg_f[2])
+        archs = [pkg_f[3]]
+        files = [] + pkg_f[5]
+        for pkg_l in pkg_with_files:
+            nvr_l = "{}-{}-{}".format(pkg_l[0], pkg_l[1], pkg_l[2])
+            if nvr_f == nvr_l:
+                archs.append(pkg_l[3])
+                files += pkg_l[5]
 
-    result_list = []
-    for package in response:
-        name, archs = package[0], []
-        for arch in response:
-            if arch[0] == name:
-                archs.append(arch[3])
+        if nvr_f not in result_dict.keys():
+            pkg_f = list(pkg_f)
+            pkg_f[3], pkg_f[5] = archs, list(set(files))
 
-        result = [
-            package[0], package[1], package[2], archs, package[4], package[5]
-        ]
+            result_dict[nvr_f] = pkg_f
 
-        if result not in result_list:
-            result_list.append(result)
-
-    return utils.convert_to_json(['name', 'version', 'release', 'archs', 'branch',
-                                  'files_with_conflict'], result_list)
+    return utils.convert_to_json(
+        ['name', 'version', 'release', 'archs', 'branch', 'files_with_conflict'],
+        list(result_dict.values())
+    )
 
 
 @app.route('/package_by_file')
