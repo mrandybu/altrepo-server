@@ -18,6 +18,8 @@ class LogicServer:
                             'i586', 'pentium4', 'athlon', 'pentium3', 'i686',
                             'armv5tel', 'k6', 'aarch64', 'ppc64le', 'e2kv4',
                             'e2k', 'mipsel']
+        self.default_archs = ['x86_64', 'i586', 'aarch64', 'armh', 'ppc64le',
+                              'noarch']
         self.package_params = [
             'pkgcs', 'packager', 'packager_email', 'name', 'arch', 'version',
             'release', 'epoch', 'serial_', 'buildtime', 'buildhost', 'size',
@@ -159,6 +161,14 @@ class LogicServer:
                 value = [el for el in value.split("'") if el][0]
 
         return value
+
+    def get_dict_values(self, list_of_params):
+        values_dict = {}
+        for param in list_of_params:
+            value = self.get_one_value(param[0], param[1])
+            values_dict[param[0]] = value
+
+        return values_dict
 
     def check_input_params(self, source=None):
         if not request.args:
@@ -439,6 +449,7 @@ def package_info():
     return json.dumps(json_retval, sort_keys=False)
 
 
+# TODO needed add checker of packages
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
@@ -448,31 +459,67 @@ def conflict_packages():
     if check_params is not True:
         return check_params
 
-    pname = server.get_one_value('name', 's')
-    pkg_ls = server.get_one_value('pkg_ls', 's')
+    values = server.get_dict_values(
+        [('pkg_ls', 's'), ('task', 'i'), ('branch', 's'), ('arch', 's')]
+    )
 
-    if pname and pkg_ls:
-        return utils.json_str_error("'name' or 'pkg_ls' only.")
+    if values['pkg_ls'] and values['task']:
+        return utils.json_str_error("One parameter only. ('name'/'task')")
 
-    pbranch = server.get_one_value('branch', 's')
-    if not pbranch or (not pname and not pkg_ls):
+    if values['pkg_ls'] and not values['branch']:
         return json.dumps(server.helper(request.path))
 
-    parch = server.get_one_value('arch', 's')
-    if parch:
-        allowed_archs = parch.split(',')
+    if values['arch']:
+        allowed_archs = values['arch'].split(',')
         if 'noarch' not in allowed_archs:
-            allowed_archs.apend('noarch')
+            allowed_archs.append('noarch')
     else:
-        allowed_archs = server.known_archs
+        allowed_archs = server.default_archs
 
     allowed_archs = tuple(allowed_archs)
 
-    if pname:
-        pkg_ls = (pname,)
+    if values['task']:
+        server.request_line = (
+            "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(task)d",
+            {'task': values['task']}
+        )
 
-    if pkg_ls:
-        pkg_ls = pkg_ls.split(',')
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pbranch = response[0][0]
+
+        server.request_line = (
+            "SELECT pkgs FROM Tasks WHERE task_id = %(task)d",
+            {'task': values['task']}
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pkg_hshs = []
+        for block in response:
+            for hsh in block[0]:
+                pkg_hshs.append(hsh)
+
+        server.request_line = (
+            "SELECT name FROM Package WHERE pkghash IN %(hshs)s AND "
+            "sourcepackage = 0 AND arch IN %(arch)s AND name NOT LIKE "
+            "'%%-debuginfo'",
+            {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
+        )
+
+        status, response = server.send_request(trace=True)
+        if status is False:
+            return response
+
+        pkg_ls = utils.join_tuples(response)
+
+    else:
+        pkg_ls = tuple(values['pkg_ls'].split(','))
+        pbranch = values['branch']
 
     server.request_line = (
         "SELECT version FROM last_packages WHERE name IN %(pkgs)s AND "
