@@ -32,9 +32,9 @@ conflict with a given package.
 
 Request parameters:
 
-* name * - name of binary package
+* name - name or list of binary package
+* task - task id
 * branch *
-* version
 * arch
 
 #### /package_by_file
@@ -175,7 +175,7 @@ formatted mapping is convenient to use jq utility.
 
 #### /misconflict_packages
 
-	curl "http://apphost/misconflict_packages?name=postgresql10&branch=p8" | jq
+	curl "http://apphost/misconflict_packages?pkg_ls=postgresql10&branch=p8" | jq
 
 #### /package_by_file
 

@@ -64,9 +64,9 @@ class LogicServer:
             },
             '/misconflict_packages': {
                 '##### /misconflict_packages argunents #####': {
-                    'name': 'name of binary package',
+                    'pkg_ls': 'name or list of binary packages',
+                    'task': "task id (not use with 'pkg_ls')",
                     'branch': '',
-                    'version': '',
                     'arch': '',
                 }
             },
