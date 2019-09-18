@@ -465,6 +465,9 @@ def conflict_packages():
     if values['pkg_ls'] and values['task']:
         return utils.json_str_error("One parameter only. ('name'/'task')")
 
+    if not values['pkg_ls'] and not values['task']:
+        return utils.json_str_error("'name' or 'task' is require parameters.")
+
     if values['pkg_ls'] and not values['branch']:
         return json.dumps(server.helper(request.path))
 
