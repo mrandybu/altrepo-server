@@ -805,7 +805,6 @@ def dependent_packages():
     return utils.convert_to_json(js_keys, response)
 
 
-# FIXME if task id not exist -> fail
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
@@ -852,6 +851,9 @@ def broken_build():
         status, response = server.send_request()
         if status is False:
             return response
+
+        if not response:
+            return utils.json_str_error('Unknown task id.')
 
         pbranch = response[0][0]
 
