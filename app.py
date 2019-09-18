@@ -551,23 +551,26 @@ def conflict_packages():
     ptrn_vers.append('')
 
     server.request_line = (
-        "SELECT pkghash, filename FROM File WHERE hashname IN (SELECT "
-        "hashname FROM File WHERE pkghash IN (SELECT pkghash FROM "
+        "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM ("
+        "SELECT pkghash, filename, hashname FROM File WHERE hashname IN ("
+        "SELECT hashname FROM File WHERE pkghash IN (SELECT pkghash FROM "
         "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
         "AND sourcepackage = 0 AND arch IN %(arch)s) AND fileclass != "
         "'directory') AND pkghash IN (SELECT pkghash FROM last_packages WHERE "
-        "assigment_name = %(branch)s AND sourcepackage = 0 AND name NOT IN "
-        "%(pkgs)s AND arch IN %(arch)s) AND pkghash NOT IN (SELECT pkghash "
-        "FROM last_depends WHERE dpname IN %(pkgs)s AND multiMatchAny("
-        "dpversion, %(ptrn)s) AND dptype = 'conflict' AND sourcepackage = 0 "
-        "AND arch IN %(arch)s AND assigment_name = %(branch)s) AND pkghash "
-        "NOT IN (SELECT pkghash FROM last_packages WHERE name IN (SELECT "
-        "dpname FROM last_depends WHERE pkgname IN %(pkgs)s AND dptype = "
-        "'conflict' AND assigment_name = %(branch)s AND sourcepackage = 0 AND "
-        "arch IN %(arch)s) AND assigment_name = %(branch)s AND "
-        "sourcepackage = 0 AND arch IN %(arch)s)",
-        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'ptrn': ptrn_vers,
-         'arch': allowed_archs}
+        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s AND pkghash NOT IN (SELECT pkghash FROM Package WHERE name "
+        "IN %(pkgs)s UNION ALL SELECT pkghash FROM Package WHERE name IN "
+        "(SELECT dpname FROM Depends WHERE pkghash IN (SELECT pkghash FROM "
+        "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
+        "AND sourcepackage = 0 AND arch IN %(arch)s) AND dptype = 'conflict') "
+        "UNION ALL SELECT pkghash FROM Depends WHERE dpname IN %(pkgs)s AND "
+        "multiMatchAny(dpversion, %(ptrn)s) AND dptype = 'conflict'))) "
+        "LEFT JOIN (SELECT pkghash, hashname FROM File WHERE pkghash IN "
+        "(SELECT pkghash FROM last_packages WHERE name IN %(pkgs)s AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s)) AS InPkg USING hashname GROUP BY (InPkg.pkghash, pkghash)",
+        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs,
+         'ptrn': ptrn_vers}
     )
 
     status, response = server.send_request()
@@ -577,48 +580,73 @@ def conflict_packages():
     if not response:
         return json.dumps({})
 
-    hsh_files_dict = defaultdict(list)
-    for pkg in response:
-        hsh_files_dict[pkg[0]].append(pkg[1])
+    hshs_files = response
+
+    pkg_hshs = utils.remove_duplicate(
+        [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
+    )
 
     server.request_line = (
-        "SELECT pkghash, name, version, release, arch, assigment_name "
-        "FROM last_packages WHERE pkghash IN %(hashs)s AND assigment_name = "
-        "%(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
-        {'hashs': tuple(hsh_files_dict.keys()), 'branch': pbranch,
-         'arch': tuple(allowed_archs)}
+        "SELECT pkghash, name FROM last_packages WHERE pkghash IN %(pkgs)s "
+        "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s", {
+            'pkgs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
+        }
     )
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    # add files in result
-    pkg_with_files = []
+    hsh_name_dict = utils.tuple_to_dict(response)
+
+    result_list = []
+    for pkg in hshs_files:
+        pkg = (hsh_name_dict[pkg[0]][0], hsh_name_dict[pkg[1]][0], pkg[2])
+        if pkg not in result_list:
+            result_list.append(pkg)
+
+    result_list_cleanup = []
+    for pkg in result_list:
+        files = list(pkg[2])
+        for pkg_next in result_list:
+            if (pkg[0], pkg[1]) == (pkg_next[0], pkg_next[1]):
+                for file in pkg_next[2]:
+                    files.append(file)
+
+        files = sorted(utils.remove_duplicate(files))
+
+        pkg = (pkg[0], pkg[1], files)
+        if pkg not in result_list_cleanup:
+            result_list_cleanup.append(pkg)
+
+    confl_pkgs = utils.remove_duplicate([pkg[1] for pkg in result_list_cleanup])
+
+    server.request_line = (
+        "SELECT name, version, release, epoch, groupUniqArray(arch) FROM "
+        "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
+        "AND sourcepackage = 0 AND arch IN %(arch)s GROUP BY (name, version, "
+        "release, epoch)", {
+            'pkgs': tuple(confl_pkgs), 'branch': pbranch, 'arch': allowed_archs
+        }
+    )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    name_info_dict = {}
     for pkg in response:
-        pkg += (hsh_files_dict[pkg[0]],)
-        pkg_with_files.append(pkg[1:])
+        name_info_dict[pkg[0]] = pkg[1:]
 
-    result_dict = {}
-    for pkg_f in pkg_with_files:
-        nvr_f = "{}-{}-{}".format(pkg_f[0], pkg_f[1], pkg_f[2])
-        archs = [pkg_f[3]]
-        files = [] + pkg_f[5]
-        for pkg_l in pkg_with_files:
-            nvr_l = "{}-{}-{}".format(pkg_l[0], pkg_l[1], pkg_l[2])
-            if nvr_f == nvr_l:
-                archs.append(pkg_l[3])
-                files += pkg_l[5]
-
-        if nvr_f not in result_dict.keys():
-            pkg_f = list(pkg_f)
-            pkg_f[3], pkg_f[5] = archs, utils.remove_duplicate(files)
-
-            result_dict[nvr_f] = pkg_f
+    result_list_info = []
+    for pkg in result_list_cleanup:
+        pkg = (pkg[0], pkg[1]) + name_info_dict[pkg[1]] + (pkg[2],)
+        result_list_info.append(pkg)
 
     return utils.convert_to_json(
-        ['name', 'version', 'release', 'archs', 'branch', 'files_with_conflict'],
-        list(result_dict.values())
+        ['input_package', 'conflict_package', 'version', 'release', 'epoch',
+         'archs', 'files_with_conflict'], result_list_info
     )
 
 
@@ -777,6 +805,7 @@ def dependent_packages():
     return utils.convert_to_json(js_keys, response)
 
 
+# FIXME if task id not exist -> fail
 @app.route('/what_depends_src')
 @func_time(logger)
 def broken_build():
@@ -1038,6 +1067,31 @@ def broken_build():
                'branch', 'archs', 'cycle']
 
     return utils.convert_to_json(js_keys, sorted_dict)
+
+
+@app.route('/unpackaged_dirs')
+@func_time(logger)
+def unpackaged_dirs():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    server.request_line = (
+        "SELECT DISTINCT Pkg.pkgname, extract(filename, '^(.+)/([^/]+)$'), "
+        "Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
+        "Pkg.arch FROM File LEFT JOIN (SELECT pkghash, name AS pkgname, version, "
+        "release, epoch, packager, packager_email, arch FROM Package) AS Pkg USING "
+        "pkghash WHERE empty(fileclass) AND pkghash IN (SELECT pkghash FROM last_packages "
+        "WHERE assigment_name = %(branch)s AND packager_email LIKE %(email)s AND "
+        "sourcepackage = 0 AND arch IN %(arch)s) AND hashdir NOT IN "
+        "(SELECT hashname FROM File WHERE fileclass = 'directory' AND pkghash IN "
+        "(SELECT pkghash FROM last_packages WHERE assigment_name = %(branch)s AND "
+        "packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) "
+        "ORDER BY packager_email",
+        # {'branch':}
+    )
 
 
 @app.errorhandler(404)
