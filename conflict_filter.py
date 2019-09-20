@@ -1,9 +1,6 @@
 import rpm
 import utils
-from clickhouse_driver import Client
-
-client = Client('')
-client.execute("")
+from logic_server import server
 
 
 class ConflictFilter:
@@ -13,11 +10,15 @@ class ConflictFilter:
 
     def _get_dict_conflict_provide(self, hsh):
 
-        response = client.execute(
+        server.request_line = (
             "SELECT DISTINCT dptype, dpname, dpversion FROM Depends WHERE "
             "pkghash = %(hsh)d AND dptype IN ('conflict', 'provide')",
             {'hsh': hsh, 'branch': self.pbranch, 'arch': self.parch}
         )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
 
         dict_ = {'conflict': [], 'provide': []}
         for pkg in response:
@@ -34,10 +35,14 @@ class ConflictFilter:
                         conflicts.append((hshA, hshB))
                     else:
                         # provides
-                        response = client.execute(
+                        server.request_line = (
                             "SELECT epoch, version, release, disttag FROM "
                             "Package WHERE pkghash = %(hsh)s", {'hsh': hshB}
                         )
+
+                        status, response = server.send_request()
+                        if status is False:
+                            return response
 
                         # provd
                         vv1 = response[0]
