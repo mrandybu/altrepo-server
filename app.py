@@ -6,6 +6,7 @@ import utils
 from utils import func_time
 from paths import paths
 from deps_sorting import SortList
+from conflict_filter import ConflictFilter
 
 app = Flask(__name__)
 logger = utils.get_logger(__name__)
@@ -466,7 +467,7 @@ def conflict_packages():
         return utils.json_str_error("One parameter only. ('name'/'task')")
 
     if not values['pkg_ls'] and not values['task']:
-        return utils.json_str_error("'name' or 'task' is require parameters.")
+        return utils.json_str_error("'pkg_ls' or 'task' is require parameters.")
 
     if values['pkg_ls'] and not values['branch']:
         return json.dumps(server.helper(request.path))
@@ -489,6 +490,9 @@ def conflict_packages():
         status, response = server.send_request()
         if status is False:
             return response
+
+        if not response:
+            return utils.json_str_error("Task not found!")
 
         pbranch = response[0][0]
 
@@ -513,7 +517,7 @@ def conflict_packages():
             {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
         )
 
-        status, response = server.send_request(trace=True)
+        status, response = server.send_request()
         if status is False:
             return response
 
@@ -525,7 +529,7 @@ def conflict_packages():
 
     # check of packages
     server.request_line = (
-        "SELECT DISTINCT name FROM Package WHERE name IN %(pkgs)s AND "
+        "SELECT DISTINCT name FROM Package WHERE pkghash IN %(pkgs)s AND "
         "sourcepackage = 0", {'pkgs': tuple(pkg_ls)}
     )
 
@@ -536,10 +540,23 @@ def conflict_packages():
     if len(pkg_ls) != len(utils.join_tuples(response)):
         return utils.json_str_error("Error of input data.")
 
+    # pkgs hash
     server.request_line = (
-        "SELECT version FROM last_packages WHERE name IN %(pkgs)s AND "
+        "SELECT pkghash FROM last_packages WHERE name IN %(pkgs)s AND "
         "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
         {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs}
+    )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    pkg_hshs = utils.join_tuples(response)
+
+    server.request_line = (
+        "SELECT version FROM last_packages WHERE pkghash IN %(hshs)s AND "
+        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
+        {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
     )
 
     status, response = server.send_request()
@@ -554,26 +571,19 @@ def conflict_packages():
     ptrn_vers.append('')
 
     server.request_line = (
-        "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM ("
-        "SELECT pkghash, filename, hashname FROM File WHERE hashname IN ("
-        "SELECT hashname FROM File WHERE pkghash IN (SELECT pkghash FROM "
-        "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
-        "AND sourcepackage = 0 AND arch IN %(arch)s) AND fileclass != "
+        "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM (SELECT "
+        "pkghash, filename, hashname FROM File WHERE hashname IN (SELECT "
+        "hashname FROM File WHERE pkghash IN %(hshs)s AND fileclass != "
         "'directory') AND pkghash IN (SELECT pkghash FROM last_packages WHERE "
         "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
         "%(arch)s AND pkghash NOT IN (SELECT pkghash FROM Package WHERE name "
-        "IN %(pkgs)s UNION ALL SELECT pkghash FROM Package WHERE name IN "
-        "(SELECT dpname FROM Depends WHERE pkghash IN (SELECT pkghash FROM "
-        "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
-        "AND sourcepackage = 0 AND arch IN %(arch)s) AND dptype = 'conflict') "
-        "UNION ALL SELECT pkghash FROM Depends WHERE dpname IN %(pkgs)s AND "
-        "multiMatchAny(dpversion, %(ptrn)s) AND dptype = 'conflict'))) "
-        "LEFT JOIN (SELECT pkghash, hashname FROM File WHERE pkghash IN "
-        "(SELECT pkghash FROM last_packages WHERE name IN %(pkgs)s AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s)) AS InPkg USING hashname GROUP BY (InPkg.pkghash, pkghash)",
-        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs,
-         'ptrn': ptrn_vers}
+        "IN %(pkgs)s))) LEFT JOIN (SELECT pkghash, hashname FROM File WHERE "
+        "pkghash IN %(hshs)s) AS InPkg USING hashname GROUP BY (InPkg.pkghash, "
+        "pkghash)",
+        {
+            'hshs': pkg_hshs, 'branch': pbranch, 'arch': allowed_archs,
+            'pkgs': pkg_ls
+        }
     )
 
     status, response = server.send_request()
@@ -584,6 +594,17 @@ def conflict_packages():
         return json.dumps({})
 
     hshs_files = response
+
+    in_confl_hshs = [(hsh[0], hsh[1]) for hsh in hshs_files]
+
+    c_filter = ConflictFilter(pbranch, allowed_archs)
+
+    filter_ls = []
+    for tp_hsh in in_confl_hshs:
+        confl_ls = c_filter.detect_conflict(tp_hsh[0], tp_hsh[1])
+        for confl in confl_ls:
+            if confl not in filter_ls:
+                filter_ls.append(confl)
 
     pkg_hshs = utils.remove_duplicate(
         [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
@@ -602,6 +623,12 @@ def conflict_packages():
         return response
 
     hsh_name_dict = utils.tuple_to_dict(response)
+
+    filter_ls_names = []
+    for hsh in filter_ls:
+        filter_ls_names.append(
+            (hsh_name_dict[hsh[1]][0], hsh_name_dict[hsh[0]][0])
+        )
 
     result_list = []
     for pkg in hshs_files:
@@ -644,8 +671,9 @@ def conflict_packages():
 
     result_list_info = []
     for pkg in result_list_cleanup:
-        pkg = (pkg[0], pkg[1]) + name_info_dict[pkg[1]] + (pkg[2],)
-        result_list_info.append(pkg)
+        if (pkg[0], pkg[1]) not in filter_ls_names:
+            pkg = (pkg[0], pkg[1]) + name_info_dict[pkg[1]] + (pkg[2],)
+            result_list_info.append(pkg)
 
     return utils.convert_to_json(
         ['input_package', 'conflict_package', 'version', 'release', 'epoch',
