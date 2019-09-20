@@ -101,6 +101,13 @@ class LogicServer:
                     'leaf': "show assembly dependency chain (only with 'sort')",
                     'deep': 'sets the sorting depth',
                 }
+            },
+            '/unpackaged_dirs': {
+                '##### /what_depends_src arguments #####': {
+                    'pkgr': '',
+                    'pkgset': '',
+                    'arch': '',
+                }
             }
         }
 
@@ -921,6 +928,7 @@ def broken_build():
     if not deep_level:
         deep_level = 1
 
+    # FIXME get result here
     base_query = \
         "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
         "(SELECT name FROM last_packages_with_source WHERE " \
@@ -1111,20 +1119,40 @@ def unpackaged_dirs():
     if check_params is not True:
         return check_params
 
+    values = server.get_dict_values(
+        [('pkgr', 's'), ('pkgset', 's'), ('arch', 's')]
+    )
+
+    if not values['pkgr'] or not values['pkgset']:
+        return json.dumps(server.helper(request.path))
+
+    parch = server.default_archs
+    if values['arch']:
+        parch = values['arch'].split(',')
+        if 'noarch' not in parch:
+            parch.append('noarch')
+
     server.request_line = (
         "SELECT DISTINCT Pkg.pkgname, extract(filename, '^(.+)/([^/]+)$'), "
         "Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
-        "Pkg.arch FROM File LEFT JOIN (SELECT pkghash, name AS pkgname, version, "
-        "release, epoch, packager, packager_email, arch FROM Package) AS Pkg USING "
-        "pkghash WHERE empty(fileclass) AND pkghash IN (SELECT pkghash FROM last_packages "
-        "WHERE assigment_name = %(branch)s AND packager_email LIKE %(email)s AND "
-        "sourcepackage = 0 AND arch IN %(arch)s) AND hashdir NOT IN "
-        "(SELECT hashname FROM File WHERE fileclass = 'directory' AND pkghash IN "
-        "(SELECT pkghash FROM last_packages WHERE assigment_name = %(branch)s AND "
-        "packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) "
-        "ORDER BY packager_email",
-        # {'branch':}
+        "Pkg.arch FROM File LEFT JOIN (SELECT pkghash, name AS pkgname, "
+        "version, release, epoch, packager, packager_email, arch FROM Package) "
+        "AS Pkg USING pkghash WHERE empty(fileclass) AND pkghash IN (SELECT "
+        "pkghash FROM last_packages WHERE assigment_name = %(branch)s AND "
+        "packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s) AND hashdir NOT IN (SELECT hashname FROM File WHERE "
+        "fileclass = 'directory' AND pkghash IN (SELECT pkghash FROM "
+        "last_packages WHERE assigment_name = %(branch)s AND packager_email "
+        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) ORDER BY "
+        "packager_email", {
+            'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
+            'arch': tuple(parch)
+        }
     )
+
+    status, response = server.send_request(trace=True)
+    if status is False:
+        return response
 
 
 @app.errorhandler(404)
