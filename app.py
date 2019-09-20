@@ -664,14 +664,7 @@ def broken_build():
             if status is False:
                 return response
 
-            pkg_ls = result_pkg_ls = utils.join_tuples(response)
-
-    result_pkg_ls = utils.join_tuples(result_pkg_ls)
-
-    # get requires
-    requires_list = ['']
-    for require in result_pkg_ls:
-        requires_list.append(require[0])
+            pkg_ls = utils.join_tuples(response)
 
     server.request_line = (
         "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != "
@@ -689,7 +682,7 @@ def broken_build():
         "ASC UNION ALL SELECT arrayJoin(%(union)s), '', '') WHERE "
         "sourcepkgname IN %(pkgs)s GROUP BY BinDeps.pkgname ORDER BY "
         "length(srcarray)",
-        {'union': list(input_pkgs), 'pkgs': tuple(requires_list),
+        {'union': list(input_pkgs), 'pkgs': ('',)+pkg_ls,
          'branch': pbranch}
     )
 
