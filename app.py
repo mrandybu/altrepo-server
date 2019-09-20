@@ -274,21 +274,24 @@ def conflict_packages():
             "not found in pkgset {pbranch}!"
             "".format(pkgs=','.join(pkg_ls), pbranch=pbranch)
         )
-    # return if input packages and calculated from db not equal
-    if len(pkg_ls) != len(response):
-        return utils.json_str_error("Error of input data.")
 
     pkg_hshs = utils.join_tuples(response)
 
     server.request_line = (
-        "SELECT version FROM last_packages WHERE pkghash IN %(hshs)s AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
-        {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
+        "SELECT DISTINCT version FROM last_packages WHERE pkghash IN %(hshs)s "
+        "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s", {
+            'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
+        }
     )
 
     status, response = server.send_request()
     if status is False:
         return response
+
+    # return if input packages and calculated from db not equal
+    if len(pkg_ls) != len(response):
+        return utils.json_str_error("Error of input data.")
 
     server.request_line = (
         "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM (SELECT "
