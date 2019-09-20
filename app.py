@@ -638,8 +638,8 @@ def broken_build():
     pkg_ls = utils.join_tuples(response)
 
     deep_wrapper = \
-        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
-        "(SELECT DISTINCT name FROM last_packages_with_source WHERE " \
+        "SELECT pkgname FROM last_depends WHERE dpname IN " \
+        "(SELECT name FROM last_packages_with_source WHERE " \
         "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND " \
         "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
         "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
@@ -649,14 +649,14 @@ def broken_build():
         result_pkg_ls = pkg_ls
     else:
 
-        if deep_level > 3:
+        if deep_level > 4:
             return utils.json_str_error("Deep cannot exceed 3")
 
-        for i in range(deep_level):
+        for i in range(deep_level-1):
             server.request_line = (
-                "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT %(pkgs)s)"
+                "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT arrayJoin(%(pkgsa)s))"
                 "".format(deep_wrapper), {
-                    'pkgs': tuple(pkg_ls), 'branch': pbranch
+                    'pkgs': tuple(pkg_ls), 'branch': pbranch, 'pkgsa':list(pkg_ls)
                 }
             )
 
