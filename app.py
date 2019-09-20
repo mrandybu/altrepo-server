@@ -231,8 +231,8 @@ def conflict_packages():
 
         if not response:
             return utils.json_str_error(
-                "Error: Packages in task "
-                "{task} not found!".format(task=values['task'])
+                "Error: Packages in task {task} not found!"
+                "".format(task=values['task'])
             )
 
         pkg_hshs = []
@@ -240,58 +240,35 @@ def conflict_packages():
             for hsh in block[0]:
                 pkg_hshs.append(hsh)
 
+    # package list without task
+    else:
+        pkg_ls = tuple(values['pkg_ls'].split(','))
+        pbranch = values['branch']
+
+        # get hash for package names
         server.request_line = (
-            "SELECT DISTINCT name FROM Package WHERE pkghash IN %(hshs)s AND "
-            "sourcepackage = 0 AND arch IN %(arch)s AND name NOT LIKE "
-            "'%%-debuginfo'",
-            {'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs}
+            "SELECT pkghash, name FROM last_packages WHERE name IN %(pkgs)s "
+            "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch "
+            "IN %(arch)s", {
+                'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs
+            }
         )
 
         status, response = server.send_request()
         if status is False:
             return response
 
-        pkg_ls = utils.join_tuples(response)
-    # package list without task
-    else:
-        pkg_ls = tuple(values['pkg_ls'].split(','))
-        pbranch = values['branch']
+        if not response:
+            return utils.json_str_error(
+                "Error: Packages {pkgs} not found in pkgset {branch}!".format(
+                    pkgs=pkg_ls, branch=pbranch
+                )
+            )
 
-    # get hash and version for packages
-    server.request_line = (
-        "SELECT pkghash FROM last_packages WHERE name IN %(pkgs)s AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
-        {'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs}
-    )
+        if len([pkg[1] for pkg in response]) != len(pkg_ls):
+            return utils.json_str_error("Error of input data.")
 
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    if not response:
-        return utils.json_str_error(
-            "Error: Packages {pkgs} "
-            "not found in pkgset {pbranch}!"
-            "".format(pkgs=','.join(pkg_ls), pbranch=pbranch)
-        )
-
-    pkg_hshs = utils.join_tuples(response)
-
-    server.request_line = (
-        "SELECT DISTINCT version FROM last_packages WHERE pkghash IN %(hshs)s "
-        "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s", {
-            'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
-        }
-    )
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    # return if input packages and calculated from db not equal
-    if len(pkg_ls) != len(response):
-        return utils.json_str_error("Error of input data.")
+        pkg_hshs = [pkg[0] for pkg in response]
 
     server.request_line = (
         "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM (SELECT "
@@ -299,11 +276,9 @@ def conflict_packages():
         "hashname FROM File WHERE pkghash IN %(hshs)s AND fileclass != "
         "'directory') AND pkghash IN (SELECT pkghash FROM last_packages WHERE "
         "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN "
-        "(SELECT pkghash, hashname FROM File WHERE "
-        "pkghash IN %(hshs)s) AS InPkg USING hashname GROUP BY (InPkg.pkghash, "
-        "pkghash)",
-        {
+        "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN (SELECT pkghash, "
+        "hashname FROM File WHERE pkghash IN %(hshs)s) AS InPkg USING "
+        "hashname GROUP BY (InPkg.pkghash, pkghash)", {
             'hshs': pkg_hshs, 'branch': pbranch, 'arch': allowed_archs
         }
     )
