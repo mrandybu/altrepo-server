@@ -290,13 +290,6 @@ def conflict_packages():
     if status is False:
         return response
 
-    ptrn_vers = []
-    for ver in response:
-        reg = r"^[0-9:]{}[-alt].*".format(ver[0])
-        ptrn_vers.append(reg)
-
-    ptrn_vers.append('')
-
     server.request_line = (
         "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM (SELECT "
         "pkghash, filename, hashname FROM File WHERE hashname IN (SELECT "
