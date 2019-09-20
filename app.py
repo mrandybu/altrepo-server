@@ -202,6 +202,7 @@ def conflict_packages():
 
     allowed_archs = tuple(allowed_archs)
 
+    # prepare packages list from Task
     if values['task']:
         server.request_line = (
             "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(task)d",
@@ -213,7 +214,9 @@ def conflict_packages():
             return response
 
         if not response:
-            return utils.json_str_error("Task not found!")
+            return utils.json_str_error(
+                "Task {task} not found!".format(task=values['task'])
+            )
 
         pbranch = response[0][0]
 
@@ -225,6 +228,12 @@ def conflict_packages():
         status, response = server.send_request()
         if status is False:
             return response
+
+        if not response:
+            return utils.json_str_error(
+                "Error: Packages in task "
+                "{task} not found!".format(task=values['task'])
+            )
 
         pkg_hshs = []
         for block in response:
@@ -243,25 +252,12 @@ def conflict_packages():
             return response
 
         pkg_ls = utils.join_tuples(response)
-
+    # package list without task
     else:
         pkg_ls = tuple(values['pkg_ls'].split(','))
         pbranch = values['branch']
 
-    # check of packages
-    server.request_line = (
-        "SELECT DISTINCT name FROM Package WHERE name IN %(pkgs)s AND "
-        "sourcepackage = 0", {'pkgs': tuple(pkg_ls)}
-    )
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    if len(pkg_ls) != len(utils.join_tuples(response)):
-        return utils.json_str_error("Error of input data.")
-
-    # pkgs hash
+    # get hash and version for packages
     server.request_line = (
         "SELECT pkghash FROM last_packages WHERE name IN %(pkgs)s AND "
         "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN %(arch)s",
@@ -271,6 +267,16 @@ def conflict_packages():
     status, response = server.send_request()
     if status is False:
         return response
+
+    if not response:
+        return utils.json_str_error(
+            "Error: Packages {pkgs} "
+            "not found in pkgset {pbranch}!"
+            "".format(pkgs=','.join(pkg_ls), pbranch=pbranch)
+        )
+    # return if input packages and calculated from db not equal
+    if len(pkg_ls) != len(response):
+        return utils.json_str_error("Error of input data.")
 
     pkg_hshs = utils.join_tuples(response)
 
