@@ -618,56 +618,59 @@ def broken_build():
     if not deep_level:
         deep_level = 1
 
-    # FIXME get result here
-    base_query = \
-        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
-        "(SELECT name FROM last_packages_with_source WHERE " \
-        "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND " \
-        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
-        "AND assigment_name = %(branch)s AND sourcepackage = 1 AND " \
-        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo' UNION ALL " \
-        "SELECT arrayJoin(%(union)s)"
-
-    deep_wrapper = \
-        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
-        "(SELECT DISTINCT name FROM last_packages_with_source WHERE " \
-        "sourcepkgname IN ({b_q}) AND assigment_name = %(branch)s AND " \
-        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
-        "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
-        "sourcepackage = 1".format(b_q='{b_q}')
-
-    if deep_level == 1:
-        server.request_line = base_query
-    else:
-
-        if deep_level > 3:
-            return utils.json_str_error("Deep cannot exceed 3")
-
-        server.request_line = \
-            "SELECT DISTINCT pkgname FROM ({} UNION ALL {})".format(
-                deep_wrapper.format(b_q=base_query), base_query
-            )
-
-        if deep_level == 3:
-            pre_query = server.request_line
-
-            server.request_line = \
-                "SELECT DISTINCT pkgname FROM ({} UNION ALL {})".format(
-                    deep_wrapper.format(b_q=server.request_line), pre_query
-                )
-
+    # base query
     server.request_line = (
-        server.request_line,
-        {'union': list(input_pkgs), 'pkgs': input_pkgs, 'branch': pbranch}
+        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN "
+        "(SELECT name FROM last_packages_with_source WHERE "
+        "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND "
+        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') "
+        "AND assigment_name = %(branch)s AND sourcepackage = 1 AND "
+        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo' UNION ALL "
+        "SELECT arrayJoin(%(union)s)", {
+            'pkgs': input_pkgs, 'branch': pbranch, 'union': list(input_pkgs)
+        }
     )
 
     status, response = server.send_request()
     if status is False:
         return response
 
+    pkg_ls = utils.join_tuples(response)
+
+    deep_wrapper = \
+        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN " \
+        "(SELECT DISTINCT name FROM last_packages_with_source WHERE " \
+        "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND " \
+        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
+        "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
+        "sourcepackage = 1"
+
+    if deep_level == 1:
+        result_pkg_ls = pkg_ls
+    else:
+
+        if deep_level > 3:
+            return utils.json_str_error("Deep cannot exceed 3")
+
+        for i in range(deep_level):
+            server.request_line = (
+                "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT %(pkgs)s)"
+                "".format(deep_wrapper), {
+                    'pkgs': tuple(pkg_ls), 'branch': pbranch
+                }
+            )
+
+            status, response = server.send_request(trace=True)
+            if status is False:
+                return response
+
+            pkg_ls = result_pkg_ls = utils.join_tuples(response)
+
+    result_pkg_ls = utils.join_tuples(result_pkg_ls)
+
     # get requires
     requires_list = ['']
-    for require in response:
+    for require in result_pkg_ls:
         requires_list.append(require[0])
 
     server.request_line = (
