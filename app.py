@@ -265,7 +265,7 @@ def conflict_packages():
                 )
             )
 
-        if len([pkg[1] for pkg in response]) != len(pkg_ls):
+        if len(set([pkg[1] for pkg in response])) != len(pkg_ls):
             return utils.json_str_error("Error of input data.")
 
         pkg_hshs = [pkg[0] for pkg in response]
@@ -279,7 +279,7 @@ def conflict_packages():
         "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN (SELECT pkghash, "
         "hashname FROM File WHERE pkghash IN %(hshs)s) AS InPkg USING "
         "hashname GROUP BY (InPkg.pkghash, pkghash)", {
-            'hshs': pkg_hshs, 'branch': pbranch, 'arch': allowed_archs
+            'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
         }
     )
 
