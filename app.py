@@ -547,9 +547,10 @@ def what_depends_build():
 
     message = None
     if pname and task_id:
-        message = "Only one parameter 'name' or 'task'."
+        message = "Only one parameter package 'name' or build 'task'."
     elif not pname and not task_id:
-        message = "'name' or 'task' is require parameters."
+        message = "Source package 'name' or build 'task'" \
+                  " is require parameters."
 
     if message:
         logger.debug(message)
@@ -651,7 +652,7 @@ def what_depends_build():
     else:
 
         if deep_level > 4:
-            return utils.json_str_error("Deep cannot exceed 3")
+            return utils.json_str_error("Requires Depth cannot exceed 4")
 
         for i in range(deep_level - 1):
             server.request_line = (
