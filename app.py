@@ -639,14 +639,6 @@ def what_depends_build():
     # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
-    deep_wrapper = \
-        "SELECT pkgname FROM last_depends WHERE dpname IN " \
-        "(SELECT name FROM last_packages_with_source WHERE " \
-        "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND " \
-        "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
-        "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
-        "sourcepackage = 1"
-
     if deep_level == 1:
         result_pkg_ls = pkg_ls
     else:
@@ -654,6 +646,15 @@ def what_depends_build():
         if deep_level > 4:
             return utils.json_str_error("Requires Depth cannot exceed 4")
 
+        # sql wrapper for increase depth
+        deep_wrapper = \
+            "SELECT pkgname FROM last_depends WHERE dpname IN " \
+            "(SELECT name FROM last_packages_with_source WHERE " \
+            "sourcepkgname IN %(pkgs)s AND assigment_name = %(branch)s AND " \
+            "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
+            "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
+            "sourcepackage = 1"
+        # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
             server.request_line = (
                 "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT arrayJoin(%(pkgsa)s))"
