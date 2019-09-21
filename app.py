@@ -564,13 +564,14 @@ def broken_build():
         arch = [arch]
         if 'noarch' not in arch:
             arch.append('noarch')
-
+    # tree leaf - show only build path between 'name' and 'leaf'
     leaf = server.get_one_value('leaf', 's')
     if leaf and task_id:
         return utils.json_str_error("'leaf' may be using with 'name' only.")
 
+    # process this query for task
     if task_id:
-        # branch name
+        # get the branch name from task
         server.request_line = (
             "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(id)s",
             {'id': task_id}
@@ -582,9 +583,9 @@ def broken_build():
 
         if not response:
             return utils.json_str_error('Unknown task id.')
-
+        # branch from task
         pbranch = response[0][0]
-
+        # get the packages hashes from Task
         server.request_line = (
             "SELECT pkgs FROM Tasks WHERE task_id = %(id)s", {'id': task_id}
         )
@@ -610,15 +611,15 @@ def broken_build():
             return response
 
         input_pkgs = utils.join_tuples(response)
-
+    # without task - get the packages name from URL
     else:
         input_pkgs = (pname,)
-
+    # deep level for recursive requires search
     deep_level = server.get_one_value('deep', 'i')
     if not deep_level:
         deep_level = 1
 
-    # base query
+    # base query - first iteration, build requires depth 1
     server.request_line = (
         "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN "
         "(SELECT name FROM last_packages_with_source WHERE "
@@ -634,7 +635,7 @@ def broken_build():
     status, response = server.send_request()
     if status is False:
         return response
-
+    # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
     deep_wrapper = \
@@ -666,6 +667,7 @@ def broken_build():
 
             pkg_ls = utils.join_tuples(response)
 
+    # get requires tree for found packages
     server.request_line = (
         "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != "
         "BinDeps.pkgname AND notEmpty(x)), groupUniqArray(sourcepkgname)) "
@@ -753,7 +755,7 @@ def broken_build():
         result_dict = result_dict_leaf
 
     sorted_pkgs = tuple(result_dict.keys())
-
+    # get output data for sorted package list
     server.request_line = (
         "SELECT DISTINCT SrcPkg.name, SrcPkg.version, SrcPkg.release, "
         "SrcPkg.epoch, SrcPkg.serial_, sourcerpm AS filename, "
