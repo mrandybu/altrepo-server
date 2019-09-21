@@ -535,7 +535,7 @@ def dependent_packages():
 
 @app.route('/what_depends_src')
 @func_time(logger)
-def broken_build():
+def what_depends_build():
     server.url_logging()
 
     check_params = server.check_input_params(source=1)
