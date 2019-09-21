@@ -652,11 +652,11 @@ def broken_build():
         if deep_level > 4:
             return utils.json_str_error("Deep cannot exceed 3")
 
-        for i in range(deep_level-1):
+        for i in range(deep_level - 1):
             server.request_line = (
                 "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT arrayJoin(%(pkgsa)s))"
                 "".format(deep_wrapper), {
-                    'pkgs': tuple(pkg_ls), 'branch': pbranch, 'pkgsa':list(pkg_ls)
+                    'pkgs': tuple(pkg_ls), 'branch': pbranch, 'pkgsa': list(pkg_ls)
                 }
             )
 
@@ -682,7 +682,7 @@ def broken_build():
         "ASC UNION ALL SELECT arrayJoin(%(union)s), '', '') WHERE "
         "sourcepkgname IN %(pkgs)s GROUP BY BinDeps.pkgname ORDER BY "
         "length(srcarray)",
-        {'union': list(input_pkgs), 'pkgs': ('',)+pkg_ls,
+        {'union': list(input_pkgs), 'pkgs': ('',) + pkg_ls,
          'branch': pbranch}
     )
 
