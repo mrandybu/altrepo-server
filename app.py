@@ -657,7 +657,7 @@ def what_depends_build():
             "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%-debuginfo') " \
             "AND dptype='provide') " \
             "AND assigment_name = %(branch)s AND dptype = 'require' AND " \
-            "sourcepackage = 1"
+            "sourcepackage IN (1,0)"
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
             server.request_line = (
