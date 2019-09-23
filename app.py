@@ -27,7 +27,7 @@ def package_info():
 
     pbranch = server.get_one_value('branch', 's')
 
-    intput_params = {
+    input_params = {
         'sha1': {
             'rname': 'pkgcs',
             'type': 's',
@@ -84,7 +84,7 @@ def package_info():
         },
     }
 
-    params_values = server.get_values_by_params(intput_params)
+    params_values = server.get_values_by_params(input_params)
     if params_values is False:
         return json.dumps(server.helper(request.path))
 
