@@ -641,10 +641,7 @@ def what_depends_build():
     # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
-    if deep_level == 1:
-        result_pkg_ls = pkg_ls
-    else:
-
+    if deep_level > 1:
         if deep_level > 4:
             return utils.json_str_error("Requires Depth cannot exceed 4")
 
