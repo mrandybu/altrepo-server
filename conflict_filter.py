@@ -11,7 +11,7 @@ class ConflictFilter:
     def _get_dict_conflict_provide(self, hsh):
 
         server.request_line = (
-            "SELECT DISTINCT dptype, dpname, dpversion FROM Depends WHERE "
+            "SELECT DISTINCT dptype, dpname, dpversion, flag FROM Depends WHERE "
             "pkghash = %(hsh)d AND dptype IN ('conflict', 'provide')",
             {'hsh': hsh, 'branch': self.pbranch, 'arch': self.parch}
         )
@@ -22,7 +22,10 @@ class ConflictFilter:
 
         dict_ = {'conflict': [], 'provide': []}
         for pkg in response:
-            dict_[pkg[0]].append((pkg[1], pkg[2]))
+            pkg_tpl = (pkg[1], pkg[2])
+            if pkg[0] == 'conflict':
+                pkg_tpl += (pkg[3],)
+            dict_[pkg[0]].append(pkg_tpl)
 
         return dict_
 
@@ -31,7 +34,7 @@ class ConflictFilter:
         for confl in dA['conflict']:
             for provd in dB['provide']:
                 if confl[0] == provd[0]:
-                    if confl[1] == '':
+                    if confl[1] == '' or confl[2] == 0:
                         conflicts.append((hshA, hshB))
                     else:
                         # provides
@@ -51,7 +54,13 @@ class ConflictFilter:
 
                         eq = self._compare_version(vv1, vv2)
 
-                        if eq == 0:
+                        eq_struct = {
+                            -1: [2, 10],
+                            0: [8, 10, 12],
+                            1: [4, 12],
+                        }
+
+                        if confl[2] in eq_struct[eq]:
                             conflicts.append((hshA, hshB))
 
         return conflicts
