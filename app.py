@@ -661,9 +661,11 @@ def what_depends_build():
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
             server.request_line = (
-                "SELECT DISTINCT pkgname FROM ({} UNION ALL SELECT arrayJoin(%(pkgsa)s))"
+                "SELECT DISTINCT pkgname FROM ({} UNION ALL "
+                "SELECT arrayJoin(%(pkgsa)s))"
                 "".format(deep_wrapper), {
-                    'pkgs': tuple(pkg_ls), 'branch': pbranch, 'pkgsa': list(pkg_ls)
+                    'pkgs': tuple(pkg_ls), 'branch': pbranch,
+                    'pkgsa': list(pkg_ls)
                 }
             )
 
