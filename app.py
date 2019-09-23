@@ -27,7 +27,7 @@ def package_info():
 
     pbranch = server.get_one_value('branch', 's')
 
-    intput_params = {
+    input_params = {
         'sha1': {
             'rname': 'pkgcs',
             'type': 's',
@@ -84,7 +84,7 @@ def package_info():
         },
     }
 
-    params_values = server.get_values_by_params(intput_params)
+    params_values = server.get_values_by_params(input_params)
     if params_values is False:
         return json.dumps(server.helper(request.path))
 
@@ -640,10 +640,7 @@ def what_depends_build():
     # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
-    if deep_level == 1:
-        result_pkg_ls = pkg_ls
-    else:
-
+    if deep_level > 1:
         if deep_level > 4:
             return utils.json_str_error("Requires Depth cannot exceed 4")
 
@@ -847,8 +844,9 @@ def unpackaged_dirs():
 
 
 @app.errorhandler(404)
-def page_404(e):
+def page_404(error):
     helper = {
+        'Error': error.description,
         'Valid queries': {
             '/package_info': 'information about given package',
             '/misconflict_packages': 'binary packages with intersecting '
