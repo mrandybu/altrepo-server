@@ -27,6 +27,7 @@ def read_config(config_file):
     return False
 
 
+# return error message as json format
 def json_str_error(error):
     return json.dumps({'Error': error})
 
@@ -62,18 +63,7 @@ def print_statusbar(message, type_):
           "".format(type_=types[type_], msg=message))
 
 
-def tuple_to_dict(tuple_):
-    dict_ = {}
-    for key, value in tuple_:
-        if key not in dict_.keys():
-            dict_[key] = []
-
-        dict_[key].append(value)
-
-    return dict_
-
-
-# FIXME if tuplelist is tuple
+# convert tuple or list of tuples to dict by set keys
 def tuplelist_to_dict(tuplelist, num):
     result_dict = {}
     for tuple_ in tuplelist:
@@ -93,16 +83,6 @@ def tuplelist_to_dict(tuplelist, num):
 
 def remove_duplicate(list_):
     return list(set(list_))
-
-
-def normalize_tuple(tuple_):
-    if type(tuple_) == list:
-        tuple_ = tuple(tuple_)
-
-    if len(tuple_) == 1:
-        tuple_ += (tuple_[0],)
-
-    return tuple_
 
 
 def func_time(logger):

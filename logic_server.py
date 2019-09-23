@@ -167,6 +167,7 @@ class LogicServer:
 
         return value
 
+    # get values of input parameters as dict
     def get_dict_values(self, list_of_params):
         values_dict = {}
         for param in list_of_params:
@@ -227,6 +228,7 @@ class LogicServer:
 
         return True
 
+    # get values of input parameters by structure of parameters
     def get_values_by_params(self, input_params, values_only=False):
         params_list = []
         if values_only:
@@ -279,18 +281,6 @@ class LogicServer:
     @staticmethod
     def url_logging():
         logger.info(unquote(request.url))
-
-    def get_last_version(self, name, branch):
-        self.request_line = (
-            "SELECT version FROM last_packages WHERE name = %(name)s AND "
-            "assigment_name = %(branch)s", {'name': name, 'branch': branch}
-        )
-
-        status, response = self.send_request()
-        if status is False:
-            return False, response
-
-        return True, response[0][0]
 
 
 server = LogicServer()

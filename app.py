@@ -267,6 +267,8 @@ def conflict_packages():
                 )
             )
 
+        # check the existence of a package by comparing the number of input
+        # and selected from database
         if len(set([pkg[1] for pkg in response])) != len(pkg_ls):
             return utils.json_str_error("Error of input data.")
 
@@ -295,6 +297,7 @@ def conflict_packages():
 
     hshs_files = response
 
+    # list of conflicting package pairs
     in_confl_hshs = [(hsh[0], hsh[1]) for hsh in hshs_files]
 
     # filter conflicts by provides/conflicts
@@ -571,6 +574,7 @@ def what_depends_build():
         arch = [arch]
         if 'noarch' not in arch:
             arch.append('noarch')
+
     # tree leaf - show only build path between 'name' and 'leaf'
     leaf = server.get_one_value('leaf', 's')
     if leaf and task_id:
@@ -590,8 +594,10 @@ def what_depends_build():
 
         if not response:
             return utils.json_str_error('Unknown task id.')
+
         # branch from task
         pbranch = response[0][0]
+
         # get the packages hashes from Task
         server.request_line = (
             "SELECT pkgs FROM Tasks WHERE task_id = %(id)s", {'id': task_id}
@@ -618,9 +624,11 @@ def what_depends_build():
             return response
 
         input_pkgs = utils.join_tuples(response)
+
     # without task - get the packages name from URL
     else:
         input_pkgs = (pname,)
+
     # deep level for recursive requires search
     deep_level = server.get_one_value('deep', 'i')
     if not deep_level:
@@ -643,6 +651,7 @@ def what_depends_build():
     status, response = server.send_request()
     if status is False:
         return response
+
     # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
@@ -659,6 +668,7 @@ def what_depends_build():
             "AND name NOT LIKE '%%-debuginfo') AND dptype='provide') AND " \
             "assigment_name = %(branch)s AND dptype = 'require' AND " \
             "sourcepackage IN (1,0)"
+
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
             server.request_line = (
@@ -761,6 +771,7 @@ def what_depends_build():
         result_dict = result_dict_leaf
 
     sorted_pkgs = tuple(result_dict.keys())
+
     # get output data for sorted package list
     server.request_line = (
         "SELECT DISTINCT SrcPkg.name, SrcPkg.version, SrcPkg.release, "
