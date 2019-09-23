@@ -324,7 +324,7 @@ def conflict_packages():
     if status is False:
         return response
 
-    hsh_name_dict = utils.tuple_to_dict(response)
+    hsh_name_dict = utils.tuplelist_to_dict(response, 1)
 
     filter_ls_names = []
     for hsh in filter_ls:
@@ -434,7 +434,7 @@ def package_by_file():
     if not response:
         return json.dumps({})
 
-    ids_filename_dict = utils.tuple_to_dict(response)
+    ids_filename_dict = utils.tuplelist_to_dict(response, 1)
 
     pkghashs = tuple([key for key in ids_filename_dict.keys()])
 
