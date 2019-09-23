@@ -204,6 +204,7 @@ def conflict_packages():
 
     # prepare packages list from Task
     if values['task']:
+        # get branch of task
         server.request_line = (
             "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(task)d",
             {'task': values['task']}
@@ -220,6 +221,7 @@ def conflict_packages():
 
         pbranch = response[0][0]
 
+        # get packages of task (hashes)
         server.request_line = (
             "SELECT pkgs FROM Tasks WHERE task_id = %(task)d",
             {'task': values['task']}
@@ -270,6 +272,7 @@ def conflict_packages():
 
         pkg_hshs = [pkg[0] for pkg in response]
 
+    # get list of (input package | conflict package | conflict files)
     server.request_line = (
         "SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) FROM (SELECT "
         "pkghash, filename, hashname FROM File WHERE hashname IN (SELECT "
@@ -294,6 +297,7 @@ def conflict_packages():
 
     in_confl_hshs = [(hsh[0], hsh[1]) for hsh in hshs_files]
 
+    # filter conflicts by provides/conflicts
     c_filter = ConflictFilter(pbranch, allowed_archs)
 
     filter_ls = []
@@ -307,6 +311,7 @@ def conflict_packages():
         [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
     )
 
+    # get package names by hashes
     server.request_line = (
         "SELECT pkghash, name FROM last_packages WHERE pkghash IN %(pkgs)s "
         "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
@@ -349,6 +354,7 @@ def conflict_packages():
 
     confl_pkgs = utils.remove_duplicate([pkg[1] for pkg in result_list_cleanup])
 
+    # get main information of packages
     server.request_line = (
         "SELECT name, version, release, epoch, groupUniqArray(arch) FROM "
         "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
