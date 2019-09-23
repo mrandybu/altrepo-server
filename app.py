@@ -628,13 +628,15 @@ def what_depends_build():
 
     # base query - first iteration, build requires depth 1
     server.request_line = (
-        "SELECT DISTINCT pkgname FROM last_depends WHERE dpname IN ("
+        "SELECT DISTINCT sourcepkgname from last_packages_with_source WHERE"
+        " assigment_name = %(branch)s AND sourcepackage = 0 AND pkghash IN "
+        "(SELECT DISTINCT pkghash FROM last_depends WHERE dpname IN ("
         "SELECT dpname FROM Depends WHERE pkghash IN (SELECT pkghash FROM "
         "last_packages_with_source WHERE sourcepkgname IN %(pkgs)s AND "
         "assigment_name = %(branch)s AND arch IN ('x86_64', 'noarch') AND "
         "name NOT LIKE '%%-debuginfo') AND dptype='provide') AND "
         "assigment_name = %(branch)s AND sourcepackage IN (1,0) AND "
-        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo' UNION ALL "
+        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo') UNION ALL "
         "SELECT arrayJoin(%(union)s)", {
             'pkgs': input_pkgs, 'branch': pbranch, 'union': list(input_pkgs)
         }
