@@ -852,8 +852,9 @@ def unpackaged_dirs():
 
 
 @app.errorhandler(404)
-def page_404(e):
+def page_404(error):
     helper = {
+        'Error': error.description,
         'Valid queries': {
             '/package_info': 'information about given package',
             '/misconflict_packages': 'binary packages with intersecting '
