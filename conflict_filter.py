@@ -54,13 +54,11 @@ class ConflictFilter:
 
                         eq = self._compare_version(vv1, vv2)
 
-                        eq_struct = {
-                            -1: [2, 10],
-                            0: [8, 10, 12],
-                            1: [4, 12],
-                        }
+                        flag = confl[2]
 
-                        if confl[2] in eq_struct[eq]:
+                        if (eq == -1 and flag & 1 << 1) or \
+                                (eq == 0 and flag & 1 << 3) or \
+                                (eq == 1 and flag & 1 << 2):
                             conflicts.append((hshA, hshB))
 
         return conflicts
