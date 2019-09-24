@@ -884,6 +884,7 @@ def page_404(error):
                                    'depend on the given package',
             '/what_depends_src': 'source packages with build dependency on a '
                                  'given package',
+            '/unpackaged_dirs': 'list of unpacked directories',
         }
     }
     return json.dumps(helper, sort_keys=False)

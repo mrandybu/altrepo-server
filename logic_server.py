@@ -116,8 +116,8 @@ class LogicServer:
             },
             '/unpackaged_dirs': {
                 '##### /unpackaged_dirs arguments #####': {
-                    'pkgr *': '',
-                    'pkgset *': '',
+                    'pkgr *': 'packager name',
+                    'pkgset *': 'name of branch',
                     'arch': '',
                 }
             }
