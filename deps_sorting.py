@@ -6,25 +6,25 @@ class Graph:
         self.graph = defaultdict(list)
         self.V = vertices
 
-    def addEdge(self, u, v):
+    def add_edge(self, u, v):
         self.graph[u].append(v)
 
-    def _topologicalSortUtil(self, v, visited, stack):
+    def _topological_sort_util(self, v, visited, stack):
         visited[v] = True
 
         for i in self.graph[v]:
             if visited[i] is False:
-                self._topologicalSortUtil(i, visited, stack)
+                self._topological_sort_util(i, visited, stack)
 
         stack.insert(0, v)
 
-    def topologicalSort(self):
+    def topological_sort(self):
         visited = [False] * self.V
         stack = []
 
         for i in range(self.V):
             if visited[i] is False:
-                self._topologicalSortUtil(i, visited, stack)
+                self._topological_sort_util(i, visited, stack)
 
         return stack
 
@@ -104,10 +104,10 @@ class SortList:
 
         for key, val in num_name_reqs.items():
             for vertex in val:
-                g.addEdge(key, vertex)
+                g.add_edge(key, vertex)
 
         sorted_list = []
-        for num in g.topologicalSort():
+        for num in g.topological_sort():
             if num != num_non_req:
                 sorted_list.append(name_to_num[num])
 

@@ -4,6 +4,7 @@ import json
 import time
 import datetime
 from paths import paths
+import argparse
 
 
 def get_logger(name):
@@ -27,6 +28,7 @@ def read_config(config_file):
     return False
 
 
+# return error message as json format
 def json_str_error(error):
     return json.dumps({'Error': error})
 
@@ -62,18 +64,16 @@ def print_statusbar(message, type_):
           "".format(type_=types[type_], msg=message))
 
 
-def tuple_to_dict(tuple_):
-    dict_ = {}
-    for key, value in tuple_:
-        if key not in dict_.keys():
-            dict_[key] = []
+def make_argument_parser(arg_list, desc=None):
+    parser = argparse.ArgumentParser(description=desc)
 
-        dict_[key].append(value)
+    for arg in arg_list:
+        parser.add_argument(arg[0], type=arg[1], default=arg[2], help=arg[3])
 
-    return dict_
+    return parser.parse_args()
 
 
-# FIXME if tuplelist is tuple
+# convert tuple or list of tuples to dict by set keys
 def tuplelist_to_dict(tuplelist, num):
     result_dict = {}
     for tuple_ in tuplelist:
@@ -85,7 +85,11 @@ def tuplelist_to_dict(tuplelist, num):
         else:
             count = tuple_[1:num + 1]
 
-        result_dict[tuple_[0]].append(count)
+        if isinstance(count, tuple):
+            for elem in count:
+                result_dict[tuple_[0]].append(elem)
+        else:
+            result_dict[tuple_[0]].append(count)
 
     return result_dict
 
@@ -94,14 +98,8 @@ def remove_duplicate(list_):
     return list(set(list_))
 
 
-def normalize_tuple(tuple_):
-    if type(tuple_) == list:
-        tuple_ = tuple(tuple_)
-
-    if len(tuple_) == 1:
-        tuple_ += (tuple_[0],)
-
-    return tuple_
+def get_helper(helper):
+    return json.dumps(helper, sort_keys=False)
 
 
 def func_time(logger):

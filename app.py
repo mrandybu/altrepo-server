@@ -2,7 +2,7 @@ from flask import Flask, request, json
 from collections import defaultdict
 from logic_server import server
 import utils
-from utils import func_time
+from utils import func_time, get_helper
 from deps_sorting import SortList
 from conflict_filter import ConflictFilter
 
@@ -86,7 +86,7 @@ def package_info():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     full = bool(server.get_one_value('full', 'b'))
 
@@ -191,7 +191,7 @@ def conflict_packages():
         return utils.json_str_error("'pkg_ls' or 'task' is require parameters.")
 
     if values['pkg_ls'] and not values['branch']:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     if values['arch']:
         allowed_archs = values['arch'].split(',')
@@ -267,6 +267,8 @@ def conflict_packages():
                 )
             )
 
+        # check the existence of a package by comparing the number of input
+        # and selected from database
         if len(set([pkg[1] for pkg in response])) != len(pkg_ls):
             return utils.json_str_error("Error of input data.")
 
@@ -295,6 +297,7 @@ def conflict_packages():
 
     hshs_files = response
 
+    # list of conflicting package pairs
     in_confl_hshs = [(hsh[0], hsh[1]) for hsh in hshs_files]
 
     # filter conflicts by provides/conflicts
@@ -324,7 +327,7 @@ def conflict_packages():
     if status is False:
         return response
 
-    hsh_name_dict = utils.tuple_to_dict(response)
+    hsh_name_dict = utils.tuplelist_to_dict(response, 1)
 
     filter_ls_names = []
     for hsh in filter_ls:
@@ -397,7 +400,7 @@ def package_by_file():
     md5 = server.get_one_value('md5', 's')
 
     if len([param for param in [file, md5] if param]) != 1:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -434,7 +437,7 @@ def package_by_file():
     if not response:
         return json.dumps({})
 
-    ids_filename_dict = utils.tuple_to_dict(response)
+    ids_filename_dict = utils.tuplelist_to_dict(response, 1)
 
     pkghashs = tuple([key for key in ids_filename_dict.keys()])
 
@@ -471,7 +474,7 @@ def package_files():
 
     sha1 = server.get_one_value('sha1', 's')
     if not sha1:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     server.request_line = (
         "SELECT filename FROM File WHERE pkghash = murmurHash3_64(%(sha1)s)",
@@ -506,7 +509,7 @@ def dependent_packages():
 
     pname = server.get_one_value('name', 's')
     if not pname:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -574,13 +577,14 @@ def what_depends_build():
 
     pbranch = server.get_one_value('branch', 's')
     if pname and not pbranch:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     arch = server.get_one_value('arch', 's')
     if arch:
         arch = [arch]
         if 'noarch' not in arch:
             arch.append('noarch')
+
     # tree leaf - show only build path between 'name' and 'leaf'
     leaf = server.get_one_value('leaf', 's')
     if leaf and task_id:
@@ -600,8 +604,10 @@ def what_depends_build():
 
         if not response:
             return utils.json_str_error('Unknown task id.')
+
         # branch from task
         pbranch = response[0][0]
+
         # get the packages hashes from Task
         server.request_line = (
             "SELECT pkgs FROM Tasks WHERE task_id = %(id)s", {'id': task_id}
@@ -628,9 +634,11 @@ def what_depends_build():
             return response
 
         input_pkgs = utils.join_tuples(response)
+
     # without task - get the packages name from URL
     else:
         input_pkgs = (pname,)
+
     # deep level for recursive requires search
     deep_level = server.get_one_value('deep', 'i')
     if not deep_level:
@@ -660,6 +668,7 @@ def what_depends_build():
     status, response = server.send_request()
     if status is False:
         return response
+
     # add packages with depth 1 to list
     pkg_ls = utils.join_tuples(response)
 
@@ -786,6 +795,7 @@ def what_depends_build():
         result_dict = result_dict_leaf
 
     sorted_pkgs = tuple(result_dict.keys())
+
     # get output data for sorted package list
     server.request_line = (
         "SELECT DISTINCT SrcPkg.name, SrcPkg.version, SrcPkg.release, "
@@ -843,7 +853,7 @@ def unpackaged_dirs():
     )
 
     if not values['pkgr'] or not values['pkgset']:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     parch = server.default_archs
     if values['arch']:
@@ -852,26 +862,36 @@ def unpackaged_dirs():
             parch.append('noarch')
 
     server.request_line = (
-        "SELECT DISTINCT Pkg.pkgname, extract(filename, '^(.+)/([^/]+)$'), "
-        "Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
-        "Pkg.arch FROM File LEFT JOIN (SELECT pkghash, name AS pkgname, "
-        "version, release, epoch, packager, packager_email, arch FROM Package) "
-        "AS Pkg USING pkghash WHERE empty(fileclass) AND pkghash IN (SELECT "
-        "pkghash FROM last_packages WHERE assigment_name = %(branch)s AND "
-        "packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s) AND hashdir NOT IN (SELECT hashname FROM File WHERE "
+        "SELECT pkgname, groupUniqArray(pkgfile), version, release, epoch, "
+        "packager, packager_email, archs FROM (SELECT DISTINCT Pkg.pkgname, "
+        "extract(filename, '^(.+)/([^/]+)$') AS pkgfile, Pkg.version, "
+        "Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
+        "groupUniqArray(Pkg.arch) AS archs FROM File LEFT JOIN (SELECT pkghash, "
+        "name AS pkgname, version, release, epoch, packager, packager_email, "
+        "arch FROM Package) AS Pkg USING pkghash WHERE empty(fileclass) AND "
+        "pkghash IN (SELECT pkghash FROM last_packages WHERE assigment_name = "
+        "%(branch)s AND packager_email LIKE %(email)s AND sourcepackage = 0 AND "
+        "arch IN %(arch)s) AND hashdir NOT IN (SELECT hashname FROM File WHERE "
         "fileclass = 'directory' AND pkghash IN (SELECT pkghash FROM "
         "last_packages WHERE assigment_name = %(branch)s AND packager_email "
-        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) ORDER BY "
-        "packager_email", {
+        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) GROUP BY "
+        "(Pkg.pkgname, pkgfile, Pkg.version, Pkg.release, Pkg.epoch, "
+        "Pkg.packager, Pkg.packager_email) ORDER BY packager_email) GROUP BY "
+        "(pkgname, version, release, epoch, packager, packager_email, archs)",
+        {
             'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
             'arch': tuple(parch)
         }
     )
 
-    status, response = server.send_request(trace=True)
+    status, response = server.send_request()
     if status is False:
         return response
+
+    js_keys = ['package', 'directory', 'version', 'release', 'epoch',
+               'packager', 'email', 'arch']
+
+    return utils.convert_to_json(js_keys, response)
 
 
 @app.errorhandler(404)
@@ -886,11 +906,12 @@ def page_404(error):
             '/package_files': 'files by current sha1 of package',
             '/dependent_packages': 'source packages whose binary packages '
                                    'depend on the given package',
-            '/what_depends_src': 'binary packages with build dependency on a '
+            '/what_depends_src': 'source packages with build dependency on a '
                                  'given package',
+            '/unpackaged_dirs': 'list of unpacked directories',
         }
     }
-    return json.dumps(helper)
+    return json.dumps(helper, sort_keys=False)
 
 
 if __name__ == '__main__':

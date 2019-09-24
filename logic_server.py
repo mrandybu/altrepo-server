@@ -1,16 +1,18 @@
 from urllib.parse import unquote
-from flask import Flask, request, json
+from flask import request
 from db_connection import DBConnection
 import utils
 from utils import func_time
 from paths import paths
 
-app = Flask(__name__)
 logger = utils.get_logger(__name__)
 
 
 class LogicServer:
     def __init__(self, request_line=None):
+        # make configuration before app start
+        self._init()
+
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.known_archs = ['x86_64', 'noarch', 'x86_64-i586', 'armh', 'arm',
                             'i586', 'pentium4', 'athlon', 'pentium3', 'i686',
@@ -33,12 +35,25 @@ class LogicServer:
         self.request_line = request_line
 
         # db params
-        self.clickhouse_host = self._get_config('ClickHouse', 'Host')
-        self.clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
+        self._clickhouse_host = self._get_config('ClickHouse', 'Host')
+        self._clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
+
+    @staticmethod
+    def _get_input_args():
+        # make parser arguments for set startup configuration
+        parser_args = [
+            ('--config', str, paths.DB_CONFIG_FILE, 'path to db config file'),
+            ('--logs', str, paths.LOG_FILE, 'path to log files'),
+        ]
+
+        parser = utils.make_argument_parser(parser_args)
+
+        return parser.config, parser.logs
 
     # init method, starts before application starts
-    @staticmethod
-    def init():
+    def _init(self):
+        paths.DB_CONFIG_FILE, paths.LOG_FILE = self._get_input_args()
+
         utils.print_statusbar(
             "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
         )
@@ -54,6 +69,7 @@ class LogicServer:
                     'disttag': '',
                     'buildtime': '><=',
                     'source': 'show source packages (true, false)',
+                    'arch': '',
                     'branch': '',
                     'packager': '',
                     'sha1': '',
@@ -62,47 +78,46 @@ class LogicServer:
             },
             '/misconflict_packages': {
                 '##### /misconflict_packages argunents #####': {
-                    'pkg_ls': 'name or list of binary packages',
-                    'task': "task id (not use with 'pkg_ls')",
-                    'branch': '',
-                    'arch': '',
+                    'pkg_ls *': 'name or list of binary packages',
+                    'task **': "task id (not use with 'pkg_ls')",
+                    'branch *': "require for 'pkg_ls' only",
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
             '/package_by_file': {
                 '##### /package_by_file arguments #####': {
-                    'file': "file name, can be set as a file name mask "
-                            "(ex. file='/usr/bin/*')",
-                    'md5': 'file md5',
+                    'file *': "file name, can be set as a file name mask "
+                              "(ex. file='/usr/bin/*')",
+                    'md5 **': "file md5 (without 'file' only)",
                     'arch': '',
-                    'branch': '',
+                    'branch *': '',
                 }
             },
             '/package_files': {
                 '##### /package_files arguments #####': {
-                    'sha1': 'package sha1',
+                    'sha1 *': 'package sha1',
                 }
             },
             '/dependent_packages': {
                 '##### /dependent_packages arguments #####': {
-                    'name': 'name of binary package',
-                    'version': '',
-                    'branch': '',
+                    'name *': 'name of binary package',
+                    'branch *': '',
                 }
             },
             '/what_depends_src': {
                 '##### /what_depends_src arguments #####': {
-                    'name': 'name of source package',
-                    'task': "task id (can't used with 'name')",
-                    'branch': '',
-                    'sort': 'for sort by dependencies',
-                    'leaf': "show assembly dependency chain (only with 'sort')",
+                    'name *': 'name of source package',
+                    'task **': "task id (can't used with 'name')",
+                    'branch *': "require for 'name' only",
+                    'arch': '',
+                    'leaf': "show assembly dependency chain",
                     'deep': 'sets the sorting depth',
                 }
             },
             '/unpackaged_dirs': {
-                '##### /what_depends_src arguments #####': {
-                    'pkgr': '',
-                    'pkgset': '',
+                '##### /unpackaged_dirs arguments #####': {
+                    'pkgr *': 'packager name',
+                    'pkgset *': 'name of branch',
                     'arch': '',
                 }
             }
@@ -125,8 +140,8 @@ class LogicServer:
                 pass
 
     def _get_connection(self):
-        return DBConnection(clickhouse_host=self.clickhouse_host,
-                            clickhouse_name=self.clickhouse_name)
+        return DBConnection(clickhouse_host=self._clickhouse_host,
+                            clickhouse_name=self._clickhouse_name)
 
     # measures the execution time of func
     @func_time(logger)
@@ -167,6 +182,7 @@ class LogicServer:
 
         return value
 
+    # get values of input parameters as dict
     def get_dict_values(self, list_of_params):
         values_dict = {}
         for param in list_of_params:
@@ -177,7 +193,7 @@ class LogicServer:
 
     def check_input_params(self, source=None):
         if not request.args:
-            return json.dumps(server.helper(request.path))
+            return utils.get_helper(server.helper(request.path))
 
         # check arch
         parchs = self.get_one_value('arch', 's')
@@ -227,6 +243,7 @@ class LogicServer:
 
         return True
 
+    # get values of input parameters by structure of parameters
     def get_values_by_params(self, input_params, values_only=False):
         params_list = []
         if values_only:
@@ -280,18 +297,5 @@ class LogicServer:
     def url_logging():
         logger.info(unquote(request.url))
 
-    def get_last_version(self, name, branch):
-        self.request_line = (
-            "SELECT version FROM last_packages WHERE name = %(name)s AND "
-            "assigment_name = %(branch)s", {'name': name, 'branch': branch}
-        )
-
-        status, response = self.send_request()
-        if status is False:
-            return False, response
-
-        return True, response[0][0]
-
 
 server = LogicServer()
-server.init()

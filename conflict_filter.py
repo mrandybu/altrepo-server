@@ -56,9 +56,9 @@ class ConflictFilter:
 
                         flag = confl[2]
 
-                        if (eq == -1 and flag & 1 << 1) or \
-                                (eq == 0 and flag & 1 << 3) or \
-                                (eq == 1 and flag & 1 << 2):
+                        if (eq == -1 and flag & 1 << 1 != 0) or \
+                                (eq == 0 and flag & 1 << 3 != 0) or \
+                                (eq == 1 and flag & 1 << 2 != 0):
                             conflicts.append((hshA, hshB))
 
         return conflicts
