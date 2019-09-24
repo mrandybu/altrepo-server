@@ -2,7 +2,7 @@ from flask import Flask, request, json
 from collections import defaultdict
 from logic_server import server
 import utils
-from utils import func_time
+from utils import func_time, get_helper
 from deps_sorting import SortList
 from conflict_filter import ConflictFilter
 
@@ -86,7 +86,7 @@ def package_info():
 
     params_values = server.get_values_by_params(input_params)
     if params_values is False:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     full = bool(server.get_one_value('full', 'b'))
 
@@ -191,7 +191,7 @@ def conflict_packages():
         return utils.json_str_error("'pkg_ls' or 'task' is require parameters.")
 
     if values['pkg_ls'] and not values['branch']:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     if values['arch']:
         allowed_archs = values['arch'].split(',')
@@ -400,7 +400,7 @@ def package_by_file():
     md5 = server.get_one_value('md5', 's')
 
     if len([param for param in [file, md5] if param]) != 1:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -474,7 +474,7 @@ def package_files():
 
     sha1 = server.get_one_value('sha1', 's')
     if not sha1:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     server.request_line = (
         "SELECT filename FROM File WHERE pkghash = murmurHash3_64(%(sha1)s)",
@@ -509,7 +509,7 @@ def dependent_packages():
 
     pname = server.get_one_value('name', 's')
     if not pname:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     pbranch = server.get_one_value('branch', 's')
     if not pbranch:
@@ -567,7 +567,7 @@ def what_depends_build():
 
     pbranch = server.get_one_value('branch', 's')
     if pname and not pbranch:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     arch = server.get_one_value('arch', 's')
     if arch:
@@ -829,7 +829,7 @@ def unpackaged_dirs():
     )
 
     if not values['pkgr'] or not values['pkgset']:
-        return json.dumps(server.helper(request.path))
+        return get_helper(server.helper(request.path))
 
     parch = server.default_archs
     if values['arch']:
@@ -876,7 +876,7 @@ def page_404(error):
                                  'given package',
         }
     }
-    return json.dumps(helper)
+    return json.dumps(helper, sort_keys=False)
 
 
 if __name__ == '__main__':

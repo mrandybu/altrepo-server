@@ -98,6 +98,10 @@ def remove_duplicate(list_):
     return list(set(list_))
 
 
+def get_helper(helper):
+    return json.dumps(helper, sort_keys=False)
+
+
 def func_time(logger):
     def decorator(function):
         def wrapper(*args, **kwargs):

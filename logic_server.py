@@ -116,7 +116,7 @@ class LogicServer:
                 }
             },
             '/unpackaged_dirs': {
-                '##### /what_depends_src arguments #####': {
+                '##### /unpackaged_dirs arguments #####': {
                     'pkgr *': '',
                     'pkgset *': '',
                     'arch': '',
@@ -194,7 +194,7 @@ class LogicServer:
 
     def check_input_params(self, source=None):
         if not request.args:
-            return json.dumps(server.helper(request.path))
+            return utils.get_helper(server.helper(request.path))
 
         # check arch
         parchs = self.get_one_value('arch', 's')
