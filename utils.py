@@ -4,6 +4,7 @@ import json
 import time
 import datetime
 from paths import paths
+import argparse
 
 
 def get_logger(name):
@@ -61,6 +62,15 @@ def print_statusbar(message, type_):
     }
     print("[ALTREPO SERVER]{type_}: {msg}"
           "".format(type_=types[type_], msg=message))
+
+
+def make_argument_parser(arg_list, desc=None):
+    parser = argparse.ArgumentParser(description=desc)
+
+    for arg in arg_list:
+        parser.add_argument(arg[0], type=arg[1], default=arg[2], help=arg[3])
+
+    return parser.parse_args()
 
 
 # convert tuple or list of tuples to dict by set keys

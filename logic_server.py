@@ -11,6 +11,9 @@ logger = utils.get_logger(__name__)
 
 class LogicServer:
     def __init__(self, request_line=None):
+        # make configuration before app start
+        self.init()
+
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.known_archs = ['x86_64', 'noarch', 'x86_64-i586', 'armh', 'arm',
                             'i586', 'pentium4', 'athlon', 'pentium3', 'i686',
@@ -36,9 +39,22 @@ class LogicServer:
         self.clickhouse_host = self._get_config('ClickHouse', 'Host')
         self.clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
 
-    # init method, starts before application starts
     @staticmethod
-    def init():
+    def _get_input_args():
+        # make parser arguments for set startup configuration
+        parser_args = [
+            ('--config', str, paths.DB_CONFIG_FILE, 'path to db config file'),
+            ('--logs', str, paths.LOG_FILE, 'path to log files'),
+        ]
+
+        parser = utils.make_argument_parser(parser_args)
+
+        return parser.config, parser.logs
+
+    # init method, starts before application starts
+    def init(self):
+        paths.DB_CONFIG_FILE, paths.LOG_FILE = self._get_input_args()
+
         utils.print_statusbar(
             "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
         )
@@ -284,4 +300,3 @@ class LogicServer:
 
 
 server = LogicServer()
-server.init()
