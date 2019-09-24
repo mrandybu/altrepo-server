@@ -860,7 +860,7 @@ def unpackaged_dirs():
         }
     )
 
-    status, response = server.send_request(trace=True)
+    status, response = server.send_request()
     if status is False:
         return response
 

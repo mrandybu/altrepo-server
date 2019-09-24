@@ -1,19 +1,17 @@
 from urllib.parse import unquote
-from flask import Flask, request
+from flask import request
 from db_connection import DBConnection
 import utils
 from utils import func_time
 from paths import paths
 
-app = Flask(__name__)
 logger = utils.get_logger(__name__)
 
 
-# TODO check public/private methods
 class LogicServer:
     def __init__(self, request_line=None):
         # make configuration before app start
-        self.init()
+        self._init()
 
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.known_archs = ['x86_64', 'noarch', 'x86_64-i586', 'armh', 'arm',
@@ -37,8 +35,8 @@ class LogicServer:
         self.request_line = request_line
 
         # db params
-        self.clickhouse_host = self._get_config('ClickHouse', 'Host')
-        self.clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
+        self._clickhouse_host = self._get_config('ClickHouse', 'Host')
+        self._clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
 
     @staticmethod
     def _get_input_args():
@@ -53,7 +51,7 @@ class LogicServer:
         return parser.config, parser.logs
 
     # init method, starts before application starts
-    def init(self):
+    def _init(self):
         paths.DB_CONFIG_FILE, paths.LOG_FILE = self._get_input_args()
 
         utils.print_statusbar(
@@ -142,8 +140,8 @@ class LogicServer:
                 pass
 
     def _get_connection(self):
-        return DBConnection(clickhouse_host=self.clickhouse_host,
-                            clickhouse_name=self.clickhouse_name)
+        return DBConnection(clickhouse_host=self._clickhouse_host,
+                            clickhouse_name=self._clickhouse_name)
 
     # measures the execution time of func
     @func_time(logger)
