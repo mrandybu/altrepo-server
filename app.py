@@ -872,7 +872,7 @@ def page_404(error):
             '/package_files': 'files by current sha1 of package',
             '/dependent_packages': 'source packages whose binary packages '
                                    'depend on the given package',
-            '/what_depends_src': 'binary packages with build dependency on a '
+            '/what_depends_src': 'source packages with build dependency on a '
                                  'given package',
         }
     }

@@ -13,13 +13,13 @@ requested package.
 
 Request parameters:
 
-* name * - package name
+* name - package name
 * version
 * release
-* arch
 * disttag
 * buildtime (><=)
 * source - show source packages (true, false)
+* arch
 * branch
 * packager
 * sha1
@@ -32,9 +32,9 @@ conflict with a given package.
 
 Request parameters:
 
-* name - name or list of binary package
-* task - task id
-* branch *
+* pkg_ls * - name or list of binary package
+* task ** - task id
+* branch * (* - only 'pkg_ls')
 * arch
 
 #### /package_by_file
@@ -44,10 +44,11 @@ It is possible to set the full file name, file name mask, md5 of file.
 
 Request parameters:
 
-* file - file name, can be set as a file name mask 
+* file * - file name, can be set as a file name mask
 (ex. file='/usr/bin/*')
-* md5 - file md5
+* md5 ** - file md5
 * arch
+* branch *
 
 #### /package_files
 
@@ -64,42 +65,48 @@ given package.
 
 Request parameters:
 
-* name - name of binary package
-* version
-* branch
+* name * - name of binary package
+* branch *
 
 #### /what_depends_src
 
-Returns a list of binary packages whose build will fail after removal
-specified package from the repository.
+Returns a list of source packages whose binary packages build will fail
+after removal specified package from the repository.
 
 Request parameters:
 
-* name - name of source package
-* task - task id (can't used with 'name')
-* branch (* - only 'name')
-* sort - for sort by dependencies
-* leaf - show assembly dependency chain (only with 'sort')
+* name * - name of source package
+* task ** - task id (can't used with 'name')
+* branch * (* - only 'name')
+* arch
+* leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
 
 \* - require parameters
+
+** - replacement require parameters
 
 ## Dependencies
 
 * python3-module-flask
 * python3-module-numpy
 * python3-module-clickhouse-driver
+* python3-module-urllib3
+* python3-module-rpm
 
 ## Components
 
-* app.py - main module of application, contains the base class of the 
-server and processes requests
+* app.py - main module of application, processes requests
+* logic_server - contains the base class of the server (backend for app)
 * db_connection.py - module of database connection
 * utils.py - contains auxiliary functions used by the main module
 * paths.py - provides of namespace for using in application
 * tests/* - tests of project
 * fake_mirror.py - creates a repository structure and fills it with a
 specified number packages (used for test queries)
+* deps_sorting - module for sorting dependencies (topological sorting)
+* conflict_filter - filter for package conflicts by provides (uses
+version comparison)
 
 ## Starting application
 
@@ -154,12 +161,15 @@ Make file
 
 	[ClickHouse]
     Host = clickhouse db host
+    DBName = name of database
 
 ### Starting application
 
 Start application from git catalog
 
 	gunicorn.py3 app:app &
+	or
+	gunicorn.py3 app:app --config path_to_file_with_configuration --logs path_to_logs_directory &
 
 ..after the application will run in the background.
 
@@ -170,28 +180,28 @@ formatted mapping is convenient to use jq utility.
 
 #### /package_info
 
-	curl "http://apphost/package_info?name=glibc&branch=Sisyphus" | jq
-	curl "http://apphost/package_info?name=glibc&branch=Sisyphus&full=true" | jq
+	curl "http://localhost/package_info?name=glibc&branch=Sisyphus" | jq
+	curl "http://localhost/package_info?name=glibc&branch=Sisyphus&full=true" | jq
 
 #### /misconflict_packages
 
-	curl "http://apphost/misconflict_packages?pkg_ls=postgresql10&branch=p8" | jq
+	curl "http://localhost/misconflict_packages?pkg_ls=postgresql10&branch=p8" | jq
 
 #### /package_by_file
 
-	curl "http://apphost/package_by_file?file=/usr/bin/less&branch=c8.1" | jq
-	curl "http://apphost/package_by_file?file='/etc/sysconfig/c*'&branch=Sisyphus" | jq
+	curl "http://localhost/package_by_file?file=/usr/bin/less&branch=c8.1" | jq
+	curl "http://localhost/package_by_file?file='/etc/sysconfig/c*'&branch=Sisyphus" | jq
 
 #### /package_files
 
-	curl "http://apphost/package_files?sha1=ad8b637c1e6c6e22e8aac42ed1c997658a1e9913" | jq
+	curl "http://localhost/package_files?sha1=ad8b637c1e6c6e22e8aac42ed1c997658a1e9913" | jq
 
 #### /dependent_packages
 
-	curl "http://apphost/dependent_packages?name=systemd&branch=p8" | jq
+	curl "http://localhost/dependent_packages?name=systemd&branch=p8" | jq
 
 #### /what_depends_src
 
-	curl "http://apphost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
-	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
-	curl "http://apphost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq
+	curl "http://localhost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
+	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
+	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq

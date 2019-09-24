@@ -70,6 +70,7 @@ class LogicServer:
                     'disttag': '',
                     'buildtime': '><=',
                     'source': 'show source packages (true, false)',
+                    'arch': '',
                     'branch': '',
                     'packager': '',
                     'sha1': '',
@@ -78,47 +79,46 @@ class LogicServer:
             },
             '/misconflict_packages': {
                 '##### /misconflict_packages argunents #####': {
-                    'pkg_ls': 'name or list of binary packages',
-                    'task': "task id (not use with 'pkg_ls')",
-                    'branch': '',
-                    'arch': '',
+                    'pkg_ls *': 'name or list of binary packages',
+                    'task **': "task id (not use with 'pkg_ls')",
+                    'branch *': "require for 'pkg_ls' only",
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
             '/package_by_file': {
                 '##### /package_by_file arguments #####': {
-                    'file': "file name, can be set as a file name mask "
-                            "(ex. file='/usr/bin/*')",
-                    'md5': 'file md5',
+                    'file *': "file name, can be set as a file name mask "
+                              "(ex. file='/usr/bin/*')",
+                    'md5 **': "file md5 (without 'file' only)",
                     'arch': '',
-                    'branch': '',
+                    'branch *': '',
                 }
             },
             '/package_files': {
                 '##### /package_files arguments #####': {
-                    'sha1': 'package sha1',
+                    'sha1 *': 'package sha1',
                 }
             },
             '/dependent_packages': {
                 '##### /dependent_packages arguments #####': {
-                    'name': 'name of binary package',
-                    'version': '',
-                    'branch': '',
+                    'name *': 'name of binary package',
+                    'branch *': '',
                 }
             },
             '/what_depends_src': {
                 '##### /what_depends_src arguments #####': {
-                    'name': 'name of source package',
-                    'task': "task id (can't used with 'name')",
-                    'branch': '',
-                    'sort': 'for sort by dependencies',
-                    'leaf': "show assembly dependency chain (only with 'sort')",
+                    'name *': 'name of source package',
+                    'task **': "task id (can't used with 'name')",
+                    'branch *': "require for 'name' only",
+                    'arch': '',
+                    'leaf': "show assembly dependency chain",
                     'deep': 'sets the sorting depth',
                 }
             },
             '/unpackaged_dirs': {
                 '##### /what_depends_src arguments #####': {
-                    'pkgr': '',
-                    'pkgset': '',
+                    'pkgr *': '',
+                    'pkgset *': '',
                     'arch': '',
                 }
             }
