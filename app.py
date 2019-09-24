@@ -838,18 +838,23 @@ def unpackaged_dirs():
             parch.append('noarch')
 
     server.request_line = (
-        "SELECT DISTINCT Pkg.pkgname, extract(filename, '^(.+)/([^/]+)$'), "
-        "Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
-        "Pkg.arch FROM File LEFT JOIN (SELECT pkghash, name AS pkgname, "
-        "version, release, epoch, packager, packager_email, arch FROM Package) "
-        "AS Pkg USING pkghash WHERE empty(fileclass) AND pkghash IN (SELECT "
-        "pkghash FROM last_packages WHERE assigment_name = %(branch)s AND "
-        "packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s) AND hashdir NOT IN (SELECT hashname FROM File WHERE "
+        "SELECT pkgname, groupUniqArray(pkgfile), version, release, epoch, "
+        "packager, packager_email, archs FROM (SELECT DISTINCT Pkg.pkgname, "
+        "extract(filename, '^(.+)/([^/]+)$') AS pkgfile, Pkg.version, "
+        "Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
+        "groupUniqArray(Pkg.arch) AS archs FROM File LEFT JOIN (SELECT pkghash, "
+        "name AS pkgname, version, release, epoch, packager, packager_email, "
+        "arch FROM Package) AS Pkg USING pkghash WHERE empty(fileclass) AND "
+        "pkghash IN (SELECT pkghash FROM last_packages WHERE assigment_name = "
+        "%(branch)s AND packager_email LIKE %(email)s AND sourcepackage = 0 AND "
+        "arch IN %(arch)s) AND hashdir NOT IN (SELECT hashname FROM File WHERE "
         "fileclass = 'directory' AND pkghash IN (SELECT pkghash FROM "
         "last_packages WHERE assigment_name = %(branch)s AND packager_email "
-        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) ORDER BY "
-        "packager_email", {
+        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) GROUP BY "
+        "(Pkg.pkgname, pkgfile, Pkg.version, Pkg.release, Pkg.epoch, "
+        "Pkg.packager, Pkg.packager_email) ORDER BY packager_email) GROUP BY "
+        "(pkgname, version, release, epoch, packager, packager_email, archs)",
+        {
             'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
             'arch': tuple(parch)
         }
@@ -858,6 +863,11 @@ def unpackaged_dirs():
     status, response = server.send_request(trace=True)
     if status is False:
         return response
+
+    js_keys = ['package', 'directory', 'version', 'release', 'epoch',
+               'packager', 'email', 'arch']
+
+    return utils.convert_to_json(js_keys, response)
 
 
 @app.errorhandler(404)

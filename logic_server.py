@@ -1,5 +1,5 @@
 from urllib.parse import unquote
-from flask import Flask, request, json
+from flask import Flask, request
 from db_connection import DBConnection
 import utils
 from utils import func_time
@@ -9,6 +9,7 @@ app = Flask(__name__)
 logger = utils.get_logger(__name__)
 
 
+# TODO check public/private methods
 class LogicServer:
     def __init__(self, request_line=None):
         # make configuration before app start
