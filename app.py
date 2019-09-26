@@ -923,6 +923,8 @@ def page_404(error):
             '/what_depends_src': 'source packages with build dependency on a '
                                  'given package',
             '/unpackaged_dirs': 'list of unpacked directories',
+            '/repo_compare': 'list of differences in the package base of '
+                             'specified repositories',
         }
     }
     return json.dumps(helper, sort_keys=False)

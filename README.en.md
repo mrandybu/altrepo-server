@@ -82,6 +82,14 @@ Request parameters:
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
 
+#### /repo_compare
+
+Returns a list of differences in the source package base of specified
+repositories.
+
+* assign1 * - name of repository
+* assing2 * - name of compared repository
+
 \* - require parameters
 
 ** - replacement require parameters
@@ -224,3 +232,6 @@ formatted mapping is convenient to use jq utility.
 	curl "http://localhost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq
+
+#### /repo_compare
+    curl "http://localhost/repo_compare?assign1=p9&assign2=Sisyphus" | jq
