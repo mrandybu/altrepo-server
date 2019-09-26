@@ -41,9 +41,16 @@ class LogicServer:
     # init method, starts before application starts
     @staticmethod
     def _init():
-        utils.print_statusbar(
-            "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
-        )
+        info_list = [
+            ("Configuration file: {}".format(namespace.CONFIG_FILE), 'i'),
+            ("DataBase host: {} name: {}"
+             "".format(namespace.DATABASE_HOST, namespace.DATABASE_NAME), 'i'),
+            ("Logging file: {}".format(namespace.LOG_FILE), 'i'),
+            ("Application host: {}:{}"
+             "".format(namespace.DEFAULT_HOST, namespace.DEFAULT_PORT), 'i')
+        ]
+
+        utils.print_statusbar(info_list)
 
     @staticmethod
     def helper(query):
