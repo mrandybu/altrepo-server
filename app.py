@@ -848,14 +848,13 @@ def unpackaged_dirs():
         "pkghash IN (SELECT pkghash FROM last_packages WHERE assigment_name = "
         "%(branch)s AND packager_email LIKE %(email)s AND sourcepackage = 0 AND "
         "arch IN %(arch)s AND name NOT LIKE '%%-debuginfo') AND hashdir NOT IN "
-        "(SELECT hashname FROM File WHERE "
-        "fileclass = 'directory' AND pkghash IN (SELECT pkghash FROM "
-        "last_packages WHERE assigment_name = %(branch)s AND packager_email "
-        "LIKE %(email)s AND sourcepackage = 0 AND arch IN %(arch)s)) GROUP BY "
-        "(Pkg.pkgname, pkgfile, Pkg.version, Pkg.release, Pkg.epoch, "
-        "Pkg.packager, Pkg.packager_email) ORDER BY packager_email) GROUP BY "
-        "(pkgname, version, release, epoch, packager, packager_email, archs)",
-        {
+        "(SELECT hashname FROM File WHERE fileclass = 'directory' AND pkghash IN "
+        "(SELECT pkghash FROM last_packages WHERE assigment_name = %(branch)s "
+        "AND packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN "
+        "%(arch)s)) GROUP BY (Pkg.pkgname, pkgfile, Pkg.version, Pkg.release, "
+        "Pkg.epoch, Pkg.packager, Pkg.packager_email) ORDER BY packager_email) "
+        "GROUP BY (pkgname, version, release, epoch, packager, packager_email, "
+        "archs)", {
             'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
             'arch': tuple(parch)
         }
