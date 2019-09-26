@@ -3,7 +3,7 @@ from flask import request
 from db_connection import DBConnection
 import utils
 from utils import func_time
-from paths import paths
+from paths import namespace
 
 logger = utils.get_logger(__name__)
 

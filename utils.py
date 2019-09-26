@@ -3,13 +3,13 @@ import configparser
 import json
 import time
 import datetime
-from paths import paths
+from paths import namespace
 import argparse
 
 
 def get_logger(name):
     logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
-                        level=logging.DEBUG, filename=paths.LOG_FILE)
+                        level=logging.DEBUG, filename=namespace.LOG_FILE)
     logger = logging.getLogger(name)
 
     return logger
