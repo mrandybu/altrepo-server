@@ -113,7 +113,13 @@ class LogicServer:
                     'pkgr *': 'packager name',
                     'pkgset *': 'name of branch',
                     'arch': '',
-                }
+                },
+            },
+            '/repo_compare': {
+                '##### /repo_compare arguments #####': {
+                    'assign1 *': 'name of repository',
+                    'assign2 *': 'name of compared repository',
+                },
             }
         }
 

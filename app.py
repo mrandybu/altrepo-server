@@ -870,6 +870,44 @@ def unpackaged_dirs():
     return utils.convert_to_json(js_keys, response)
 
 
+@app.route('/repo_compare')
+@func_time(logger)
+def repo_compare():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    values = server.get_dict_values([('assign1', 's'), ('assign2', 's')])
+
+    if not values['assign1'] or not values['assign2']:
+        return get_helper(server.helper(request.path))
+
+    server.request_line = (
+        "SELECT name, version, release FROM last_packages WHERE "
+        "assigment_name = %(assign1)s AND sourcepackage = 1 AND (name, "
+        "version, release) NOT IN (SELECT name, version, release FROM "
+        "last_packages WHERE assigment_name = %(assign2)s AND sourcepackage = 1) "
+        "AND name IN (SELECT name FROM last_packages WHERE assigment_name = "
+        "%(assign2)s AND sourcepackage = 1) UNION ALL SELECT name, '', '' FROM "
+        "last_packages WHERE assigment_name = %(assign1)s AND sourcepackage = 1 "
+        "AND name not IN (SELECT name FROM last_packages WHERE assigment_name = "
+        "%(assign2)s AND sourcepackage = 1)", {
+            'assign1': values['assign1'], 'assign2': values['assign2']
+        }
+    )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    if not response:
+        return json.dumps({})
+
+    return utils.convert_to_json(['name', 'version', 'release'], response)
+
+
 @app.errorhandler(404)
 def page_404(error):
     helper = {
