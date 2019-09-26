@@ -35,8 +35,8 @@ class LogicServer:
         self.request_line = request_line
 
         # db params
-        self._clickhouse_host = self._get_config('ClickHouse', 'Host')
-        self._clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
+        self._clickhouse_host = namespace.DATABASE_HOST
+        self._clickhouse_name = namespace.DATABASE_NAME
 
     # init method, starts before application starts
     @staticmethod
@@ -118,20 +118,6 @@ class LogicServer:
         }
 
         return helper[query]
-
-    @staticmethod
-    def _get_config(section, field, req=True):
-        config = utils.read_config(paths.DB_CONFIG_FILE)
-        if config is False:
-            raise Exception("Unable read config file.")
-
-        try:
-            return config.get(section, field)
-        except:
-            if req:
-                raise Exception("No needed section or field in config file.")
-            else:
-                pass
 
     def _get_connection(self):
         return DBConnection(clickhouse_host=self._clickhouse_host,

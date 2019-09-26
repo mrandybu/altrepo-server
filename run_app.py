@@ -1,30 +1,72 @@
 import sys
 import utils
-from paths import paths
+from paths import namespace
 from gunicorn.app.wsgiapp import run
 
 
 def start():
-    default_host = '127.0.0.1'
-    default_port = 5000
-    worker_processes = '1'
-
-    parser_args = [
-        ('--host', str, default_host, 'host to start application'),
-        ('--port', int, default_port, 'port to start application'),
-        ('--prcs', str, worker_processes, 'number of worker processes'),
-        ('--config', str, paths.DB_CONFIG_FILE, 'path to db config file'),
-        ('--logs', str, paths.LOG_FILE, 'path to log files'),
+    launch_props = [
+        ('DATABASE_HOST', str), ('DATABASE_NAME', str), ('DEFAULT_HOST', str),
+        ('DEFAULT_PORT', int), ('WORKER_PROCESSES', str), ('LOG_FILE', str)
     ]
 
-    parser = utils.make_argument_parser(parser_args)
+    pars_args = [
+        ('--host', str, None, 'host to start application'),
+        ('--port', int, None, 'port to start application'),
+        ('--dbhost', str, None, 'database host'),
+        ('--dbname', str, None, 'database name'),
+        ('--config', str, namespace.CONFIG_FILE, 'namespace to db config file'),
+        ('--prcs', str, None, 'number of worker processes'),
+        ('--logs', str, None, 'namespace to log files'),
+    ]
 
-    paths.DB_CONFIG_FILE = parser.config
-    paths.LOG_FILE = parser.logs
+    parser = utils.make_argument_parser(pars_args)
+
+    config = utils.read_config(parser.config)
+
+    if config:
+        params = {
+            'DataBase': [
+                ('Host', namespace.DATABASE_HOST),
+                ('Name', namespace.DATABASE_NAME)
+            ],
+            'Application': [
+                ('Host', namespace.DEFAULT_HOST),
+                ('Port', namespace.DEFAULT_PORT),
+                ('Processes', namespace.WORKER_PROCESSES)
+            ],
+            'Other': [('LogFiles', namespace.LOG_FILE)]
+        }
+
+        val_list = []
+        for section, items in params.items():
+            for line in items:
+                try:
+                    value = config.get(section, line[0])
+                except:
+                    value = line[1]
+
+                val_list.append(value)
+
+        for i in range(len(val_list)):
+            namespace.__setattr__(
+                launch_props[i][0], launch_props[i][1](val_list[i])
+            )
+
+    parser_keys = ['dbhost', 'dbname', 'host', 'port', 'prcs', 'logs']
+
+    for i in range(len(parser_keys)):
+        pars_val = parser.__getattribute__(parser_keys[i])
+
+        if pars_val:
+            namespace.__setattr__(
+                launch_props[i][0], launch_props[i][1](pars_val)
+            )
 
     sys.argv = [
-        sys.argv[0], '-b', '{}:{:d}'.format(parser.host, parser.port),
-        '-w', parser.prcs, 'app:app'
+        sys.argv[0], '-b', '{}:{:d}'.format(namespace.DEFAULT_HOST,
+                                            namespace.DEFAULT_PORT),
+        '-w', namespace.WORKER_PROCESSES, 'app:app'
     ]
 
     run()
