@@ -82,6 +82,14 @@ Request parameters:
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
 
+#### /repo_compare
+
+Returns a list of differences in the source package base of specified
+repositories.
+
+* assign1 * - name of repository
+* assing2 * - name of compared repository
+
 \* - require parameters
 
 ** - replacement require parameters
@@ -115,7 +123,7 @@ Best to use a bunch of nginx and gunicorn servers to run.
 First step
 
 	git clone http://git.altlinux.org/people/mrdrew/private/altrepo_server.git
-	git checkout clickhouse-support
+	git checkout `last_tag`
 
 ### Simple example of nginx setting
 
@@ -153,23 +161,42 @@ Make file
 
 ### Configuration file of database
 
-Make file
+Path to default configuration file
 
 	/etc/altrepo_server/dbconfig.conf
 
-..with next content
+but you can override it use option --config for launch application.
 
-	[ClickHouse]
-    Host = clickhouse db host
-    DBName = name of database
+Configuration file usually contains next sections
+
+	[DataBase]
+    Host = 10.88.14.5   # database host
+    Name = repodb       # database name
+
+    [Application]
+    Host = 127.0.0.1    # application host
+    Port = 5000         # port
+    Processes = 1       # number of worker processes
+
+    [Other]
+    LogFiles = /home/mrdrew/altrepo_server.log
+
+Also you can set launch options use keys. For more information use -h.
 
 ### Starting application
 
+For start application using module run_app. For set app configuration
+can be using config file ex.:
+
+    /usr/bin/python3 run_app.py --config /path/to/config/file.conf
+
+or use launch keys, for more information
+
+    /usr/bin/python3 run_app.py --help
+
 Start application from git catalog
 
-	gunicorn.py3 app:app &
-	or
-	gunicorn.py3 app:app --config path_to_file_with_configuration --logs path_to_logs_directory &
+    /usr/bin/python3 run_app.py `allow_options` &
 
 ..after the application will run in the background.
 
@@ -205,3 +232,6 @@ formatted mapping is convenient to use jq utility.
 	curl "http://localhost/what_depends_src?name=python-module-setuptools&branch=Sisyphus" | jq
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq
+
+#### /repo_compare
+    curl "http://localhost/repo_compare?assign1=p9&assign2=Sisyphus" | jq

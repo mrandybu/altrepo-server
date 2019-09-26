@@ -33,6 +33,6 @@ class DBConnection:
             logger.error(exception_to_logger(error))
             response = json_str_error("Error in sql query!")
             if trace:
-                print_statusbar(error, 'd')
+                print_statusbar([(error, 'd',)])
 
         return response_status, response

@@ -3,7 +3,7 @@ from flask import request
 from db_connection import DBConnection
 import utils
 from utils import func_time
-from paths import paths
+from paths import namespace
 
 logger = utils.get_logger(__name__)
 
@@ -35,15 +35,22 @@ class LogicServer:
         self.request_line = request_line
 
         # db params
-        self._clickhouse_host = self._get_config('ClickHouse', 'Host')
-        self._clickhouse_name = self._get_config('ClickHouse', 'DBName', False)
+        self._clickhouse_host = namespace.DATABASE_HOST
+        self._clickhouse_name = namespace.DATABASE_NAME
 
     # init method, starts before application starts
     @staticmethod
     def _init():
-        utils.print_statusbar(
-            "Using configuration file: {}".format(paths.DB_CONFIG_FILE), 'i'
-        )
+        info_list = [
+            ("Configuration file: {}".format(namespace.CONFIG_FILE), 'i'),
+            ("DataBase host: {} name: {}"
+             "".format(namespace.DATABASE_HOST, namespace.DATABASE_NAME), 'i'),
+            ("Logging file: {}".format(namespace.LOG_FILE), 'i'),
+            ("Application host: {}:{}"
+             "".format(namespace.DEFAULT_HOST, namespace.DEFAULT_PORT), 'i')
+        ]
+
+        utils.print_statusbar(info_list)
 
     @staticmethod
     def helper(query):
@@ -106,25 +113,17 @@ class LogicServer:
                     'pkgr *': 'packager name',
                     'pkgset *': 'name of branch',
                     'arch': '',
-                }
+                },
+            },
+            '/repo_compare': {
+                '##### /repo_compare arguments #####': {
+                    'assign1 *': 'name of repository',
+                    'assign2 *': 'name of compared repository',
+                },
             }
         }
 
         return helper[query]
-
-    @staticmethod
-    def _get_config(section, field, req=True):
-        config = utils.read_config(paths.DB_CONFIG_FILE)
-        if config is False:
-            raise Exception("Unable read config file.")
-
-        try:
-            return config.get(section, field)
-        except:
-            if req:
-                raise Exception("No needed section or field in config file.")
-            else:
-                pass
 
     def _get_connection(self):
         return DBConnection(clickhouse_host=self._clickhouse_host,

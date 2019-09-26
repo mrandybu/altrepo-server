@@ -3,13 +3,13 @@ import configparser
 import json
 import time
 import datetime
-from paths import paths
+from paths import namespace
 import argparse
 
 
 def get_logger(name):
     logging.basicConfig(format=u'%(levelname)-8s [%(asctime)s] %(message)s',
-                        level=logging.DEBUG, filename=paths.LOG_FILE)
+                        level=logging.DEBUG, filename=namespace.LOG_FILE)
     logger = logging.getLogger(name)
 
     return logger
@@ -53,15 +53,17 @@ def join_tuples(tuple_list):
     return tuple([tuple_[0] for tuple_ in tuple_list])
 
 
-def print_statusbar(message, type_):
+def print_statusbar(message_list):
     types = {
         'i': "[INFO]",
         'w': "[WARNING]",
         'd': "[DEBUG]",
         'e': "[ERROR]",
     }
-    print("[ALTREPO SERVER]{type_}: {msg}"
-          "".format(type_=types[type_], msg=message))
+
+    for msg in message_list:
+        print("[ALTREPO SERVER]{type_}: {msg}"
+              "".format(type_=types[msg[1]], msg=msg[0]))
 
 
 def make_argument_parser(arg_list, desc=None):
