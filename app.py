@@ -895,14 +895,18 @@ def repo_compare():
         return get_helper(server.helper(request.path))
 
     server.request_line = (
-        "SELECT name, version, release FROM last_packages WHERE "
+        "SELECT name, version, release, Df.name, Df.version, Df.release FROM "
+        "(SELECT name, version, release FROM last_packages WHERE "
         "assigment_name = %(assign1)s AND sourcepackage = 1 AND (name, "
         "version, release) NOT IN (SELECT name, version, release FROM "
-        "last_packages WHERE assigment_name = %(assign2)s AND sourcepackage = 1) "
-        "AND name IN (SELECT name FROM last_packages WHERE assigment_name = "
-        "%(assign2)s AND sourcepackage = 1) UNION ALL SELECT name, '', '' FROM "
-        "last_packages WHERE assigment_name = %(assign1)s AND sourcepackage = 1 "
-        "AND name not IN (SELECT name FROM last_packages WHERE assigment_name = "
+        "last_packages WHERE assigment_name = %(assign2)s AND "
+        "sourcepackage = 1) AND name IN (SELECT name FROM last_packages WHERE "
+        "assigment_name = %(assign2)s AND sourcepackage = 1)) INNER JOIN "
+        "(SELECT name, version, release FROM last_packages WHERE "
+        "assigment_name = %(assign2)s AND sourcepackage = 1) AS Df USING name "
+        "UNION ALL SELECT name, version, release, '', '', '' FROM last_packages "
+        "WHERE assigment_name = %(assign1)s AND sourcepackage = 1 AND name "
+        "NOT IN (SELECT name FROM last_packages WHERE assigment_name = "
         "%(assign2)s AND sourcepackage = 1)", {
             'assign1': values['assign1'], 'assign2': values['assign2']
         }
@@ -912,10 +916,24 @@ def repo_compare():
     if status is False:
         return response
 
+    result_dict = {}
+    for i in range(len(response)):
+        iter_elem = response[i]
+        result_dict[i] = {
+            values['assign1']: {
+                'name': iter_elem[0], 'version': iter_elem[1],
+                'release': iter_elem[2]
+            },
+            values['assign2']: {
+                'name': iter_elem[3], 'version': iter_elem[4],
+                'release': iter_elem[5]
+            }
+        }
+
     if not response:
         return json.dumps({})
 
-    return utils.convert_to_json(['name', 'version', 'release'], response)
+    return json.dumps(result_dict, sort_keys=False)
 
 
 @app.errorhandler(404)
