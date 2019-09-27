@@ -48,8 +48,10 @@ def start():
         val_list = []
         for section, items in params.items():
             for line in items:
-                value = args_dict.get(section).get(line[0])
-                if not value:
+                value = args_dict.get(section)
+                if value:
+                    value = value.get(line[0])
+                else:
                     value = line[1]
 
                 val_list.append(value)
