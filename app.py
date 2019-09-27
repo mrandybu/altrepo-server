@@ -237,10 +237,10 @@ def conflict_packages():
                 "".format(task=values['task'])
             )
 
-        pkg_hshs = []
+        input_pkg_hshs = []
         for block in response:
             for hsh in block[0]:
-                pkg_hshs.append(hsh)
+                input_pkg_hshs.append(hsh)
 
     # package list without task
     else:
@@ -272,7 +272,7 @@ def conflict_packages():
         if len(set([pkg[1] for pkg in response])) != len(pkg_ls):
             return utils.json_str_error("Error of input data.")
 
-        pkg_hshs = [pkg[0] for pkg in response]
+        input_pkg_hshs = [pkg[0] for pkg in response]
 
     # get list of (input package | conflict package | conflict files)
     server.request_line = (
@@ -284,7 +284,7 @@ def conflict_packages():
         "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN (SELECT pkghash, "
         "hashname FROM File WHERE pkghash IN %(hshs)s) AS InPkg USING "
         "hashname GROUP BY (InPkg.pkghash, pkghash)", {
-            'hshs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
+            'hshs': tuple(input_pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
         }
     )
 
@@ -329,11 +329,21 @@ def conflict_packages():
 
     hsh_name_dict = utils.tuplelist_to_dict(response, 1)
 
+    input_packages = []
+    for hsh, name in hsh_name_dict.items():
+        if hsh in input_pkg_hshs:
+            input_packages.append(name)
+
+    input_packages = utils.remove_duplicate(utils.join_tuples(input_packages))
+
     filter_ls_names = []
     for hsh in filter_ls:
-        filter_ls_names.append(
-            (hsh_name_dict[hsh[1]][0], hsh_name_dict[hsh[0]][0])
-        )
+        inp_pkg = hsh_name_dict[hsh[1]][0]
+        if inp_pkg not in input_packages:
+            inp_pkg = hsh_name_dict[hsh[0]][0]
+            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]][0]))
+        else:
+            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]][0]))
 
     result_list = []
     for pkg in hshs_files:
