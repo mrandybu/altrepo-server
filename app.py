@@ -284,7 +284,8 @@ def conflict_packages():
         "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN (SELECT pkghash, "
         "hashname FROM File WHERE pkghash IN %(hshs)s) AS InPkg USING "
         "hashname GROUP BY (InPkg.pkghash, pkghash)", {
-            'hshs': tuple(input_pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
+            'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
+            'arch': allowed_archs
         }
     )
 
@@ -530,16 +531,15 @@ def dependent_packages():
     server.request_line = (
         "SELECT DISTINCT name, version, release, epoch, serial_, filename "
         "AS sourcerpm, assigment_name, groupUniqArray(binary_arch) FROM "
-        "last_packages INNER JOIN (SELECT sourcerpm, arch AS binary_arch "
-        "FROM last_packages WHERE name IN (SELECT DISTINCT pkgname FROM "
-        "last_depends WHERE dpname IN (SELECT dpname FROM last_depends "
-        "WHERE pkgname = %(name)s AND dptype = 'provide' AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0) AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0) AND "
-        "assigment_name = %(branch)s AND sourcepackage = 0) USING sourcerpm "
-        "WHERE assigment_name = %(branch)s AND sourcepackage = 1 GROUP BY "
-        "(name, version, release, epoch, serial_, filename AS sourcerpm, "
-        "assigment_name)", {'name': pname, 'branch': pbranch}
+        "last_packages INNER JOIN (SELECT sourcerpm, arch AS binary_arch FROM "
+        "last_packages WHERE name IN (SELECT DISTINCT pkgname FROM last_depends "
+        "WHERE dpname IN (SELECT dpname FROM last_depends WHERE pkgname = "
+        "%(name)s AND dptype = 'provide' AND assigment_name = %(branch)s AND "
+        "sourcepackage = 0) AND assigment_name = %(branch)s AND sourcepackage "
+        "= 0) AND assigment_name = %(branch)s AND sourcepackage = 0) USING "
+        "sourcerpm WHERE assigment_name = %(branch)s AND sourcepackage = 1 "
+        "GROUP BY (name, version, release, epoch, serial_, filename AS "
+        "sourcerpm, assigment_name)", {'name': pname, 'branch': pbranch}
     )
 
     status, response = server.send_request()
@@ -563,11 +563,13 @@ def what_depends_build():
 
     pname = server.get_one_value('name', 's')
     task_id = server.get_one_value('task', 'i')
+
     depends_type_to_sql = {
         'source': (1,),
         'binary': (0,),
-        'both': (1,0)
+        'both': (1, 0)
     }
+
     depends_type = server.get_one_value('dptype', 's')
     try:
         sourcef = depends_type_to_sql[depends_type]
@@ -656,21 +658,17 @@ def what_depends_build():
 
     # base query - first iteration, build requires depth 1
     server.request_line = (
-        "SELECT DISTINCT name FROM Package WHERE (filename IN ("
-        "SELECT DISTINCT if(sourcepackage = 1, filename, sourcerpm)"
-        " AS sourcerpm from Package WHERE pkghash IN "
-        "(SELECT DISTINCT pkghash FROM last_depends WHERE dpname IN ("
-        "SELECT dpname FROM Depends WHERE pkghash IN (SELECT pkghash FROM "
-        "last_packages_with_source WHERE sourcepkgname IN %(pkgs)s AND "
-        "assigment_name = %(branch)s AND arch IN ('x86_64', 'noarch') AND "
-        "name NOT LIKE '%%-debuginfo') AND dptype='provide') AND "
-        "assigment_name = %(branch)s AND sourcepackage IN %(sfilter)s AND "
-        "dptype = 'require' AND pkgname NOT LIKE '%%-debuginfo'))) AND "
-        "sourcepackage = 1 UNION ALL "
+        "SELECT DISTINCT name FROM Package WHERE (filename IN (SELECT DISTINCT "
+        "if(sourcepackage = 1, filename, sourcerpm) AS sourcerpm from Package "
+        "WHERE pkghash IN (SELECT DISTINCT pkghash FROM last_depends WHERE "
+        "dpname IN (SELECT dpname FROM Depends WHERE pkghash IN (SELECT pkghash "
+        "FROM last_packages_with_source WHERE sourcepkgname IN %(pkgs)s AND "
+        "assigment_name = %(branch)s AND arch IN ('x86_64', 'noarch') AND name "
+        "NOT LIKE '%%-debuginfo') AND dptype='provide') AND assigment_name = "
+        "%(branch)s AND sourcepackage IN %(sfilter)s AND dptype = 'require' "
+        "AND pkgname NOT LIKE '%%-debuginfo'))) AND sourcepackage = 1 UNION ALL "
         "SELECT arrayJoin(%(union)s)", {
-            'sfilter': sourcef,
-            'pkgs': input_pkgs,
-            'branch': pbranch,
+            'sfilter': sourcef, 'pkgs': input_pkgs, 'branch': pbranch,
             'union': list(input_pkgs)
         }
     )
@@ -695,22 +693,21 @@ def what_depends_build():
             "AND name NOT LIKE '%%-debuginfo') AND dptype='provide') AND " \
             "assigment_name = %(branch)s AND dptype = 'require' AND " \
             "sourcepackage IN %(sfilter)s"
+
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
             server.request_line = (
-                "SELECT DISTINCT * FROM (SELECT name FROM Package WHERE (filename IN ("
-                "SELECT DISTINCT if(sourcepackage = 1, filename, sourcerpm)"
-                " AS sourcerpm from Package WHERE pkghash IN "
-                "({}))) AND sourcepackage = 1 UNION ALL SELECT "
-                "arrayJoin(%(pkgsa)s))".format(deep_wrapper), {
-                    'sfilter': sourcef,
-                    'pkgs': tuple(pkg_ls),
-                    'branch': pbranch,
+                "SELECT DISTINCT * FROM (SELECT name FROM Package WHERE ("
+                "filename IN (SELECT DISTINCT if(sourcepackage = 1, filename, "
+                "sourcerpm) AS sourcerpm from Package WHERE pkghash IN ({}))) "
+                "AND sourcepackage = 1 UNION ALL SELECT arrayJoin(%(pkgsa)s))"
+                "".format(deep_wrapper), {
+                    'sfilter': sourcef, 'pkgs': tuple(pkg_ls), 'branch': pbranch,
                     'pkgsa': list(pkg_ls)
                 }
             )
 
-            status, response = server.send_request(trace=True)
+            status, response = server.send_request()
             if status is False:
                 return response
 
@@ -725,15 +722,13 @@ def what_depends_build():
         "pkgname FROM (SELECT DISTINCT BinDeps.pkgname, pkgname, dpname FROM "
         "last_depends INNER JOIN (SELECT DISTINCT pkgname, dpname FROM "
         "last_depends WHERE pkgname IN %(pkgs)s AND assigment_name = %(branch)s "
-        "AND dptype = 'require' AND sourcepackage IN %(sfilter)s) AS BinDeps USING dpname WHERE "
-        "assigment_name = %(branch)s AND dptype = 'provide' AND "
-        "sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING pkgname "
+        "AND dptype = 'require' AND sourcepackage IN %(sfilter)s) AS BinDeps "
+        "USING dpname WHERE assigment_name = %(branch)s AND dptype = 'provide' "
+        "AND sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING pkgname "
         "WHERE assigment_name = %(branch)s ORDER BY sourcepkgname ASC UNION ALL "
         "SELECT arrayJoin(%(union)s), '', '') WHERE sourcepkgname IN %(pkgs)s "
         "GROUP BY BinDeps.pkgname ORDER BY length(srcarray)", {
-            'sfilter': sourcef,
-            'union': list(input_pkgs),
-            'pkgs': ('',) + pkg_ls,
+            'sfilter': sourcef, 'union': list(input_pkgs), 'pkgs': ('',) + pkg_ls,
             'branch': pbranch
         }
     )
