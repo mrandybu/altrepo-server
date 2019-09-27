@@ -25,25 +25,31 @@ def start():
     config = utils.read_config(parser.config)
 
     if config:
+
+        args_dict = {}
+        for section in config.sections():
+            args_dict[section.lower()] = {}
+            for option in config.options(section):
+                args_dict[section.lower()][option] = config.get(section, option)
+
         params = {
-            'DataBase': [
-                ('Host', namespace.DATABASE_HOST),
-                ('Name', namespace.DATABASE_NAME)
+            'database': [
+                ('host', namespace.DATABASE_HOST),
+                ('name', namespace.DATABASE_NAME)
             ],
-            'Application': [
-                ('Host', namespace.DEFAULT_HOST),
-                ('Port', namespace.DEFAULT_PORT),
-                ('Processes', namespace.WORKER_PROCESSES)
+            'application': [
+                ('host', namespace.DEFAULT_HOST),
+                ('port', namespace.DEFAULT_PORT),
+                ('processes', namespace.WORKER_PROCESSES)
             ],
-            'Other': [('LogFiles', namespace.LOG_FILE)]
+            'other': [('logfiles', namespace.LOG_FILE)]
         }
 
         val_list = []
         for section, items in params.items():
             for line in items:
-                try:
-                    value = config.get(section, line[0])
-                except:
+                value = args_dict.get(section).get(line[0])
+                if not value:
                     value = line[1]
 
                 val_list.append(value)
