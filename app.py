@@ -942,26 +942,26 @@ def repo_compare():
     if check_params is not True:
         return check_params
 
-    values = server.get_dict_values([('assign1', 's'), ('assign2', 's')])
+    values = server.get_dict_values([('pkgset1', 's'), ('pkgset2', 's')])
 
-    if not values['assign1'] or not values['assign2']:
+    if not values['pkgset1'] or not values['pkgset2']:
         return get_helper(server.helper(request.path))
 
     server.request_line = (
         "SELECT name, version, release, Df.name, Df.version, Df.release FROM "
         "(SELECT name, version, release FROM last_packages WHERE "
-        "assigment_name = %(assign1)s AND sourcepackage = 1 AND (name, "
+        "assigment_name = %(pkgset1)s AND sourcepackage = 1 AND (name, "
         "version, release) NOT IN (SELECT name, version, release FROM "
-        "last_packages WHERE assigment_name = %(assign2)s AND "
+        "last_packages WHERE assigment_name = %(pkgset2)s AND "
         "sourcepackage = 1) AND name IN (SELECT name FROM last_packages WHERE "
-        "assigment_name = %(assign2)s AND sourcepackage = 1)) INNER JOIN "
+        "assigment_name = %(pkgset2)s AND sourcepackage = 1)) INNER JOIN "
         "(SELECT name, version, release FROM last_packages WHERE "
-        "assigment_name = %(assign2)s AND sourcepackage = 1) AS Df USING name "
+        "assigment_name = %(pkgset2)s AND sourcepackage = 1) AS Df USING name "
         "UNION ALL SELECT name, version, release, '', '', '' FROM last_packages "
-        "WHERE assigment_name = %(assign1)s AND sourcepackage = 1 AND name "
+        "WHERE assigment_name = %(pkgset1)s AND sourcepackage = 1 AND name "
         "NOT IN (SELECT name FROM last_packages WHERE assigment_name = "
-        "%(assign2)s AND sourcepackage = 1)", {
-            'assign1': values['assign1'], 'assign2': values['assign2']
+        "%(pkgset2)s AND sourcepackage = 1)", {
+            'pkgset1': values['pkgset1'], 'pkgset2': values['pkgset2']
         }
     )
 
@@ -973,11 +973,11 @@ def repo_compare():
     for i in range(len(response)):
         iter_elem = response[i]
         result_dict[i] = {
-            values['assign1']: {
+            values['pkgset1']: {
                 'name': iter_elem[0], 'version': iter_elem[1],
                 'release': iter_elem[2]
             },
-            values['assign2']: {
+            values['pkgset2']: {
                 'name': iter_elem[3], 'version': iter_elem[4],
                 'release': iter_elem[5]
             }
