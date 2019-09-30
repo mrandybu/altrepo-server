@@ -174,6 +174,25 @@ def package_info():
 @app.route('/misconflict_packages')
 @func_time(logger)
 def conflict_packages():
+    """
+    The function of searching for conflicting files in packages that do not have
+    a conflict.
+
+    Input GET params:
+        pkg_ls * - package or list of packages
+        task ** - task id
+        branch (* - for pkg_ls only) - name of repository
+        arch - package architectures
+
+    Output structure:
+        input package
+        conflict package
+        version
+        release
+        epoch
+        architectures
+        files with conflict
+    """
     server.url_logging()
 
     check_params = server.check_input_params(source=0)
@@ -237,6 +256,7 @@ def conflict_packages():
                 "".format(task=values['task'])
             )
 
+        # joining tuples from response list
         input_pkg_hshs = []
         for block in response:
             for hsh in block[0]:
@@ -272,6 +292,7 @@ def conflict_packages():
         if len(set([pkg[1] for pkg in response])) != len(pkg_ls):
             return utils.json_str_error("Error of input data.")
 
+        # form a list of package hashes
         input_pkg_hshs = [pkg[0] for pkg in response]
 
     # get list of (input package | conflict package | conflict files)
@@ -304,6 +325,9 @@ def conflict_packages():
     # filter conflicts by provides/conflicts
     c_filter = ConflictFilter(pbranch, allowed_archs)
 
+    # check for the presence of the specified conflict each pair
+    # if the conflict between the packages in the pair is specified,
+    # then add the pair to the list
     filter_ls = []
     for tp_hsh in in_confl_hshs:
         confl_ls = c_filter.detect_conflict(tp_hsh[0], tp_hsh[1])
@@ -311,6 +335,7 @@ def conflict_packages():
             if confl not in filter_ls:
                 filter_ls.append(confl)
 
+    # get a list of hashes of packages to form a dict of hash-name
     pkg_hshs = utils.remove_duplicate(
         [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
     )
@@ -330,6 +355,7 @@ def conflict_packages():
 
     hsh_name_dict = utils.tuplelist_to_dict(response, 1)
 
+    # get names of input packages
     input_packages = []
     for hsh, name in hsh_name_dict.items():
         if hsh in input_pkg_hshs:
@@ -337,6 +363,8 @@ def conflict_packages():
 
     input_packages = utils.remove_duplicate(utils.join_tuples(input_packages))
 
+    # convert the hashes into names, put in the first place in the pair
+    # the name of the input package, if it is not
     filter_ls_names = []
     for hsh in filter_ls:
         inp_pkg = hsh_name_dict[hsh[1]][0]
@@ -346,12 +374,15 @@ def conflict_packages():
         else:
             filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]][0]))
 
+    # form the list of tuples (input package | conflict package | conflict files)
     result_list = []
     for pkg in hshs_files:
         pkg = (hsh_name_dict[pkg[0]][0], hsh_name_dict[pkg[1]][0], pkg[2])
         if pkg not in result_list:
             result_list.append(pkg)
 
+    # look for duplicate pairs of packages in the list with different files
+    # and join them
     result_list_cleanup = []
     for pkg in result_list:
         files = list(pkg[2])
@@ -368,7 +399,7 @@ def conflict_packages():
 
     confl_pkgs = utils.remove_duplicate([pkg[1] for pkg in result_list_cleanup])
 
-    # get main information of packages
+    # get main information of packages by package hashes
     server.request_line = (
         "SELECT name, version, release, epoch, groupUniqArray(arch) FROM "
         "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
@@ -382,10 +413,13 @@ def conflict_packages():
     if status is False:
         return response
 
+    # form dict name - package info
     name_info_dict = {}
     for pkg in response:
         name_info_dict[pkg[0]] = pkg[1:]
 
+    # form list of tuples (input pkg | conflict pkg | pkg info | conflict files)
+    # and filter it
     result_list_info = []
     for pkg in result_list_cleanup:
         if (pkg[0], pkg[1]) not in filter_ls_names:
