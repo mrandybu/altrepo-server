@@ -589,6 +589,33 @@ def dependent_packages():
 @app.route('/what_depends_src')
 @func_time(logger)
 def what_depends_build():
+    """
+    The function of searching build dependencies.
+
+    The function search build dependencies of package, list packages or
+    packages from task. Also function can also use such parameters like as
+    leaf, searching depth.
+
+    Input GET params:
+        name * - package or list of packages
+        task ** - task id
+        branch (* - for pkg_ls only) - name of repository
+        arch - package architectures
+        leaf - assembly dependency chain
+        deep - sorting depth
+        dptype - type of package (source, binary, both)
+
+    Output structure:
+        name
+        version
+        release
+        epoch
+        serial
+        source package
+        branch
+        architectures
+        cycle dependencies
+    """
     server.url_logging()
 
     check_params = server.check_input_params(source=1)
@@ -663,6 +690,7 @@ def what_depends_build():
         if status is False:
             return response
 
+        # join list of tuples of tuples
         pkgs_hsh = ()
         for tp_package in response:
             for package in tp_package[0]:
@@ -771,6 +799,7 @@ def what_depends_build():
     if status is False:
         return response
 
+    # form dict input package name - dependencies
     name_reqs_dict = {}
     for elem in response:
         reqs = [req for req in elem[1] if req != '']
@@ -778,6 +807,7 @@ def what_depends_build():
 
     name_reqs_dict_cleanup = name_reqs_dict
 
+    # check leaf, if true, get dependencies of leaf package
     if leaf:
         if leaf not in name_reqs_dict_cleanup.keys():
             return utils.json_str_error(
@@ -786,9 +816,11 @@ def what_depends_build():
         else:
             leaf_deps = name_reqs_dict_cleanup[leaf]
 
+    # sort list of dependencies by their dependencies
     sort = SortList(name_reqs_dict_cleanup, pname)
     circle_deps, sorted_list = sort.sort_list()
 
+    # remove input package names from list of circle dependencies
     cleanup_circle_deps = []
     for dp in circle_deps:
         if dp[1] != pname:
@@ -796,19 +828,25 @@ def what_depends_build():
 
     circle_deps = cleanup_circle_deps
 
+    # form dict package - its circle dependencies
     circle_deps_dict = {}
     for c_dep in circle_deps:
         if c_dep[0] not in circle_deps_dict.keys():
             circle_deps_dict[c_dep[0]] = []
         circle_deps_dict[c_dep[0]].append(c_dep[1])
 
+    # remove the name of the dependent package from the list of its
+    # circle dependencies
     for name, deps in circle_deps_dict.items():
         if name in deps:
             deps.remove(name)
+        # if sorted list instead of the package name add tuple
+        # (pkg name, list of circle dependencies)
         for pac in sorted_list:
             if pac == name:
                 sorted_list[sorted_list.index(pac)] = (pac, deps)
 
+    # form dict pkg name - circle dependencies
     result_dict = {}
     for package in sorted_list:
         if isinstance(package, tuple):
@@ -816,6 +854,8 @@ def what_depends_build():
         else:
             result_dict[package] = []
 
+    # if leaf, then select packages from the result list and their cyclic
+    # dependencies on which the leaf package and create a dictionary
     if leaf:
         result_dict_leaf = defaultdict(list)
         result_dict_leaf[pname] = []
@@ -833,6 +873,7 @@ def what_depends_build():
 
         result_dict = result_dict_leaf
 
+    # list of result package names
     sorted_pkgs = tuple(result_dict.keys())
 
     # get output data for sorted package list
