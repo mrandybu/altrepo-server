@@ -42,18 +42,6 @@ class SortList:
             name_to_num[num] = list_[num]
         return num_to_name, name_to_num
 
-    def _remove_reqs_out_of_list(self, packages_ls):
-        cleanup_pkgs_reqs = {}
-        for package, reqs in self.package_reqs.items():
-            cleanup_reqs = []
-            for req in reqs:
-                if req in packages_ls:
-                    cleanup_reqs.append(req)
-
-            cleanup_pkgs_reqs[package] = cleanup_reqs
-
-        self.package_reqs = cleanup_pkgs_reqs
-
     def _search_circle_deps(self):
         circle_deps = []
         for package, reqs in self.package_reqs.items():
