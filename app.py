@@ -942,29 +942,25 @@ def unpackaged_dirs():
             parch.append('noarch')
 
     server.request_line = (
-        "SELECT pkgname, groupUniqArray(pkgfile), version, release, epoch, "
-        "packager, packager_email, archs FROM (SELECT DISTINCT Pkg.pkgname, "
-        "extract(filename, '^(.+)/([^/]+)$') AS pkgfile, Pkg.version, "
-        "Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
-        "groupUniqArray(Pkg.arch) AS archs FROM File LEFT JOIN (SELECT pkghash, "
-        "name AS pkgname, version, release, epoch, packager, packager_email, "
+        "SELECT DISTINCT Pkg.pkgname, extract(filename, '^(.+)/([^/]+)$') AS dir, "
+        "Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, Pkg.packager_email, "
+        "groupUniqArray(Pkg.arch) FROM File LEFT JOIN (SELECT pkghash, name as "
+        "pkgname, version, release, epoch, disttag, packager_email, packager, "
         "arch FROM Package) AS Pkg USING pkghash WHERE empty(fileclass) AND "
-        "pkghash IN (SELECT pkghash FROM last_packages WHERE assigment_name = "
-        "%(branch)s AND packager_email LIKE %(email)s AND sourcepackage = 0 AND "
-        "arch IN %(arch)s AND name NOT LIKE '%%-debuginfo') AND hashdir NOT IN "
-        "(SELECT hashname FROM File WHERE fileclass = 'directory' AND pkghash IN "
-        "(SELECT pkghash FROM last_packages WHERE assigment_name = %(branch)s "
-        "AND packager_email LIKE %(email)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s)) GROUP BY (Pkg.pkgname, pkgfile, Pkg.version, Pkg.release, "
-        "Pkg.epoch, Pkg.packager, Pkg.packager_email) ORDER BY packager_email) "
-        "GROUP BY (pkgname, version, release, epoch, packager, packager_email, "
-        "archs)", {
+        "(pkghash IN (SELECT pkghash FROM last_packages WHERE (assigment_name = "
+        "%(branch)s) AND packager_email LIKE %(email)s AND (sourcepackage = 0) "
+        "AND (arch IN %(archs)s))) AND (hashdir NOT IN (SELECT hashname FROM "
+        "File WHERE (fileclass = 'directory') AND (pkghash IN (SELECT pkghash "
+        "FROM last_packages WHERE (assigment_name = %(branch)s) AND "
+        "(sourcepackage = 0) AND (arch IN %(archs)s))))) GROUP BY ("
+        "Pkg.pkgname, dir, Pkg.version, Pkg.release, Pkg.epoch, Pkg.packager, "
+        "Pkg.packager_email) ORDER BY packager_email", {
             'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
-            'arch': tuple(parch)
+            'archs': tuple(parch)
         }
     )
 
-    status, response = server.send_request()
+    status, response = server.send_request(trace=True)
     if status is False:
         return response
 
