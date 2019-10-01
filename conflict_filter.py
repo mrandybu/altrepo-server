@@ -13,6 +13,7 @@ class ConflictFilter:
     :param pbranch: name of package repository
     :param parch: packages archs
     """
+
     def __init__(self, pbranch, parch):
         self.pbranch = pbranch
         self.parch = parch
