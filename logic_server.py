@@ -104,8 +104,10 @@ class LogicServer:
                     'task **': "task id (can't used with 'name')",
                     'branch *': "require for 'name' only",
                     'arch': '',
-                    'leaf': "show assembly dependency chain",
+                    'leaf': 'show assembly dependency chain',
                     'deep': 'sets the sorting depth',
+                    'dptype': 'type of package for sorting (source, binary, '
+                              'both)',
                 }
             },
             '/unpackaged_dirs': {
@@ -117,8 +119,8 @@ class LogicServer:
             },
             '/repo_compare': {
                 '##### /repo_compare arguments #####': {
-                    'assign1 *': 'name of repository',
-                    'assign2 *': 'name of compared repository',
+                    'pkgset1 *': 'name of repository',
+                    'pkgset2 *': 'name of compared repository',
                 },
             }
         }
