@@ -632,10 +632,10 @@ def what_depends_build():
     }
 
     depends_type = server.get_one_value('dptype', 's')
-    try:
-        sourcef = depends_type_to_sql[depends_type]
-    except:
-        sourcef = depends_type_to_sql['both']
+    if depends_type not in depends_type_to_sql:
+        depends_type = 'both'
+
+    sourcef = depends_type_to_sql[depends_type]
 
     message = None
     if pname and task_id:
@@ -775,47 +775,101 @@ def what_depends_build():
 
             pkg_ls = utils.join_tuples(response)
 
-    # get requires tree for found packages
-    server.request_line = (
-        "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != BinDeps.pkgname "
-        "AND notEmpty(x)), groupUniqArray(sourcepkgname)) AS srcarray FROM ("
-        "SELECT DISTINCT BinDeps.pkgname, name AS pkgname, sourcepkgname FROM "
-        "last_packages_with_source INNER JOIN (SELECT DISTINCT BinDeps.pkgname, "
-        "pkgname FROM (SELECT DISTINCT BinDeps.pkgname, pkgname, dpname FROM "
-        "last_depends INNER JOIN (SELECT DISTINCT pkgname, dpname FROM "
-        "last_depends WHERE pkgname IN %(pkgs)s AND assigment_name = %(branch)s "
-        "AND dptype = 'require' AND sourcepackage IN %(sfilter)s) AS BinDeps "
-        "USING dpname WHERE assigment_name = %(branch)s AND dptype = 'provide' "
-        "AND sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING pkgname "
-        "WHERE assigment_name = %(branch)s ORDER BY sourcepkgname ASC UNION ALL "
-        "SELECT arrayJoin(%(union)s), '', '') WHERE sourcepkgname IN %(pkgs)s "
-        "GROUP BY BinDeps.pkgname ORDER BY length(srcarray)", {
-            'sfilter': sourcef, 'union': list(input_pkgs), 'pkgs': ('',) + pkg_ls,
-            'branch': pbranch
-        }
-    )
+    pkgs_to_sort_dict = None
 
-    status, response = server.send_request()
-    if status is False:
-        return response
+    # get source dependencies
+    if depends_type in ['source', 'both']:
+        # get requires tree for found packages
+        server.request_line = (
+            "SELECT DISTINCT BinDeps.pkgname, arrayFilter(x -> (x != BinDeps.pkgname "
+            "AND notEmpty(x)), groupUniqArray(sourcepkgname)) AS srcarray FROM ("
+            "SELECT DISTINCT BinDeps.pkgname, name AS pkgname, sourcepkgname FROM "
+            "last_packages_with_source INNER JOIN (SELECT DISTINCT BinDeps.pkgname, "
+            "pkgname FROM (SELECT DISTINCT BinDeps.pkgname, pkgname, dpname FROM "
+            "last_depends INNER JOIN (SELECT DISTINCT pkgname, dpname FROM "
+            "last_depends WHERE pkgname IN %(pkgs)s AND assigment_name = %(branch)s "
+            "AND dptype = 'require' AND sourcepackage = 1) AS BinDeps "
+            "USING dpname WHERE assigment_name = %(branch)s AND dptype = 'provide' "
+            "AND sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING pkgname "
+            "WHERE assigment_name = %(branch)s ORDER BY sourcepkgname ASC UNION ALL "
+            "SELECT arrayJoin(%(union)s), '', '') WHERE sourcepkgname IN %(pkgs)s "
+            "GROUP BY BinDeps.pkgname ORDER BY length(srcarray)", {
+                'union': list(input_pkgs), 'pkgs': ('',) + pkg_ls, 'branch': pbranch
+            }
+        )
 
-    # form dict input package name - dependencies
-    name_reqs_dict = {}
-    for elem in response:
-        reqs = [req for req in elem[1] if req != '']
-        name_reqs_dict[elem[0]] = reqs
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        # form dict input package name - dependencies
+        name_reqs_dict = {}
+        for elem in response:
+            reqs = [req for req in elem[1] if req != '']
+            name_reqs_dict[elem[0]] = reqs
+
+        pkgs_to_sort_dict = name_reqs_dict
+
+    # get binary dependencies
+    if depends_type in ['binary', 'both']:
+        # get binary package dependencies
+        server.request_line = (
+            "SELECT sourcepkgname, groupUniqArray(Bin.sourcepkgname) FROM (SELECT "
+            "sourcepkgname, name AS pkgname, Bin.sourcepkgname FROM "
+            "last_packages_with_source INNER JOIN (SELECT pkgname, sourcepkgname "
+            "FROM (SELECT DISTINCT pkgname, Prv.pkgname AS dpname, "
+            "Src.sourcepkgname FROM (SELECT pkgname, dpname, Prv.pkgname FROM ("
+            "SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname IN ("
+            "SELECT DISTINCT name FROM last_packages_with_source WHERE "
+            "sourcepkgname IN %(dp_pkgs)s AND assigment_name = %(branch)s AND "
+            "arch IN %(archs)s AND name NOT LIKE '%%-debuginfo') AND dptype = "
+            "'require' AND assigment_name = %(branch)s AND arch IN %(archs)s AND "
+            "sourcepackage = 0) INNER JOIN (SELECT dpname, pkgname FROM "
+            "last_depends WHERE dptype = 'provide' AND assigment_name = %(branch)s "
+            "AND sourcepackage = 0 AND arch IN %(archs)s) AS Prv USING dpname) "
+            "INNER JOIN (SELECT name as dpname, sourcepkgname FROM "
+            "last_packages_with_source WHERE assigment_name = %(branch)s AND arch "
+            "IN %(archs)s) Src USING dpname)) AS Bin USING pkgname WHERE "
+            "assigment_name = %(branch)s AND arch IN %(archs)s) GROUP BY ("
+            "sourcepkgname)", {
+                'dp_pkgs': pkg_ls, 'branch': pbranch, 'archs': tuple(arch)
+            }
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        name_reqs_dict_binary = utils.tuplelist_to_dict(response, 1)
+
+        name_reqs_dict_binary_cleanup = {}
+        for pkg, deps in name_reqs_dict_binary.items():
+            dep_cleanup = []
+            for dep in deps:
+                if dep in name_reqs_dict_binary:
+                    dep_cleanup.append(dep)
+
+            name_reqs_dict_binary_cleanup[pkg] = dep_cleanup
+
+        # if source and binary dependencies - join it
+        if pkgs_to_sort_dict:
+            pkgs_to_sort_dict = utils.join_dicts(
+                name_reqs_dict_binary_cleanup, pkgs_to_sort_dict
+            )
+        else:
+            pkgs_to_sort_dict = name_reqs_dict_binary_cleanup
 
     # check leaf, if true, get dependencies of leaf package
     if leaf:
-        if leaf not in name_reqs_dict.keys():
+        if leaf not in pkgs_to_sort_dict.keys():
             return utils.json_str_error(
                 "Package '{}' not in dependencies list.".format(leaf)
             )
         else:
-            leaf_deps = name_reqs_dict[leaf]
+            leaf_deps = pkgs_to_sort_dict[leaf]
 
     # sort list of dependencies by their dependencies
-    sort = SortList(name_reqs_dict, pname)
+    sort = SortList(pkgs_to_sort_dict, pname)
     circle_deps, sorted_list = sort.sort_list()
 
     # remove input package names from list of circle dependencies
