@@ -805,19 +805,17 @@ def what_depends_build():
         reqs = [req for req in elem[1] if req != '']
         name_reqs_dict[elem[0]] = reqs
 
-    name_reqs_dict_cleanup = name_reqs_dict
-
     # check leaf, if true, get dependencies of leaf package
     if leaf:
-        if leaf not in name_reqs_dict_cleanup.keys():
+        if leaf not in name_reqs_dict.keys():
             return utils.json_str_error(
                 "Package '{}' not in dependencies list.".format(leaf)
             )
         else:
-            leaf_deps = name_reqs_dict_cleanup[leaf]
+            leaf_deps = name_reqs_dict[leaf]
 
     # sort list of dependencies by their dependencies
-    sort = SortList(name_reqs_dict_cleanup, pname)
+    sort = SortList(name_reqs_dict, pname)
     circle_deps, sorted_list = sort.sort_list()
 
     # remove input package names from list of circle dependencies
