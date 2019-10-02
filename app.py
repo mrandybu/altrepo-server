@@ -657,6 +657,8 @@ def what_depends_build():
         arch = [arch]
         if 'noarch' not in arch:
             arch.append('noarch')
+    else:
+        arch = ('x86_64', 'noarch')
 
     # tree leaf - show only build path between 'name' and 'leaf'
     leaf = server.get_one_value('leaf', 's')
