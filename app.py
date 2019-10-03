@@ -861,6 +861,9 @@ def what_depends_build():
         else:
             pkgs_to_sort_dict = name_reqs_dict_binary_cleanup
 
+    if not pkgs_to_sort_dict:
+        return json.dumps({})
+
     # check leaf, if true, get dependencies of leaf package
     if leaf:
         if leaf not in pkgs_to_sort_dict.keys():
