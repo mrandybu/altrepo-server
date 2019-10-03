@@ -938,8 +938,9 @@ def what_depends_build():
     server.request_line = (
         "SELECT DISTINCT SrcPkg.name, SrcPkg.version, SrcPkg.release, "
         "SrcPkg.epoch, SrcPkg.serial_, sourcerpm AS filename, assigment_name, "
-        "groupUniqArray(arch) FROM last_packages INNER JOIN (SELECT name, "
-        "version, release, epoch, serial_, filename, assigment_name FROM "
+        "groupUniqArray(arch), CAST(toDateTime(any(SrcPkg.buildtime)), 'String') "
+        "AS buildtime_str FROM last_packages INNER JOIN (SELECT name, version, "
+        "release, epoch, serial_, filename, assigment_name, buildtime FROM "
         "last_packages WHERE name IN %(pkgs)s AND assigment_name = %(branch)s "
         "AND sourcepackage = 1) AS SrcPkg USING filename WHERE "
         "assigment_name = %(branch)s AND sourcepackage = 0 GROUP BY ("
@@ -1001,7 +1002,7 @@ def what_depends_build():
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
-               'branch', 'archs', 'cycle']
+               'branch', 'archs', 'buildtime', 'cycle']
 
     return utils.convert_to_json(js_keys, sorted_dict)
 
