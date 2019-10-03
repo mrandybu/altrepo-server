@@ -108,6 +108,7 @@ class LogicServer:
                     'deep': 'sets the sorting depth',
                     'dptype': 'type of package for sorting (source, binary, '
                               'both)',
+                    'reqfilter': 'package for filter result by dependency',
                 }
             },
             '/unpackaged_dirs': {

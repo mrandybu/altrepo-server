@@ -81,6 +81,7 @@ Request parameters:
 * arch
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
+* reqfilter - package for filter result by dependency
 
 #### /repo_compare
 
@@ -170,8 +171,8 @@ but you can override it use option --config for launch application.
 Configuration file usually contains next sections
 
 	[DataBase]
-    Host = 10.88.14.5   # database host
-    Name = repodb       # database name
+    Host = 10.0.0.1        # database host
+    Name = database_name   # database name
 
     [Application]
     Host = 127.0.0.1    # application host
