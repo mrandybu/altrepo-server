@@ -20,7 +20,7 @@ def exception_to_logger(exception):
 
 
 def read_config(config_file):
-    config = configparser.ConfigParser()
+    config = configparser.ConfigParser(inline_comment_prefixes="#")
 
     if config.read(config_file):
         return config
