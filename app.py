@@ -658,7 +658,7 @@ def what_depends_build():
         if 'noarch' not in arch:
             arch.append('noarch')
     else:
-        arch = ('x86_64', 'noarch')
+        arch = ['x86_64', 'noarch']
 
     # tree leaf - show only build path between 'name' and 'leaf'
     leaf = server.get_one_value('leaf', 's')
@@ -844,6 +844,7 @@ def what_depends_build():
 
         name_reqs_dict_binary = utils.tuplelist_to_dict(response, 1)
 
+        # cleanup binary dependencies
         name_reqs_dict_binary_cleanup = {}
         for pkg, deps in name_reqs_dict_binary.items():
             dep_cleanup = []
@@ -959,14 +960,43 @@ def what_depends_build():
             if info[0] == pkg:
                 pkg_info_list.append(info + (c_deps,))
 
+    reqfilter = server.get_one_value('reqfilter', 's')
+
+    filter_pkgs = None
+    if reqfilter:
+        server.request_line = (
+            "SELECT sourcepkgname FROM last_packages_with_source WHERE name IN "
+            "(SELECT DISTINCT * FROM (SELECT pkgname FROM last_depends WHERE "
+            "dpname IN (SELECT dpname FROM last_depends WHERE pkgname = "
+            "%(filter)s AND dptype = 'provide' AND assigment_name = %(branch)s "
+            "AND sourcepackage = 0 AND arch IN %(archs)s) AND dptype = 'require' "
+            "AND assigment_name = %(branch)s AND sourcepackage IN (0, 1) AND "
+            "pkgname IN (SELECT DISTINCT name FROM (SELECT name FROM "
+            "last_packages_with_source WHERE sourcepkgname IN %(pkgs)s AND "
+            "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
+            "%(archs)s AND name NOT LIKE '%%-debuginfo' UNION ALL SELECT name "
+            "FROM Package WHERE name IN %(pkgs)s))))AND assigment_name = "
+            "%(branch)s AND arch IN %(archs)s", {
+                'filter': reqfilter, 'branch': pbranch, 'archs': tuple(arch),
+                'pkgs': tuple(sorted_pkgs),
+            }
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        filter_pkgs = utils.join_tuples(response)
+
     # sort pkg info list
     sorted_dict = {}
     for pkg in pkg_info_list:
-        if task_id:
-            if pkg[0] not in input_pkgs:
+        if (reqfilter and pkg[0] in filter_pkgs) or not reqfilter:
+            if task_id:
+                if pkg[0] not in input_pkgs:
+                    sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
+            else:
                 sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
-        else:
-            sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
 
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
 
