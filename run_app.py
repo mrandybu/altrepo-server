@@ -6,8 +6,10 @@ from gunicorn.app.wsgiapp import run
 
 def start():
     launch_props = [
-        ('DATABASE_HOST', str), ('DATABASE_NAME', str), ('DEFAULT_HOST', str),
-        ('DEFAULT_PORT', int), ('WORKER_PROCESSES', str), ('LOG_FILE', str)
+        ('DATABASE_HOST', str), ('DATABASE_NAME', str),
+        ('TRY_CONNECTION_NUMBER', int), ('TRY_TIMEOUT', int),
+        ('DEFAULT_HOST', str), ('DEFAULT_PORT', int),
+        ('WORKER_PROCESSES', str), ('LOG_FILE', str)
     ]
 
     pars_args = [
@@ -36,8 +38,8 @@ def start():
             'database': [
                 ('host', namespace.DATABASE_HOST),
                 ('name', namespace.DATABASE_NAME),
-                ('try_number', namespace.TRY_CONNECTION_NUMBER),
-                ('try_timeout', namespace.TRY_TIMEOUT)
+                ('try_numbers', namespace.TRY_CONNECTION_NUMBER),
+                ('try_timeout', namespace.TRY_TIMEOUT),
             ],
             'application': [
                 ('host', namespace.DEFAULT_HOST),
