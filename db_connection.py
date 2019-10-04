@@ -12,11 +12,26 @@ class DBConnection:
         self.clickhouse_name = clickhouse_name
         self.clickhouse_client = Client(clickhouse_host)
 
-        if clickhouse_name:
+        self.connection_status = False
+
+    def make_connection(self):
+        try:
+            self.clickhouse_client.connection.connect()
+        except Exception as error:
+            logger.error(error)
+            return False
+
+        self.connection_status = True
+
+        if self.clickhouse_name:
             try:
-                self.clickhouse_client.execute("USE {}".format(clickhouse_name))
-            except Exception as err:
-                logger.error(exception_to_logger(err))
+                self.clickhouse_client.execute(
+                    "USE {}".format(self.clickhouse_name)
+                )
+            except Exception as error:
+                logger.error(exception_to_logger(error))
+
+        return True
 
     def send_request(self, trace=False):
         response_status = False
@@ -36,3 +51,7 @@ class DBConnection:
                 print_statusbar([(error, 'd',)])
 
         return response_status, response
+
+    def disconnect(self):
+        self.clickhouse_client.disconnect()
+        self.connection_status = False

@@ -1,5 +1,6 @@
 from urllib.parse import unquote
 from flask import request
+import time
 from db_connection import DBConnection
 import utils
 from utils import func_time
@@ -13,6 +14,7 @@ class LogicServer:
         # make configuration before app start
         self._init()
 
+        # base constant values
         self.known_branches = ['c8.1', 'p8', 'p7', 'p9', 'Sisyphus', 'c8']
         self.known_archs = ['x86_64', 'noarch', 'x86_64-i586', 'armh', 'arm',
                             'i586', 'pentium4', 'athlon', 'pentium3', 'i686',
@@ -32,11 +34,12 @@ class LogicServer:
             'optflags', 'disturl', 'payloadformat', 'payloadcompressor',
             'payloadflags', 'platform',
         ]
-        self.request_line = request_line
 
-        # db params
-        self._clickhouse_host = namespace.DATABASE_HOST
-        self._clickhouse_name = namespace.DATABASE_NAME
+        # database parameters
+        self.request_line = request_line
+        self.db_connection = DBConnection(
+            namespace.DATABASE_HOST, namespace.DATABASE_NAME
+        )
 
     # init method, starts before application starts
     @staticmethod
@@ -128,17 +131,31 @@ class LogicServer:
 
         return helper[query]
 
-    def _get_connection(self):
-        return DBConnection(clickhouse_host=self._clickhouse_host,
-                            clickhouse_name=self._clickhouse_name)
-
-    # measures the execution time of func
     @func_time(logger)
     def send_request(self, trace=False):
-        db_connection = self._get_connection()
-        db_connection.db_query = self.request_line
+        status = self.db_connection.connection_status
+        if not status:
+            for try_ in range(namespace.TRY_CONNECTION_NUMBER):
+                logger.debug(
+                    'Attempt to connect to the database #{}'.format(try_)
+                )
 
-        return db_connection.send_request(trace)
+                status = self.db_connection.make_connection()
+                if status:
+                    break
+
+                time.sleep(namespace.TRY_TIMEOUT)
+
+        if status:
+            self.db_connection.db_query = self.request_line
+            return self.db_connection.send_request(trace)
+        else:
+            return False, 'Database connection error.'
+
+    def drop_connection(self):
+        if self.db_connection:
+            self.db_connection.disconnect()
+            logger.debug('Connection closed.')
 
     @staticmethod
     def get_one_value(param, type_):
@@ -180,6 +197,7 @@ class LogicServer:
 
         return values_dict
 
+    # FIXME update method according last changes
     def check_input_params(self, source=None):
         if not request.args:
             return utils.get_helper(server.helper(request.path))

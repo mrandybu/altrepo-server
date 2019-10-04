@@ -1115,6 +1115,11 @@ def repo_compare():
     return json.dumps(result_dict, sort_keys=False)
 
 
+@app.teardown_request
+def drop_connection(connection):
+    server.drop_connection()
+
+
 @app.errorhandler(404)
 def page_404(error):
     helper = {

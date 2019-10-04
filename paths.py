@@ -13,6 +13,8 @@ class BasePathNamespace:
     # database parameters
     DATABASE_HOST = ''
     DATABASE_NAME = ''
+    TRY_CONNECTION_NUMBER = 5
+    TRY_TIMEOUT = 5
 
 
 namespace = BasePathNamespace()

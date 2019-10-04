@@ -35,7 +35,9 @@ def start():
         params = {
             'database': [
                 ('host', namespace.DATABASE_HOST),
-                ('name', namespace.DATABASE_NAME)
+                ('name', namespace.DATABASE_NAME),
+                ('try_number', namespace.TRY_CONNECTION_NUMBER),
+                ('try_timeout', namespace.TRY_TIMEOUT)
             ],
             'application': [
                 ('host', namespace.DEFAULT_HOST),
