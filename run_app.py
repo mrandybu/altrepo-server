@@ -42,8 +42,6 @@ def start():
                 ('name', namespace.DATABASE_NAME),
                 ('try_numbers', namespace.TRY_CONNECTION_NUMBER),
                 ('try_timeout', namespace.TRY_TIMEOUT),
-                ('user', namespace.DATABASE_USER),
-                ('password', namespace.DATABASE_PASS)
             ],
             'application': [
                 ('host', namespace.DEFAULT_HOST),
