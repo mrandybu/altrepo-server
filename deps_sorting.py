@@ -71,6 +71,18 @@ class SortList:
             name_to_num[num] = list_[num]
         return num_to_name, name_to_num
 
+    def _cleanup_dict(self):
+        pkg_dict_cleanup = {}
+        for pkg, deps in self.package_reqs.items():
+            deps_cleanup = []
+            for dep in deps:
+                if dep in self.package_reqs:
+                    deps_cleanup.append(dep)
+
+            pkg_dict_cleanup[pkg] = deps_cleanup
+
+        self.package_reqs = pkg_dict_cleanup
+
     def _search_circle_deps(self):
         """
         Method search if packages from the list have dependencies on each other.
@@ -79,11 +91,9 @@ class SortList:
         """
         circle_deps = []
         for package, reqs in self.package_reqs.items():
-            for p_pac, r_reqs in self.package_reqs.items():
-                if package in r_reqs and p_pac in reqs:
-                    if (package, p_pac) not in circle_deps and \
-                            (p_pac, package) not in circle_deps:
-                        circle_deps.append((package, p_pac))
+            for dep in reqs:
+                if dep in self.package_reqs[dep] and package != dep:
+                    circle_deps.append((package, dep))
 
         return circle_deps
 
@@ -113,6 +123,8 @@ class SortList:
                 normalize_req_list[req].append(key)
 
         self.package_reqs = normalize_req_list
+
+        self._cleanup_dict()
 
         # get circle dependencies
         circle_deps = self._search_circle_deps()
