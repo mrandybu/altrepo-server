@@ -61,19 +61,21 @@ def start():
                 val_list.append(value)
 
         for i in range(len(val_list)):
-            namespace.__setattr__(
-                launch_props[i][0], launch_props[i][1](val_list[i])
-            )
+            if val_list[i]:
+                namespace.__setattr__(
+                    launch_props[i][0], launch_props[i][1](val_list[i])
+                )
 
-    parser_keys = ['dbhost', 'dbname', 'host', 'port', 'prcs', 'logs']
+    parser_keys = ['dbhost', 'dbname', '', '', 'host', 'port', 'prcs', 'logs']
 
     for i in range(len(parser_keys)):
-        pars_val = parser.__getattribute__(parser_keys[i])
+        if parser.__contains__(parser_keys[i]):
+            pars_val = parser.__getattribute__(parser_keys[i])
 
-        if pars_val:
-            namespace.__setattr__(
-                launch_props[i][0], launch_props[i][1](pars_val)
-            )
+            if pars_val:
+                namespace.__setattr__(
+                    launch_props[i][0], launch_props[i][1](pars_val)
+                )
 
     sys.argv = [
         sys.argv[0], '-b', '{}:{:d}'.format(namespace.DEFAULT_HOST,
