@@ -38,7 +38,8 @@ class LogicServer:
         # database parameters
         self.request_line = request_line
         self.db_connection = DBConnection(
-            namespace.DATABASE_HOST, namespace.DATABASE_NAME
+            namespace.DATABASE_HOST, namespace.DATABASE_NAME,
+            namespace.DATABASE_USER, namespace.DATABASE_PASS,
         )
 
     # init method, starts before application starts
@@ -46,11 +47,13 @@ class LogicServer:
     def _init():
         info_list = [
             ("Configuration file: {}".format(namespace.CONFIG_FILE), 'i'),
-            ("DataBase host: {} name: {}"
-             "".format(namespace.DATABASE_HOST, namespace.DATABASE_NAME), 'i'),
+            ("DataBase host: {} name: {} user: {}"
+             "".format(namespace.DATABASE_HOST, namespace.DATABASE_NAME,
+                       namespace.DATABASE_USER), 'i'
+             ),
             ("Logging file: {}".format(namespace.LOG_FILE), 'i'),
             ("Application host: {}:{}"
-             "".format(namespace.DEFAULT_HOST, namespace.DEFAULT_PORT), 'i')
+             "".format(namespace.DEFAULT_HOST, namespace.DEFAULT_PORT), 'i'),
         ]
 
         utils.print_statusbar(info_list)

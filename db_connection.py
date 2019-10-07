@@ -1,16 +1,23 @@
-from clickhouse_driver import Client
+from clickhouse_driver import Client, errors
 from utils import get_logger, exception_to_logger, json_str_error, print_statusbar
 
 logger = get_logger(__name__)
 
 
 class DBConnection:
-    def __init__(self, clickhouse_host=None, clickhouse_name=None,
-                 db_query=None):
+    def __init__(self, clickhouse_host=None, clickhouse_name=None, dbuser=None,
+                 dbpass=None, db_query=None):
 
         self.db_query = db_query
-        self.clickhouse_name = clickhouse_name
-        self.clickhouse_client = Client(clickhouse_host)
+
+        self.clickhouse_client = Client(
+            host=clickhouse_host, database=clickhouse_name, user=dbuser,
+            password=dbpass
+        )
+
+        try_conn = self._connection_test()
+        if try_conn:
+            raise try_conn
 
         self.connection_status = False
 
@@ -23,15 +30,17 @@ class DBConnection:
 
         self.connection_status = True
 
-        if self.clickhouse_name:
-            try:
-                self.clickhouse_client.execute(
-                    "USE {}".format(self.clickhouse_name)
-                )
-            except Exception as error:
-                logger.error(exception_to_logger(error))
-
         return True
+
+    def _connection_test(self):
+        try:
+            self.clickhouse_client.connection.connect()
+        except errors.Error as error:
+            logger.error(exception_to_logger(error))
+            return "Error of database connection."
+
+        self.clickhouse_client.disconnect()
+        return None
 
     def send_request(self, trace=False):
         response_status = False

@@ -15,6 +15,8 @@ class BasePathNamespace:
     DATABASE_NAME = ''
     TRY_CONNECTION_NUMBER = 5
     TRY_TIMEOUT = 5
+    DATABASE_USER = 'default'
+    DATABASE_PASS = ''
 
 
 namespace = BasePathNamespace()

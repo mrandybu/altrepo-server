@@ -8,6 +8,7 @@ def start():
     launch_props = [
         ('DATABASE_HOST', str), ('DATABASE_NAME', str),
         ('TRY_CONNECTION_NUMBER', int), ('TRY_TIMEOUT', int),
+        ('DATABASE_USER', str), ('DATABASE_PASS', str),
         ('DEFAULT_HOST', str), ('DEFAULT_PORT', int),
         ('WORKER_PROCESSES', str), ('LOG_FILE', str)
     ]
@@ -17,6 +18,7 @@ def start():
         ('--port', int, None, 'port to start application'),
         ('--dbhost', str, None, 'database host'),
         ('--dbname', str, None, 'database name'),
+        ('--dbuser', str, None, 'database user'),
         ('--config', str, namespace.CONFIG_FILE, 'namespace to db config file'),
         ('--prcs', str, None, 'number of worker processes'),
         ('--logs', str, None, 'namespace to log files'),
@@ -40,6 +42,8 @@ def start():
                 ('name', namespace.DATABASE_NAME),
                 ('try_numbers', namespace.TRY_CONNECTION_NUMBER),
                 ('try_timeout', namespace.TRY_TIMEOUT),
+                ('user', namespace.DATABASE_USER),
+                ('password', namespace.DATABASE_PASS)
             ],
             'application': [
                 ('host', namespace.DEFAULT_HOST),
@@ -66,7 +70,9 @@ def start():
                     launch_props[i][0], launch_props[i][1](val_list[i])
                 )
 
-    parser_keys = ['dbhost', 'dbname', '', '', 'host', 'port', 'prcs', 'logs']
+    parser_keys = [
+        'dbhost', 'dbname', '', '', 'dbuser', '', 'host', 'port', 'prcs', 'logs'
+    ]
 
     for i in range(len(parser_keys)):
         if parser.__contains__(parser_keys[i]):
