@@ -913,14 +913,9 @@ def what_depends_build():
         result_dict_leaf = defaultdict(list)
         result_dict_leaf[pname] = []
 
-        for package, c_deps in result_dict.items():
-            if package in leaf_deps:
-                if c_deps:
-                    for dep in c_deps:
-                        if dep in leaf_deps:
-                            result_dict_leaf[package].append(dep)
-                else:
-                    result_dict_leaf[package] = []
+        for pkg, c_deps in result_dict.items():
+            if pkg in leaf_deps:
+                result_dict_leaf[pkg] = [dep for dep in c_deps if dep in leaf_deps]
 
         result_dict_leaf[leaf] = []
 
