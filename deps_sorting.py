@@ -78,10 +78,13 @@ class SortList:
 
         :return: `list` of circle dependencies
         """
+        # cleanup package dependencies
+        package_reqs_cleanup = remove_values_not_in_keys(self.package_reqs)
+
         circle_deps = []
-        for package, reqs in self.package_reqs.items():
+        for package, reqs in package_reqs_cleanup.items():
             for dep in reqs:
-                if package in self.package_reqs[dep] and package != dep:
+                if package in package_reqs_cleanup[dep] and package != dep:
                     circle_deps.append((package, dep))
 
         return circle_deps
@@ -111,7 +114,7 @@ class SortList:
             for req in val:
                 normalize_req_list[req].append(key)
 
-        self.package_reqs = remove_values_not_in_keys(normalize_req_list)
+        self.package_reqs = normalize_req_list
 
         # get circle dependencies
         circle_deps = self._search_circle_deps()
