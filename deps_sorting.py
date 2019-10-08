@@ -92,7 +92,7 @@ class SortList:
         circle_deps = []
         for package, reqs in self.package_reqs.items():
             for dep in reqs:
-                if dep in self.package_reqs[dep] and package != dep:
+                if package in self.package_reqs[dep] and package != dep:
                     circle_deps.append((package, dep))
 
         return circle_deps
