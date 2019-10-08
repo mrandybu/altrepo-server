@@ -1,4 +1,5 @@
 from collections import defaultdict
+from utils import remove_values_not_in_keys
 
 
 class Graph:
@@ -71,18 +72,6 @@ class SortList:
             name_to_num[num] = list_[num]
         return num_to_name, name_to_num
 
-    def _cleanup_dict(self):
-        pkg_dict_cleanup = {}
-        for pkg, deps in self.package_reqs.items():
-            deps_cleanup = []
-            for dep in deps:
-                if dep in self.package_reqs:
-                    deps_cleanup.append(dep)
-
-            pkg_dict_cleanup[pkg] = deps_cleanup
-
-        self.package_reqs = pkg_dict_cleanup
-
     def _search_circle_deps(self):
         """
         Method search if packages from the list have dependencies on each other.
@@ -122,9 +111,7 @@ class SortList:
             for req in val:
                 normalize_req_list[req].append(key)
 
-        self.package_reqs = normalize_req_list
-
-        self._cleanup_dict()
+        self.package_reqs = remove_values_not_in_keys(normalize_req_list)
 
         # get circle dependencies
         circle_deps = self._search_circle_deps()
