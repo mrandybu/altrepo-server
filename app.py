@@ -868,6 +868,25 @@ def what_depends_build():
     if not pkgs_to_sort_dict:
         return json.dumps({})
 
+    finitepkg = server.get_one_value('finitepkg', 'b')
+
+    if finitepkg:
+        all_dependencies = []
+        for pkg, deps in pkgs_to_sort_dict.items():
+            for dep in deps:
+                if dep not in all_dependencies:
+                    all_dependencies.append(dep)
+
+        server.request_line = \
+            ("SELECT pkgname FROM {} WHERE pkgname NOT IN %(pkgs)s"
+             "".format(tmp_table_name), {'pkgs': tuple(all_dependencies)})
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        filter_by_tops = utils.join_tuples(response)
+
     # check leaf, if true, get dependencies of leaf package
     if leaf:
         if leaf not in pkgs_to_sort_dict.keys():
@@ -989,6 +1008,9 @@ def what_depends_build():
                 sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
 
     sorted_dict = list(dict(sorted(sorted_dict.items())).values())
+
+    if finitepkg:
+        sorted_dict = [pkg for pkg in sorted_dict if pkg[0] in filter_by_tops]
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
                'branch', 'archs', 'buildtime', 'cycle']
