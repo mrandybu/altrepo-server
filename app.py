@@ -971,7 +971,7 @@ def what_depends_build():
     for info in response:
         for pkg, c_deps in result_dict.items():
             if info[0] == pkg:
-                pkg_info_list.append(info + (c_deps,))
+                pkg_info_list.append(info + (c_deps,) + (pkgs_to_sort_dict[pkg],))
 
     reqfilter = server.get_one_value('reqfilter', 's')
 
@@ -1017,7 +1017,7 @@ def what_depends_build():
         sorted_dict = [pkg for pkg in sorted_dict if pkg[0] in filter_by_tops]
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
-               'branch', 'archs', 'buildtime', 'cycle']
+               'branch', 'archs', 'buildtime', 'cycle', 'requires']
 
     return utils.convert_to_json(js_keys, sorted_dict)
 
