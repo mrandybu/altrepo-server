@@ -625,6 +625,7 @@ def what_depends_build():
     pname = server.get_one_value('name', 's')
     task_id = server.get_one_value('task', 'i')
 
+    # dptype option
     depends_type_to_sql = {
         'source': (1,),
         'binary': (0,),
@@ -893,8 +894,6 @@ def what_depends_build():
             return utils.json_str_error(
                 "Package '{}' not in dependencies list.".format(leaf)
             )
-        else:
-            leaf_deps = pkgs_to_sort_dict[leaf]
 
     # sort list of dependencies by their dependencies
     sort = SortList(pkgs_to_sort_dict, pname)
@@ -929,16 +928,21 @@ def what_depends_build():
     # if leaf, then select packages from the result list and their cyclic
     # dependencies on which the leaf package and create a dictionary
     if leaf:
-        result_dict_leaf = defaultdict(list)
-        result_dict_leaf[pname] = []
 
-        for pkg, c_deps in result_dict.items():
-            if pkg in leaf_deps:
-                result_dict_leaf[pkg] = [dep for dep in c_deps if dep in leaf_deps]
+        def recursive_search(pkgname, structure):
+            for pkg in structure[pkgname]:
+                if pkg not in leaf_filter and pkg != pkgname:
+                    leaf_filter.append(pkg)
+                    recursive_search(pkg, structure)
 
-        result_dict_leaf[leaf] = []
+        leaf_filter = []
+        recursive_search(leaf, pkgs_to_sort_dict)
 
-        result_dict = result_dict_leaf
+        # filter result dict by leaf packages
+        result_dict = {
+            key: value for (key, value) in result_dict.items()
+            if key in leaf_filter
+        }
 
     # list of result package names
     sorted_pkgs = tuple(result_dict.keys())
