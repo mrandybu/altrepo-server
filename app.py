@@ -604,6 +604,8 @@ def what_depends_build():
         leaf - assembly dependency chain
         deep - sorting depth
         dptype - type of package (source, binary, both)
+        reqfilter - filter result by dependency
+        finitepkg - topological tree leaves
 
     Output structure:
         name
@@ -966,7 +968,7 @@ def what_depends_build():
     if status is False:
         return response
 
-    # add circle requires in package info
+    # form list of packages with it information
     pkg_info_list = []
     for info in response:
         for pkg, c_deps in result_dict.items():

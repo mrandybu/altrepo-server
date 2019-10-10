@@ -115,6 +115,7 @@ class LogicServer:
                     'dptype': 'type of package for sorting (source, binary, '
                               'both)',
                     'reqfilter': 'package for filter result by dependency',
+                    'finitepkg': 'show only topological tree leaves',
                 }
             },
             '/unpackaged_dirs': {

@@ -82,6 +82,7 @@ Request parameters:
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
 * reqfilter - package for filter result by dependency
+* finitepkg - show only topological tree leaves
 
 #### /repo_compare
 
