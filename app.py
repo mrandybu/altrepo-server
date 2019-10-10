@@ -975,11 +975,35 @@ def what_depends_build():
             if info[0] == pkg:
                 pkg_info_list.append(info + (c_deps,) + (pkgs_to_sort_dict[pkg],))
 
-    reqfilter = server.get_one_value('reqfilter', 's')
+    # filter result packages list by dependencies
+    reqfilter = server.get_dict_values(
+        [('reqfilter', 's'), ('reqfilterbysrc', 's')]
+    )
+
+    if None not in reqfilter.values():
+        message = "Parameters 'reqfilter' and 'reqfilterbysrc' cannot be " \
+                  "used together."
+        return utils.json_str_error(message)
 
     filter_pkgs = None
-    if reqfilter:
-        reqfilter = tuple(reqfilter.split(','))
+    if reqfilter['reqfilter'] or reqfilter['reqfilterbysrc']:
+
+        if reqfilter['reqfilter']:
+            reqfilter_binpkgs = tuple(reqfilter['reqfilter'].split(','))
+        else:
+            server.request_line = (
+                "SELECT DISTINCT name FROM last_packages_with_source WHERE "
+                "sourcepkgname = %(srcpkg)s AND assigment_name = %(branch)s AND "
+                "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%debuginfo'", {
+                    'srcpkg': reqfilter['reqfilterbysrc'], 'branch': pbranch
+                }
+            )
+
+            status, response = server.send_request()
+            if status is False:
+                return response
+
+            reqfilter_binpkgs = utils.join_tuples(response)
 
         server.request_line = (
             "SELECT sourcepkgname FROM last_packages_with_source WHERE name IN "
@@ -995,7 +1019,8 @@ def what_depends_build():
             "SELECT name FROM Package WHERE name IN (SELECT * FROM {tmp_table}"
             "))))) AND assigment_name = %(branch)s AND arch IN %(archs)s"
             "".format(tmp_table=tmp_table_name), {
-                'filter': reqfilter, 'branch': pbranch, 'archs': tuple(arch)
+                'filter': reqfilter_binpkgs, 'branch': pbranch,
+                'archs': tuple(arch)
             }
         )
 
@@ -1008,7 +1033,7 @@ def what_depends_build():
     # sort pkg info list
     sorted_dict = {}
     for pkg in pkg_info_list:
-        if (reqfilter and pkg[0] in filter_pkgs) or not reqfilter:
+        if (filter_pkgs and pkg[0] in filter_pkgs) or not filter_pkgs:
             if task_id:
                 if pkg[0] not in input_pkgs:
                     sorted_dict[sorted_pkgs.index(pkg[0])] = pkg
