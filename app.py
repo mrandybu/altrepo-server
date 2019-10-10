@@ -979,10 +979,12 @@ def what_depends_build():
 
     filter_pkgs = None
     if reqfilter:
+        reqfilter = tuple(reqfilter.split(','))
+
         server.request_line = (
             "SELECT sourcepkgname FROM last_packages_with_source WHERE name IN "
             "(SELECT DISTINCT * FROM (SELECT pkgname FROM last_depends WHERE "
-            "dpname IN (SELECT dpname FROM last_depends WHERE pkgname = "
+            "dpname IN (SELECT dpname FROM last_depends WHERE pkgname IN "
             "%(filter)s AND dptype = 'provide' AND assigment_name = %(branch)s "
             "AND sourcepackage = 0 AND arch IN %(archs)s) AND dptype = 'require' "
             "AND assigment_name = %(branch)s AND sourcepackage IN (0, 1) AND "
