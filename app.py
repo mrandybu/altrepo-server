@@ -755,9 +755,13 @@ def what_depends_build():
     if status is False:
         return response
 
+    max_allowed_depth = 10
+
     if deep_level > 1:
-        if deep_level > 8:
-            return utils.json_str_error("Requires Depth cannot exceed 4")
+        if deep_level > max_allowed_depth:
+            return utils.json_str_error(
+                "Requires Depth cannot exceed {}".format(max_allowed_depth)
+            )
 
         # sql wrapper for increase depth
         deep_wrapper = \
