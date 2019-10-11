@@ -131,7 +131,10 @@ class LogicServer:
                     'pkgset1 *': 'name of repository',
                     'pkgset2 *': 'name of compared repository',
                 },
-            }
+            },
+            '/find_pkgset': {
+                '##### /repo_compare arguments #####': {}
+            },
         }
 
         return helper[query]

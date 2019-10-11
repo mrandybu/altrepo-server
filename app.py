@@ -1182,6 +1182,37 @@ def repo_compare():
     return json.dumps(result_dict, sort_keys=False)
 
 
+@app.route('/find_pkgset')
+@func_time(logger)
+def find_pkgset():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    srcpkg_ls = server.get_one_value('srcpkg_ls', 's')
+    if not srcpkg_ls:
+        return get_helper(server.helper(request.path))
+
+    srcpkg_ls = srcpkg_ls.split(',')
+
+    server.request_line = (
+        "SELECT DISTINCT assigment_name, toString(any(assigment_date)) AS "
+        "pkgset_date, groupUniqArray(name) FROM last_packages_with_source "
+        "WHERE (sourcepkgname IN %(pkgs)s) AND (name NOT LIKE '%%-debuginfo') "
+        "GROUP BY assigment_name ORDER BY pkgset_date DESC", {
+            'pkgs': tuple(srcpkg_ls)
+        }
+    )
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    return utils.convert_to_json(['branch', 'data', 'packages'], response)
+
+
 @app.teardown_request
 def drop_connection(connection):
     server.drop_connection()
@@ -1204,6 +1235,7 @@ def page_404(error):
             '/unpackaged_dirs': 'list of unpacked directories',
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
+            '/find_pkgset': '',
         }
     }
     return json.dumps(helper, sort_keys=False)
