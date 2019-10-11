@@ -1,5 +1,4 @@
 from flask import Flask, request, json
-from collections import defaultdict
 from logic_server import server
 import utils
 from utils import func_time, get_helper
@@ -802,23 +801,23 @@ def what_depends_build():
 
     # get source dependencies
     if depends_type in ['source', 'both']:
-        # get requires tree for found packages
-
+        # populate the temporary table with package names and their source
+        # dependencies
         server.request_line = (
-            "INSERT INTO {} (pkgname, reqname) SELECT DISTINCT "
-            "BinDeps.pkgname, sourcepkgname FROM (SELECT DISTINCT "
-            "BinDeps.pkgname, name AS pkgname, sourcepkgname FROM "
-            "last_packages_with_source INNER JOIN (SELECT DISTINCT "
-            "BinDeps.pkgname, pkgname FROM (SELECT DISTINCT BinDeps.pkgname, "
-            "pkgname, dpname FROM last_depends INNER JOIN (SELECT DISTINCT "
-            "pkgname, dpname FROM last_depends WHERE pkgname IN (SELECT '' "
-            "UNION ALL SELECT * FROM tmp_pkg_ls) AND assigment_name = %(branch)s "
-            "AND dptype = 'require' AND sourcepackage = 1) AS BinDeps USING "
-            "dpname WHERE assigment_name = %(branch)s AND dptype = 'provide' "
-            "AND sourcepackage = 0 AND arch IN ('x86_64', 'noarch'))) USING "
-            "pkgname WHERE assigment_name = %(branch)s ORDER BY sourcepkgname "
-            "ASC UNION ALL SELECT arrayJoin(%(pkgs)s), '', '')"
-            "".format(tmp_table_pkg_dep), {
+            "INSERT INTO {tmp_deps} (pkgname, reqname) SELECT DISTINCT "
+            "BinDeps.pkgname, sourcepkgname FROM (SELECT DISTINCT BinDeps.pkgname, "
+            "name AS pkgname, sourcepkgname FROM last_packages_with_source "
+            "INNER JOIN (SELECT DISTINCT BinDeps.pkgname, pkgname FROM (SELECT "
+            "DISTINCT BinDeps.pkgname, pkgname, dpname FROM last_depends "
+            "INNER JOIN (SELECT DISTINCT pkgname, dpname FROM last_depends "
+            "WHERE pkgname IN (SELECT '' UNION ALL SELECT * FROM {tmp_table}) "
+            "AND assigment_name = %(branch)s AND dptype = 'require' AND "
+            "sourcepackage = 1) AS BinDeps USING dpname WHERE assigment_name = "
+            "%(branch)s AND dptype = 'provide' AND sourcepackage = 0 AND arch "
+            "IN ('x86_64', 'noarch'))) USING pkgname WHERE assigment_name = "
+            "%(branch)s ORDER BY sourcepkgname ASC UNION ALL SELECT arrayJoin("
+            "%(pkgs)s), '', '')".format(
+                tmp_deps=tmp_table_pkg_dep, tmp_table=tmp_table_name), {
                 'branch': pbranch, 'pkgs': list(input_pkgs)
             }
         )
@@ -829,38 +828,41 @@ def what_depends_build():
 
     # get binary dependencies
     if depends_type in ['binary', 'both']:
-        # get binary package dependencies
+        # populate the temporary table with package names and their binary
+        # dependencies
         server.request_line = (
-            "INSERT INTO {tmp_req} (pkgname, reqname) SELECT sourcepkgname, Bin.sourcepkgname FROM "
-            "(SELECT sourcepkgname, name AS pkgname, Bin.sourcepkgname FROM "
-            "last_packages_with_source INNER JOIN (SELECT pkgname, sourcepkgname "
-            "FROM (SELECT DISTINCT pkgname, Prv.pkgname AS dpname, "
-            "Src.sourcepkgname FROM (SELECT pkgname, dpname, Prv.pkgname FROM "
-            "(SELECT DISTINCT pkgname, dpname FROM last_depends WHERE pkgname IN "
-            "(SELECT DISTINCT name FROM last_packages_with_source WHERE "
-            "sourcepkgname IN (SELECT * FROM {tmp_table}) AND assigment_name = "
-            "%(branch)s AND arch IN %(archs)s AND name NOT LIKE '%%-debuginfo') "
-            "AND dptype = 'require' AND assigment_name = %(branch)s AND arch IN "
-            "%(archs)s AND sourcepackage = 0) INNER JOIN (SELECT dpname, pkgname "
-            "FROM last_depends WHERE dptype = 'provide' AND assigment_name = "
-            "%(branch)s AND sourcepackage = 0 AND arch IN %(archs)s) AS Prv USING "
-            "dpname) INNER JOIN (SELECT name as dpname, sourcepkgname FROM "
-            "last_packages_with_source WHERE assigment_name = %(branch)s AND "
-            "arch IN %(archs)s) Src USING dpname)) AS Bin USING pkgname WHERE "
-            "assigment_name = %(branch)s AND arch IN %(archs)s)"
-            "".format(tmp_table=tmp_table_name, tmp_req=tmp_table_pkg_dep), {
-                'branch': pbranch, 'archs': tuple(arch)
-            }
+            "INSERT INTO {tmp_req} (pkgname, reqname) SELECT sourcepkgname, "
+            "Bin.sourcepkgname FROM (SELECT sourcepkgname, name AS pkgname, "
+            "Bin.sourcepkgname FROM last_packages_with_source INNER JOIN ("
+            "SELECT pkgname, sourcepkgname FROM (SELECT DISTINCT pkgname, "
+            "Prv.pkgname AS dpname, Src.sourcepkgname FROM (SELECT pkgname, "
+            "dpname, Prv.pkgname FROM (SELECT DISTINCT pkgname, dpname FROM "
+            "last_depends WHERE pkgname IN (SELECT DISTINCT name FROM "
+            "last_packages_with_source WHERE sourcepkgname IN (SELECT * FROM "
+            "{tmp_table}) AND assigment_name = %(branch)s AND arch IN %(archs)s "
+            "AND name NOT LIKE '%%-debuginfo') AND dptype = 'require' AND "
+            "assigment_name = %(branch)s AND arch IN %(archs)s AND sourcepackage "
+            "= 0) INNER JOIN (SELECT dpname, pkgname FROM last_depends WHERE "
+            "dptype = 'provide' AND assigment_name = %(branch)s AND sourcepackage "
+            "= 0 AND arch IN %(archs)s) AS Prv USING dpname) INNER JOIN (SELECT "
+            "name as dpname, sourcepkgname FROM last_packages_with_source WHERE "
+            "assigment_name = %(branch)s AND arch IN %(archs)s) Src USING dpname"
+            ")) AS Bin USING pkgname WHERE assigment_name = %(branch)s AND arch "
+            "IN %(archs)s)".format(
+                tmp_table=tmp_table_name, tmp_req=tmp_table_pkg_dep
+            ), {'branch': pbranch, 'archs': tuple(arch)}
         )
 
         status, response = server.send_request()
         if status is False:
             return response
 
+    # select all filtered package with dependencies
     server.request_line = \
-        "SELECT DISTINCT pkgname, arrayFilter(x -> (x != pkgname AND notEmpty(x)), " \
-        "groupUniqArray(reqname)) AS arr FROM package_dependency WHERE reqname IN (SELECT '' " \
-        "UNION ALL SELECT pkgname FROM package_dependency) GROUP BY pkgname ORDER BY arr"
+        "SELECT DISTINCT pkgname, arrayFilter(x -> (x != pkgname AND " \
+        "notEmpty(x)), groupUniqArray(reqname)) AS arr FROM package_dependency " \
+        "WHERE reqname IN (SELECT '' UNION ALL SELECT pkgname FROM " \
+        "package_dependency) GROUP BY pkgname ORDER BY arr"
 
     status, response = server.send_request()
     if status is False:
@@ -870,8 +872,6 @@ def what_depends_build():
 
     if not pkgs_to_sort_dict:
         return json.dumps({})
-
-    pkgs_to_sort_dict = utils.remove_values_not_in_keys(pkgs_to_sort_dict)
 
     finitepkg = server.get_one_value('finitepkg', 'b')
 
@@ -908,8 +908,8 @@ def what_depends_build():
     sort = SortList(pkgs_to_sort_dict, pname)
     circle_deps, sorted_list = sort.sort_list()
 
-    result_dict = {}
     # create output dict with circle dependency
+    result_dict = {}
     for name in sorted_list:
         result_dict[name] = []
         if name in circle_deps:
@@ -1004,9 +1004,10 @@ def what_depends_build():
             "AND assigment_name = %(branch)s AND sourcepackage IN (0, 1) AND " \
             "pkgname IN (SELECT DISTINCT name FROM (SELECT DISTINCT name FROM " \
             "last_packages_with_source WHERE sourcepkgname IN (SELECT * FROM " \
-            "tmp_pkg_ls) AND assigment_name = %(branch)s AND sourcepackage = 0 " \
+            "{tmp_table}) AND assigment_name = %(branch)s AND sourcepackage = 0 " \
             "AND arch IN %(archs)s AND name NOT LIKE '%%-debuginfo' UNION ALL " \
-            "SELECT name FROM Package WHERE name IN (SELECT * FROM tmp_pkg_ls)))"
+            "SELECT name FROM Package WHERE name IN (SELECT * FROM {tmp_table})))" \
+            "".format(pkg="{pkg}", tmp_table=tmp_table_name)
 
         if len(reqfilter_binpkgs) == 1:
             base_query = base_query.format(pkg=reqfilter_binpkgs[0])

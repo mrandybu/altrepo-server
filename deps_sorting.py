@@ -1,5 +1,4 @@
 from collections import defaultdict
-from utils import remove_values_not_in_keys
 
 
 class Graph:
@@ -79,7 +78,6 @@ class SortList:
         :return: `list` of circle dependencies
         """
         circle_deps = {}
-
         for package, reqs in self.package_reqs.items():
             for dep in reqs:
                 if dep in self.package_reqs:
