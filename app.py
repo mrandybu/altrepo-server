@@ -788,6 +788,20 @@ def what_depends_build():
             if status is False:
                 return response
 
+    server.request_line = \
+        "SELECT DISTINCT acl_for, groupUniqArray(acl_list) FROM last_acl " \
+        "WHERE acl_for IN (SELECT pkgname FROM {tmp_table}) GROUP BY acl_for" \
+        "".format(tmp_table=tmp_table_name)
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    # get package acl
+    pkg_acl_dict = {}
+    for pkg in response:
+        pkg_acl_dict[pkg[0]] = utils.join_tuples(pkg[1])
+
     tmp_table_pkg_dep = 'package_dependency'
 
     # create tmp table package - dependency
@@ -964,7 +978,10 @@ def what_depends_build():
     for info in response:
         for pkg, c_deps in result_dict.items():
             if info[0] == pkg:
-                pkg_info_list.append(info + (c_deps,) + (pkgs_to_sort_dict[pkg],))
+                pkg_info_list.append(
+                    info + (c_deps,) + (pkgs_to_sort_dict[pkg],) +
+                    (pkg_acl_dict[pkg],)
+                )
 
     # filter result packages list by dependencies
     reqfilter = server.get_dict_values(
@@ -1052,7 +1069,7 @@ def what_depends_build():
         sorted_dict = [pkg for pkg in sorted_dict if pkg[0] in filter_by_tops]
 
     js_keys = ['name', 'version', 'release', 'epoch', 'serial_', 'sourcerpm',
-               'branch', 'archs', 'buildtime', 'cycle', 'requires']
+               'branch', 'archs', 'buildtime', 'cycle', 'requires', 'acl']
 
     return utils.convert_to_json(js_keys, sorted_dict)
 
