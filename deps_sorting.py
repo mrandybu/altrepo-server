@@ -78,14 +78,16 @@ class SortList:
 
         :return: `list` of circle dependencies
         """
-        # cleanup package dependencies
-        package_reqs_cleanup = remove_values_not_in_keys(self.package_reqs)
+        circle_deps = {}
 
-        circle_deps = []
-        for package, reqs in package_reqs_cleanup.items():
+        for package, reqs in self.package_reqs.items():
             for dep in reqs:
-                if package in package_reqs_cleanup[dep] and package != dep:
-                    circle_deps.append((package, dep))
+                if dep in self.package_reqs:
+                    if package in self.package_reqs[dep] and package != dep:
+                        if package not in circle_deps:
+                            circle_deps[package] = {}
+
+                        circle_deps[package][dep] = len(self.package_reqs[dep])
 
         return circle_deps
 
@@ -108,6 +110,15 @@ class SortList:
         # list of packages to sort
         packages_ls = list(self.package_reqs.keys())
 
+        # get circle dependencies
+        circle_deps = self._search_circle_deps()
+
+        # remove circle dependencies
+        for dep in circle_deps:
+            for pkg in circle_deps[dep]:
+                if circle_deps[dep][pkg] >= circle_deps[pkg][dep]:
+                    self.package_reqs[pkg].remove(dep)
+
         # reverse (packages <-> dependencies) in dict
         normalize_req_list = defaultdict(list)
         for key, val in self.package_reqs.items():
@@ -115,11 +126,6 @@ class SortList:
                 normalize_req_list[req].append(key)
 
         self.package_reqs = normalize_req_list
-
-        # get circle dependencies
-        circle_deps = self._search_circle_deps()
-        for dep in circle_deps:
-            self.package_reqs[dep[0]].remove(dep[1])
 
         # number of tree tops
         num_non_req = len(packages_ls)
