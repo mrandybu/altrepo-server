@@ -928,6 +928,9 @@ def what_depends_build():
         leaf_filter = []
         recursive_search(leaf, pkgs_to_sort_dict)
 
+        if leaf not in leaf_filter:
+            leaf_filter.append(leaf)
+
         # filter result dict by leaf packages
         result_dict = {
             key: value for (key, value) in result_dict.items()
