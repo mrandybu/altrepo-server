@@ -12,6 +12,37 @@ logger = utils.get_logger(__name__)
 @app.route('/package_info')
 @func_time(logger)
 def package_info():
+    """
+    The function of showing information about given package by user parameters.
+
+    Input GET params:
+        sha1 - package sha1
+        name - package name
+        version - package version
+        release - package release
+        arch - package arch
+        disttag - package disttag
+        buildtime - package buildtime
+        source - show source packages only (true/false)
+        packager - maintainer of package
+        branch - repository
+        full - show full package information
+
+    Output structure:
+        `not full option`
+        pkgcs
+        packager
+        packager_email
+        name
+        arch
+        version
+        release
+        epoch
+        buildtime
+        sourcepackage
+        sourcerpm
+        filename
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -436,6 +467,25 @@ def conflict_packages():
 @app.route('/package_by_file')
 @func_time(logger)
 def package_by_file():
+    """
+    The function of searching binary packages that contain the specified file.
+
+    Input GET params:
+        file * - file name or pattern
+        md5 ** - file md5
+        branch * - repository name
+        arch - package architecture
+
+    Output structure:
+        pkgcs
+        name
+        version
+        release
+        disttag
+        arch
+        branch
+        files
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -512,6 +562,16 @@ def package_by_file():
 @app.route('/package_files')
 @func_time(logger)
 def package_files():
+    """
+    The function of searching binary packages that contain the specified file.
+
+    Input GET params:
+        sha1 - package sha1
+
+    Output structure:
+        sha1
+        files
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -547,6 +607,24 @@ def package_files():
 @app.route('/dependent_packages')
 @func_time(logger)
 def dependent_packages():
+    """
+    The function of searching source packages whose binary packages depend on
+    the given package.
+
+    Input GET params:
+        name * - name of package
+        branch * - repository name
+
+    Output structure:
+        name
+        version
+        release
+        epoch
+        serial
+        sourcerpm
+        branch
+        archs
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -605,7 +683,8 @@ def what_depends_build():
         leaf - assembly dependency chain
         deep - sorting depth
         dptype - type of package (source, binary, both)
-        reqfilter - filter result by dependency
+        reqfilter - filter result by dependency by binary pkg
+        reqfilterbysrc - filter result by dependency by source pkg
         finitepkg - topological tree leaves
 
     Output structure:
@@ -613,11 +692,14 @@ def what_depends_build():
         version
         release
         epoch
-        serial
-        source package
+        serial_
+        sourcerpm
         branch
-        architectures
-        cycle dependencies
+        archs
+        buildtime
+        cycle
+        requires
+        acl
     """
     server.url_logging()
 
@@ -1082,6 +1164,24 @@ def what_depends_build():
 @app.route('/unpackaged_dirs')
 @func_time(logger)
 def unpackaged_dirs():
+    """
+    The function of searching unpacked directories by maintainer name.
+
+    Input GET params:
+        pkgr * - maintainer name
+        pkgset * - repository name
+        arch - architecture
+
+    Output structure:
+        package
+        directory
+        version
+        release
+        epoch
+        packager
+        email
+        arch
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -1134,6 +1234,19 @@ def unpackaged_dirs():
 @app.route('/repo_compare')
 @func_time(logger)
 def repo_compare():
+    """
+    The function of compare two differences in the package base of specified
+    repositories.
+
+    Input GET params:
+        pkgset1 * - first repository name for compare
+        pkgset2 * - lsat repository name for compare
+
+    Output structure:
+        name
+        version
+        release
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -1192,6 +1305,21 @@ def repo_compare():
 @app.route('/find_pkgset')
 @func_time(logger)
 def find_pkgset():
+    """
+    The function of compare two differences in the package base of specified
+    repositories.
+
+    Input GET params:
+        srcpkg_ls - package name or list of packages
+        task - number of task
+
+    Output structure:
+        branch
+        data
+        packages
+        version
+        archs
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
