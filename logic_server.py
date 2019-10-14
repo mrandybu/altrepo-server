@@ -166,16 +166,21 @@ class LogicServer:
             logger.debug('Connection closed.')
 
     @staticmethod
-    def get_one_value(param, type_):
+    def get_one_value(param, type_, is_=None):
         value = request.args.get(param)
 
         if value:
             # fixed err when package name contains '+'
-            if param in ['name', 'file', 'pkg_ls']:
+            if is_ is 'pkg_name':
                 value = value.replace(' ', '+')
 
                 if param == 'file':
                     value = value.replace('*', '%')
+
+            if is_ is 'repo_name':
+                value = value.lower()
+                if value == 'sisyphus':
+                    value = 'Sisyphus'
 
             if type_ == 's':
                 value = value.split("'")[0]
@@ -200,7 +205,11 @@ class LogicServer:
     def get_dict_values(self, list_of_params):
         values_dict = {}
         for param in list_of_params:
-            value = self.get_one_value(param[0], param[1])
+            is_ = None
+            if len(param) > 2:
+                is_ = param[2]
+
+            value = self.get_one_value(param[0], param[1], is_)
             values_dict[param[0]] = value
 
         return values_dict
@@ -218,12 +227,12 @@ class LogicServer:
                     return utils.json_str_error('Unknown arch of package!')
 
         # check branch
-        pbranch = self.get_one_value('branch', 's')
+        pbranch = self.get_one_value('branch', 's', 'repo_name')
         if pbranch and pbranch not in self.known_branches:
             return utils.json_str_error('Unknown branch!')
 
         # check package params
-        pname = self.get_one_value('name', 's')
+        pname = self.get_one_value('name', 's', 'pkg_name')
         if pname:
             default_req = "SELECT name FROM last_packages"
             args = "name = %(name)s"
@@ -267,7 +276,11 @@ class LogicServer:
         for param in input_params:
             type_ = input_params[param].get('type')
 
-            value = self.get_one_value(param, type_)
+            is_ = None
+            if 'is_' in input_params[param]:
+                is_ = input_params[param]['is_']
+
+            value = self.get_one_value(param, type_, is_)
             if value is False:
                 return value
 

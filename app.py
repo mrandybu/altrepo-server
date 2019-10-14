@@ -24,7 +24,7 @@ def package_info():
     if buildtime_value and buildtime_value not in ['>', '<', '=']:
         buildtime_action = "{} = {}"
 
-    pbranch = server.get_one_value('branch', 's')
+    pbranch = server.get_one_value('branch', 's', is_='repo_name')
 
     input_params = {
         'sha1': {
@@ -38,6 +38,7 @@ def package_info():
             'type': 's',
             'action': None,
             'notempty': False,
+            'is_': 'pkg_name',
         },
         'version': {
             'rname': 'version',
@@ -198,9 +199,10 @@ def conflict_packages():
     if check_params is not True:
         return check_params
 
-    values = server.get_dict_values(
-        [('pkg_ls', 's'), ('task', 'i'), ('branch', 's'), ('arch', 's')]
-    )
+    values = server.get_dict_values([
+        ('pkg_ls', 's', 'pkg_name'), ('task', 'i'),
+        ('branch', 's', 'repo_name'), ('arch', 's')
+    ])
 
     if values['pkg_ls'] and values['task']:
         return utils.json_str_error("One parameter only. ('name'/'task')")
@@ -440,13 +442,13 @@ def package_by_file():
     if check_params is not True:
         return check_params
 
-    file = server.get_one_value('file', 'r')
+    file = server.get_one_value('file', 'r', is_='pkg_name')
     md5 = server.get_one_value('md5', 's')
 
     if len([param for param in [file, md5] if param]) != 1:
         return get_helper(server.helper(request.path))
 
-    pbranch = server.get_one_value('branch', 's')
+    pbranch = server.get_one_value('branch', 's', 'repo_name')
     if not pbranch:
         return utils.json_str_error('Branch require parameter!')
 
@@ -551,11 +553,11 @@ def dependent_packages():
     if check_params is not True:
         return check_params
 
-    pname = server.get_one_value('name', 's')
+    pname = server.get_one_value('name', 's', is_='pkg_name')
     if not pname:
         return get_helper(server.helper(request.path))
 
-    pbranch = server.get_one_value('branch', 's')
+    pbranch = server.get_one_value('branch', 's', is_='repo_name')
     if not pbranch:
         message = 'Branch is required parameter.'
         logger.debug(message)
@@ -623,7 +625,7 @@ def what_depends_build():
     if check_params is not True:
         return check_params
 
-    pname = server.get_one_value('name', 's')
+    pname = server.get_one_value('name', 's', is_='pkg_name')
     task_id = server.get_one_value('task', 'i')
 
     # dptype option
@@ -650,7 +652,7 @@ def what_depends_build():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    pbranch = server.get_one_value('branch', 's')
+    pbranch = server.get_one_value('branch', 's', is_='repo_name')
     if pname and not pbranch:
         return get_helper(server.helper(request.path))
 
@@ -663,7 +665,7 @@ def what_depends_build():
         arch = ['x86_64', 'noarch']
 
     # tree leaf - show only build path between 'name' and 'leaf'
-    leaf = server.get_one_value('leaf', 's')
+    leaf = server.get_one_value('leaf', 's', 'pkg_name')
     if leaf and task_id:
         return utils.json_str_error("'leaf' may be using with 'name' only.")
 
@@ -890,7 +892,7 @@ def what_depends_build():
     if not pkgs_to_sort_dict:
         return json.dumps({})
 
-    finitepkg = server.get_one_value('finitepkg', 'b')
+    finitepkg = server.get_one_value('finitepkg', 'b', is_='pkg_name')
 
     if finitepkg:
         all_dependencies = []
@@ -988,7 +990,7 @@ def what_depends_build():
 
     # filter result packages list by dependencies
     reqfilter = server.get_dict_values(
-        [('reqfilter', 's'), ('reqfilterbysrc', 's')]
+        [('reqfilter', 's', 'pkg_name'), ('reqfilterbysrc', 's', 'pkg_name')]
     )
 
     if None not in reqfilter.values():
@@ -1087,7 +1089,7 @@ def unpackaged_dirs():
         return check_params
 
     values = server.get_dict_values(
-        [('pkgr', 's'), ('pkgset', 's'), ('arch', 's')]
+        [('pkgr', 's'), ('pkgset', 's', 'repo_name'), ('arch', 's')]
     )
 
     if not values['pkgr'] or not values['pkgset']:
@@ -1138,7 +1140,9 @@ def repo_compare():
     if check_params is not True:
         return check_params
 
-    values = server.get_dict_values([('pkgset1', 's'), ('pkgset2', 's')])
+    values = server.get_dict_values([
+        ('pkgset1', 's', 'repo_name'), ('pkgset2', 's', 'repo_name')
+    ])
 
     if not values['pkgset1'] or not values['pkgset2']:
         return get_helper(server.helper(request.path))
@@ -1194,7 +1198,9 @@ def find_pkgset():
     if check_params is not True:
         return check_params
 
-    values = server.get_dict_values([('srcpkg_ls', 's'), ('task', 'i')])
+    values = server.get_dict_values([
+        ('srcpkg_ls', 's', 'pkg_name'), ('task', 'i')
+    ])
     if None not in values.values():
         return utils.json_str_error("One parameter only ('srcpkg_ls'/'task').")
 
