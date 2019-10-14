@@ -1393,7 +1393,7 @@ def page_404(error):
             '/unpackaged_dirs': 'list of unpacked directories',
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
-            '/find_pkgset': '',
+            '/find_pkgset': 'list of binary packages for the given source',
         }
     }
     return json.dumps(helper, sort_keys=False)

@@ -114,8 +114,10 @@ class LogicServer:
                     'deep': 'sets the sorting depth',
                     'dptype': 'type of package for sorting (source, binary, '
                               'both)',
-                    'reqfilter': 'package or packages for filter result '
+                    'reqfilter': 'package or packages (binary) for filter result '
                                  'by dependency',
+                    'reqfilterbysrc': 'package or packages (source) for filter '
+                                      'result by dependency',
                     'finitepkg': 'show only topological tree leaves',
                 }
             },
@@ -133,7 +135,10 @@ class LogicServer:
                 },
             },
             '/find_pkgset': {
-                '##### /repo_compare arguments #####': {}
+                '##### /repo_compare arguments #####': {
+                    'srcpkg_ls *': 'package name or package list',
+                    'task **': 'number of task',
+                }
             },
         }
 
