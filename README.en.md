@@ -81,8 +81,21 @@ Request parameters:
 * arch
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
-* reqfilter - package or packages for filter result by dependency
+* reqfilter - package or packages (binary) for filter result by dependency
+* reqfilterbysrc - package or packages (source) for filter result by 
+dependency
 * finitepkg - show only topological tree leaves
+
+#### /unpackaged_dirs
+
+Returns unpacked directories of the specified maintainer in the
+specified repository.
+
+Request parameters:
+
+* pkgr * - packager name
+* pkgset * - repository name
+* arch - architecture of packages
 
 #### /repo_compare
 
@@ -91,6 +104,15 @@ repositories.
 
 * assign1 * - name of repository
 * assing2 * - name of compared repository
+
+#### /find_pkgset
+
+Returns a list of binary packages for the given source package names.
+
+Request parameters:
+
+* srcpkg_ls * - package name or list of packages
+* task ** - number of task
 
 \* - require parameters
 
@@ -172,16 +194,20 @@ but you can override it use option --config for launch application.
 Configuration file usually contains next sections
 
 	[DataBase]
-    Host = 10.0.0.1        # database host
-    Name = database_name   # database name
+    HOST = 10.0.0.1        # database host
+    NAME = database_name   # database name
+    TRY_NUMBERS = 5        # number of connection attempts
+    TRY_TIMEOUT = 5        # attempts timeout
+    USER = test            # database user
+    PASSWORD = test        # database password
 
     [Application]
-    Host = 127.0.0.1    # application host
-    Port = 5000         # port
-    Processes = 1       # number of worker processes
+    HOST = 127.0.0.1    # application host
+    PORT = 5000         # port
+    PROCESSES = 1       # number of worker processes
 
     [Other]
-    LogFiles = /home/mrdrew/altrepo_server.log
+    LOGFILE = /home/mrdrew/altrepo_server.log   # path to logfile
 
 Also you can set launch options use keys. For more information use -h.
 
@@ -235,5 +261,13 @@ formatted mapping is convenient to use jq utility.
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&deep=2" | jq
 	curl "http://localhost/what_depends_src?name=ocaml&branch=Sisyphus&leaf=dune" | jq
 
+#### /unpackaged_dirs
+
+    curl "http://localhost/unpackaged_dirs?pkgr=rider&pkgset=p9" | jq
+
 #### /repo_compare
+
     curl "http://localhost/repo_compare?assign1=p9&assign2=Sisyphus" | jq
+
+#### /find_pkgset
+    curl "http://127.0.0.1:5000/find_pkgset?srcpkg_ls=glibc,python" | jq
