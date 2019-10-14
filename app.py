@@ -788,10 +788,13 @@ def what_depends_build():
             if status is False:
                 return response
 
-    server.request_line = \
-        "SELECT DISTINCT acl_for, groupUniqArray(acl_list) FROM last_acl " \
-        "WHERE acl_for IN (SELECT pkgname FROM {tmp_table}) GROUP BY acl_for" \
-        "".format(tmp_table=tmp_table_name)
+    server.request_line = (
+        "SELECT DISTINCT acl_for, groupUniqArray(acl_list) FROM last_acl WHERE "
+        "acl_for IN (SELECT pkgname FROM {tmp_table}) AND acl_branch = %(branch)s "
+        "GROUP BY acl_for".format(tmp_table=tmp_table_name), {
+            'branch': pbranch.lower()
+        }
+    )
 
     status, response = server.send_request()
     if status is False:
