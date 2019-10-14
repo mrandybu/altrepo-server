@@ -1194,11 +1194,27 @@ def find_pkgset():
     if check_params is not True:
         return check_params
 
-    srcpkg_ls = server.get_one_value('srcpkg_ls', 's')
-    if not srcpkg_ls:
-        return get_helper(server.helper(request.path))
+    values = server.get_dict_values([('srcpkg_ls', 's'), ('task', 'i')])
+    if None not in values.values():
+        return utils.json_str_error("One parameter only ('srcpkg_ls'/'task').")
 
-    srcpkg_ls = srcpkg_ls.split(',')
+    if values['srcpkg_ls']:
+        pkg_ls = values['srcpkg_ls'].split(',')
+    else:
+        server.request_line = (
+            "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
+            "DISTINCT sourcerpm FROM Package WHERE pkghash IN (SELECT "
+            "arrayJoin(pkgs) FROM Tasks WHERE task_id = %(task_id)s) AND name "
+            "NOT LIKE '%%-debuginfo')", {
+                'task_id': values['task']
+            }
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pkg_ls = utils.join_tuples(response)
 
     server.request_line = (
         "SELECT assigment_name, pkgset_date, pkgnames, version, "
@@ -1208,7 +1224,7 @@ def find_pkgset():
         "(sourcepkgname IN %(pkgs)s) AND (name NOT LIKE '%%-debuginfo') "
         "GROUP BY assigment_name, version, arch ORDER BY pkgset_date DESC) "
         "GROUP BY assigment_name, pkgset_date, pkgnames, version", {
-            'pkgs': tuple(srcpkg_ls)
+            'pkgs': tuple(pkg_ls)
         }
     )
 
