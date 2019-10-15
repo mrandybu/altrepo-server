@@ -1079,6 +1079,10 @@ def what_depends_build():
     for info in response:
         for pkg, c_deps in result_dict.items():
             if info[0] == pkg:
+                # add empty list if not acl
+                if pkg not in pkg_acl_dict:
+                    pkg_acl_dict[pkg] = []
+
                 pkg_info_list.append(
                     info + (c_deps,) + (pkgs_to_sort_dict[pkg],) +
                     (pkg_acl_dict[pkg],)
