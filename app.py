@@ -160,8 +160,8 @@ def package_info():
 
         # files
         server.request_line = (
-            "SELECT pkghash, filename FROM File WHERE pkghash IN %(pkghshs)s",
-            {'pkghshs': pkghashs}
+            "SELECT pkghash, groupUniqArray(filename) FROM File WHERE pkghash "
+            "IN %(pkghshs)s GROUP BY pkghash", {'pkghshs': pkghashs}
         )
 
         status, response = server.send_request()
@@ -170,30 +170,44 @@ def package_info():
 
         files_dict = utils.tuplelist_to_dict(response, 1)
 
+        # add empty list if package has no files
+        for hsh in pkghashs:
+            if hsh not in files_dict:
+                files_dict[hsh] = []
+
         # depends
         server.request_line = (
-            "SELECT pkghash, dptype, dpname, dpversion FROM last_depends "
-            "WHERE pkghash IN %(pkghshs)s", {'pkghshs': pkghashs}
+            "SELECT pkghash, dptype, dpname FROM last_depends WHERE pkghash "
+            "IN %(pkghshs)s", {'pkghshs': pkghashs}
         )
 
         status, response = server.send_request()
         if status is False:
             return response
 
-        depends_dict = utils.tuplelist_to_dict(response, 3)
+        depends_dict = utils.tuplelist_to_dict(response, 2)
+
+        depends_struct = {}
+        for pkg in depends_dict:
+            depend_ls = depends_dict[pkg]
+
+            depends_struct[pkg] = {}
+
+            for i in range(0, len(depend_ls), 2):
+                if depend_ls[i] not in depends_struct[pkg]:
+                    depends_struct[pkg][depend_ls[i]] = []
+
+                depends_struct[pkg][depend_ls[i]].append(depend_ls[i + 1])
 
         for elem in json_retval:
             pkghash = json_retval[elem]['pkghash']
 
+            # add files to result structure
             json_retval[elem]['files'] = files_dict[pkghash]
 
-            prop_dict_values = utils.tuplelist_to_dict(depends_dict[pkghash], 2)
-
-            for prop in ['require', 'conflict', 'obsolete', 'provide']:
-                if prop in prop_dict_values.keys():
-                    json_retval[elem][prop + 's'] = [
-                        nv[0] + " " + nv[1] for nv in prop_dict_values[prop]
-                    ]
+            # add depends to result structure
+            for dep in depends_struct[pkghash]:
+                json_retval[elem][dep] = depends_struct[pkghash][dep]
 
     # remove pkghash from result
     for value in json_retval.values():
