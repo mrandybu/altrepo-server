@@ -901,7 +901,7 @@ def what_depends_build():
     # get package acl
     pkg_acl_dict = {}
     for pkg in response:
-        pkg_acl_dict[pkg[0]] = utils.join_tuples(pkg[1])
+        pkg_acl_dict[pkg[0]] = pkg[1][0]
 
     tmp_table_pkg_dep = 'package_dependency'
 
