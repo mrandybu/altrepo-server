@@ -1369,13 +1369,12 @@ def find_pkgset():
         pkg_ls = utils.join_tuples(response)
 
     server.request_line = (
-        "SELECT assigment_name, pkgset_date, pkgnames, version, "
-        "groupUniqArray(arch) FROM (SELECT DISTINCT assigment_name, "
-        "toString(any(assigment_date)) AS pkgset_date, groupUniqArray(name) "
-        "AS pkgnames, version, arch FROM last_packages_with_source WHERE "
-        "(sourcepkgname IN %(pkgs)s) AND (name NOT LIKE '%%-debuginfo') "
-        "GROUP BY assigment_name, version, arch ORDER BY pkgset_date DESC) "
-        "GROUP BY assigment_name, pkgset_date, pkgnames, version", {
+        "SELECT DISTINCT assigment_name, toString(any(assigment_date)) AS"
+        " pkgset_date, groupUniqArray(name) AS pkgnames, version, release,"
+        " groupUniqArray(arch) FROM last_packages_with_source"
+        " WHERE (sourcepkgname IN %(pkgs)s) AND (name NOT LIKE '%%-debuginfo')"
+        " GROUP BY assigment_name, version, release"
+        " ORDER BY pkgset_date DESC ", {
             'pkgs': tuple(pkg_ls)
         }
     )
@@ -1384,7 +1383,12 @@ def find_pkgset():
     if status is False:
         return response
 
-    param_ls = ['branch', 'data', 'packages', 'version', 'archs']
+    param_ls = ['branch',
+                'pkgset_datetime',
+                'packages',
+                'version',
+                'release',
+                'archs']
 
     return utils.convert_to_json(param_ls, response)
 
