@@ -1107,7 +1107,8 @@ def what_depends_build():
             server.request_line = (
                 "SELECT DISTINCT name FROM last_packages_with_source WHERE "
                 "sourcepkgname = %(srcpkg)s AND assigment_name = %(branch)s AND "
-                "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%debuginfo'", {
+                "arch IN ('x86_64', 'noarch') AND name NOT LIKE '%%debuginfo'",
+                {
                     'srcpkg': reqfilter['reqfilterbysrc'], 'branch': pbranch
                 }
             )
@@ -1328,7 +1329,7 @@ def find_pkgset():
     repositories.
 
     Input GET params:
-        names - package name or list of packages
+        name - package name or list of packages
         task - number of task
 
     Output structure:
@@ -1345,13 +1346,13 @@ def find_pkgset():
         return check_params
 
     values = server.get_dict_values([
-        ('names', 's', 'pkg_name'), ('task', 'i')
+        ('name', 's', 'pkg_name'), ('task', 'i')
     ])
     if list(values.values()).count(None) > 1:
-        return utils.json_str_error("One parameter only ('names'/'task').")
+        return utils.json_str_error("One parameter only ('name'/'task').")
 
-    if values['names']:
-        pkg_ls = values['names'].split(',')
+    if values['name']:
+        pkg_ls = values['name'].split(',')
     else:
         server.request_line = (
             "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
@@ -1403,7 +1404,7 @@ def page_404(error):
     helper = {
         'Error': error.description,
         'Valid queries': {
-            '/package_info': 'information about given package',
+            '/package_info': 'information about given source package',
             '/misconflict_packages': 'binary packages with intersecting '
                                      'files and no conflict with a given package',
             '/package_by_file': 'binary packages that contain the specified file',
@@ -1415,7 +1416,8 @@ def page_404(error):
             '/unpackaged_dirs': 'list of unpacked directories',
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
-            '/find_pkgset': 'list of binary packages for the given source',
+            '/find_pkgset': 'find repositories containing binary packages'
+                            ' built from a given source package',
         }
     }
     return json.dumps(helper, sort_keys=False)

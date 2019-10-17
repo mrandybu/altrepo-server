@@ -136,8 +136,9 @@ class LogicServer:
             },
             '/find_pkgset': {
                 '##### /find_pkgset arguments #####': {
-                    'names *': 'package name. Multiple packages must be comma'
-                               ' separated. Example: names=curl,ocaml ',
+                    'name *': 'source package name. Multiple packages must'
+                              ' be comma separated. '
+                              'Example: name=curl,ocaml,php7 ',
                     'task **': 'number of girar task, example: task=239070',
                 }
             },
