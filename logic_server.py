@@ -135,9 +135,10 @@ class LogicServer:
                 },
             },
             '/find_pkgset': {
-                '##### /repo_compare arguments #####': {
-                    'srcpkg_ls *': 'package name or package list',
-                    'task **': 'number of task',
+                '##### /find_pkgset arguments #####': {
+                    'names *': 'package name. Multiple packages must be comma'
+                               ' separated. Example: names=curl,ocaml ',
+                    'task **': 'number of girar task, example: task=239070',
                 }
             },
         }

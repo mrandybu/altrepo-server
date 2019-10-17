@@ -1328,7 +1328,7 @@ def find_pkgset():
     repositories.
 
     Input GET params:
-        srcpkg_ls - package name or list of packages
+        names - package name or list of packages
         task - number of task
 
     Output structure:
@@ -1345,13 +1345,13 @@ def find_pkgset():
         return check_params
 
     values = server.get_dict_values([
-        ('srcpkg_ls', 's', 'pkg_name'), ('task', 'i')
+        ('names', 's', 'pkg_name'), ('task', 'i')
     ])
-    if None not in values.values():
-        return utils.json_str_error("One parameter only ('srcpkg_ls'/'task').")
+    if list(values.values()).count(None) > 1:
+        return utils.json_str_error("One parameter only ('names'/'task').")
 
-    if values['srcpkg_ls']:
-        pkg_ls = values['srcpkg_ls'].split(',')
+    if values['names']:
+        pkg_ls = values['names'].split(',')
     else:
         server.request_line = (
             "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
