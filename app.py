@@ -388,9 +388,8 @@ def conflict_packages():
 
     # get package names by hashes
     server.request_line = (
-        "SELECT pkghash, name FROM last_packages WHERE pkghash IN %(pkgs)s "
-        "AND assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s", {
+        "SELECT DISTINCT pkghash, name FROM Package WHERE pkghash IN %(pkgs)s "
+        "AND sourcepackage = 0 AND arch IN %(arch)s", {
             'pkgs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
         }
     )
