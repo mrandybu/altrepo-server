@@ -348,9 +348,10 @@ def conflict_packages():
         "hashname FROM File WHERE pkghash IN %(hshs)s AND fileclass != "
         "'directory') AND pkghash IN (SELECT pkghash FROM last_packages WHERE "
         "assigment_name = %(branch)s AND sourcepackage = 0 AND arch IN "
-        "%(arch)s AND pkghash NOT IN %(hshs)s )) LEFT JOIN (SELECT pkghash, "
-        "hashname FROM File WHERE pkghash IN %(hshs)s) AS InPkg USING "
-        "hashname GROUP BY (InPkg.pkghash, pkghash)", {
+        "%(arch)s AND name NOT IN (SELECT name FROM Package WHERE "
+        "pkghash IN %(hshs)s))) LEFT JOIN (SELECT pkghash, hashname FROM File "
+        "WHERE pkghash IN %(hshs)s) AS InPkg USING hashname GROUP BY "
+        "(InPkg.pkghash, pkghash)", {
             'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
             'arch': allowed_archs
         }
