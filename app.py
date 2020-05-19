@@ -801,8 +801,9 @@ def what_depends_build():
         # src packages from task
         server.request_line = (
             "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
-            "DISTINCT sourcerpm FROM Package WHERE pkghash IN %(pkghshs)s)"
-            "", {'pkghshs': pkgs_hsh}
+            "DISTINCT sourcerpm FROM Package WHERE pkghash IN (SELECT "
+            "arrayJoin(pkgs) FROM Tasks WHERE task_id = %(id)s))",
+            {'id': task_id}
         )
 
         status, response = server.send_request()
