@@ -18,30 +18,47 @@ class ConflictFilter:
         self.pbranch = pbranch
         self.parch = parch
 
-    def _get_dict_conflict_provide(self, hsh):
+    def _get_dict_conflict_provide(self, hshs):
 
         # get conflicts and provides by hash
         server.request_line = (
-            "SELECT DISTINCT dptype, dpname, dpversion, flag FROM Depends WHERE "
-            "pkghash = %(hsh)d AND dptype IN ('conflict', 'provide')",
-            {'hsh': hsh, 'branch': self.pbranch, 'arch': self.parch}
+            "SELECT DISTINCT pkghash, dptype, dpname, dpversion, flag FROM "
+            "Depends WHERE pkghash IN %(hshs)s AND dptype IN "
+            "('conflict', 'provide')", {
+                'hshs': tuple(hshs), 'branch': self.pbranch, 'arch': self.parch
+            }
         )
 
         status, response = server.send_request()
         if status is False:
             return response
 
-        # form dict `conflict` - `list of conflicts`, `provide` - `list of provides`
-        dict_ = {'conflict': [], 'provide': []}
+        hsh_dpt_dict = {}
         for pkg in response:
-            pkg_tpl = (pkg[1], pkg[2])
-            if pkg[0] == 'conflict':
-                pkg_tpl += (pkg[3],)
-            dict_[pkg[0]].append(pkg_tpl)
+            hsh = pkg[0]
+            if hsh not in hsh_dpt_dict:
+                hsh_dpt_dict[hsh] = {'conflict': [], 'provide': []}
 
-        return dict_
+            for tpl in response:
+                if tpl[0] == hsh:
+                    dpt = tpl[1]
 
-    def _get_conflicts(self, dA, dB, hshA, hshB):
+                    dpt_tp = tuple(tpl[2:])
+                    if dpt_tp not in hsh_dpt_dict[hsh][dpt]:
+                        hsh_dpt_dict[hsh][dpt].append(dpt_tp)
+
+        server.request_line = (
+            "SELECT pkghash, epoch, version, release, disttag FROM "
+            "Package WHERE pkghash IN %(hshs)s", {'hshs': tuple(hshs)}
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        return hsh_dpt_dict, utils.tuplelist_to_dict(response, 4)
+
+    def _get_conflicts(self, dA, dB, hshA, hshB, hsh_evrd):
         """
         Finds conflicts between two packages.
 
@@ -62,19 +79,8 @@ class ConflictFilter:
                     if confl[1] == '' or confl[2] == 0:
                         conflicts.append((hshA, hshB))
                     else:
-                        # get epoch, version, release, disttag for package B (provides)
-                        # for compare versions with conflict
-                        server.request_line = (
-                            "SELECT epoch, version, release, disttag FROM "
-                            "Package WHERE pkghash = %(hsh)s", {'hsh': hshB}
-                        )
-
-                        status, response = server.send_request()
-                        if status is False:
-                            return response
-
                         # version of provide
-                        vv1 = response[0]
+                        vv1 = tuple(hsh_evrd[hshB])
                         # version of conflict
                         vv2 = self._split_version(confl[1])
 
@@ -91,30 +97,43 @@ class ConflictFilter:
 
         return conflicts
 
-    def detect_conflict(self, hshA, hshB):
+    def detect_conflict(self, confl_list):
         """
         Main public class method.
 
         List of package tuples that conflict with the given package. Return
         join list for package A and package B.
 
-        :param hshA: hash of first package
-        :param hshB: hash of second package
+        :param confl_list: list of tuples with package hashes
         :return: `list` of `tuple` (package hash, conflict hash) for
-        package A and package B
+        input list
         """
-        # get dict for A and B packages (conflicts, provides)
-        dictA = self._get_dict_conflict_provide(hshA)
-        dictB = self._get_dict_conflict_provide(hshB)
 
-        # get conflicts by matching conflicts first package and provides
-        # second package
-        conflA = self._get_conflicts(dictA, dictB, hshA, hshB)
-        conflB = self._get_conflicts(dictB, dictA, hshB, hshA)
+        # get unique package hashes
+        uniq_hshs = []
+        for confl in confl_list:
+            for hsh in confl:
+                if hsh not in uniq_hshs:
+                    uniq_hshs.append(hsh)
 
-        confls = utils.remove_duplicate(conflA + conflB)
+        # get conflicts and provides for every unique package
+        # also (epoch, version, release, disttag)
+        hsh_dpt_dict, hsh_evrd = self._get_dict_conflict_provide(uniq_hshs)
 
-        return confls
+        conflicts = []
+        for hshA, hshB in confl_list:
+            # A - conflicts; B - provides
+            conflA = self._get_conflicts(
+                hsh_dpt_dict[hshA], hsh_dpt_dict[hshB], hshA, hshB, hsh_evrd
+            )
+            # A - provides; B - conflicts
+            conflB = self._get_conflicts(
+                hsh_dpt_dict[hshB], hsh_dpt_dict[hshA], hshB, hshA, hsh_evrd
+            )
+
+            conflicts += utils.remove_duplicate(conflA + conflB)
+
+        return conflicts
 
     @staticmethod
     def _split_version(vers):

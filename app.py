@@ -380,12 +380,7 @@ def conflict_packages():
     # check for the presence of the specified conflict each pair
     # if the conflict between the packages in the pair is specified,
     # then add the pair to the list
-    filter_ls = []
-    for tp_hsh in in_confl_hshs:
-        confl_ls = c_filter.detect_conflict(tp_hsh[0], tp_hsh[1])
-        for confl in confl_ls:
-            if confl not in filter_ls:
-                filter_ls.append(confl)
+    filter_ls = c_filter.detect_conflict(in_confl_hshs)
 
     # get a list of hashes of packages to form a dict of hash-name
     pkg_hshs = utils.remove_duplicate(
