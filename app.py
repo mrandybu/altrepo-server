@@ -288,7 +288,9 @@ def conflict_packages():
 
         # get packages of task (hashes)
         server.request_line = (
-            "SELECT pkgs FROM Tasks WHERE task_id = %(task)d",
+            "SELECT pkgs FROM Tasks WHERE task_id = %(task)d AND "
+            "(try, iteration) IN (SELECT max(try), argMax(iteration, try) "
+            "FROM Tasks WHERE task_id = %(task)d)",
             {'task': values['task']}
         )
 
@@ -340,6 +342,9 @@ def conflict_packages():
 
         # form a list of package hashes
         input_pkg_hshs = [pkg[0] for pkg in response]
+
+    if not input_pkg_hshs:
+        return json.dumps({})
 
     # get list of (input package | conflict package | conflict files)
     server.request_line = (
