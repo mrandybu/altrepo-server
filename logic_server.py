@@ -135,7 +135,7 @@ class LogicServer:
                 },
             },
             '/find_pkgset': {
-                '##### /repo_compare arguments #####': {
+                '##### /find_pkgset arguments #####': {
                     'srcpkg_ls *': 'package name or package list',
                     'task **': 'number of task',
                 }
