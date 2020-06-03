@@ -140,6 +140,12 @@ class LogicServer:
                     'task **': 'number of task',
                 }
             },
+            '/build_dependency_set': {
+                '##### /build_dependency_set arguments #####': {
+                    'name *': 'name of source package',
+                    'branch *': '',
+                }
+            },
         }
 
         return helper[query]

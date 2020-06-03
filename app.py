@@ -1413,6 +1413,8 @@ def page_404(error):
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
             '/find_pkgset': 'list of binary packages for the given source',
+            'build_dependency_set': 'list of all binary packages which use '
+                                    'for build input package',
         }
     }
     return json.dumps(helper, sort_keys=False)
