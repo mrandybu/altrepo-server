@@ -4,6 +4,7 @@ import utils
 from utils import func_time, get_helper
 from deps_sorting import SortList
 from conflict_filter import ConflictFilter
+from package_deps import PackageDependencies
 
 app = Flask(__name__)
 logger = utils.get_logger(__name__)
@@ -1388,6 +1389,38 @@ def find_pkgset():
     param_ls = ['branch', 'data', 'packages', 'version', 'archs']
 
     return utils.convert_to_json(param_ls, response)
+
+
+@app.route('/build_dependency_set')
+@func_time(logger)
+def build_dependency_set():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    pname = server.get_one_value('name', 's', is_='pkg_name')
+    if not pname:
+        return get_helper(server.helper(request.path))
+
+    pbranch = server.get_one_value('branch', 's', is_='repo_name')
+    if not pbranch:
+        message = 'Branch is required parameter.'
+        logger.debug(message)
+        return utils.json_str_error(message)
+
+    pkg_deps = PackageDependencies(pname, pbranch)
+    dep_list = pkg_deps.get_package_dep_set(first=True)
+
+    server.request_line = "SELECT DISTINCT name FROM Package WHERE pkghash " \
+                          "IN ({})".format(tuple(dep_list))
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    return utils.convert_to_json(['name'], response)
 
 
 @app.teardown_request
