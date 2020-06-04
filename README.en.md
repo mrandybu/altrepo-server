@@ -102,6 +102,8 @@ Request parameters:
 Returns a list of differences in the source package base of specified
 repositories.
 
+Request parameters:
+
 * assign1 * - name of repository
 * assing2 * - name of compared repository
 
@@ -114,6 +116,17 @@ Request parameters:
 * srcpkg_ls * - package name or list of packages
 * task ** - number of task
 
+#### /build_dependency_set
+
+Return a list of all binary packages which use for build input package.
+
+Request parameters:
+
+* name * - package or list of packages
+* task ** - task id
+* branch (* - for name only) - name of repository
+* arch
+
 \* - require parameters
 
 ** - replacement require parameters
@@ -123,22 +136,24 @@ Request parameters:
 * python3-module-flask
 * python3-module-numpy
 * python3-module-clickhouse-driver
-* python3-module-urllib3
 * python3-module-rpm
+* python3-module-gunicorn
 
 ## Components
 
+* altrepo-server - executable file to run the project
 * app.py - main module of application, processes requests
-* logic_server - contains the base class of the server (backend for app)
+* logic_server.py - contains the base class of the server (backend for app)
 * db_connection.py - module of database connection
 * utils.py - contains auxiliary functions used by the main module
 * paths.py - provides of namespace for using in application
+* run_app.py - module for launching the application and processing
+input parameters
 * tests/* - tests of project
-* fake_mirror.py - creates a repository structure and fills it with a
+* tests/fake_mirror.py - creates a repository structure and fills it with a
 specified number packages (used for test queries)
-* deps_sorting - module for sorting dependencies (topological sorting)
-* conflict_filter - filter for package conflicts by provides (uses
-version comparison)
+* libs/* - special modules for working with mathematics, data,
+data structure are using in the application
 
 ## Starting application
 
@@ -216,15 +231,15 @@ Also you can set launch options use keys. For more information use -h.
 For start application using module run_app. For set app configuration
 can be using config file ex.:
 
-    /usr/bin/python3 run_app.py --config /path/to/config/file.conf
+    ./altrepo-server --config /path/to/config/file.conf
 
 or use launch keys, for more information
 
-    /usr/bin/python3 run_app.py --help
+    ./altrepo-server --help
 
 Start application from git catalog
 
-    /usr/bin/python3 run_app.py `allow_options` &
+    ./altrepo-server `allow_options` &
 
 ..after the application will run in the background.
 
@@ -271,3 +286,7 @@ formatted mapping is convenient to use jq utility.
 
 #### /find_pkgset
     curl "http://127.0.0.1:5000/find_pkgset?srcpkg_ls=glibc,python" | jq
+
+#### /build_dependency_set
+    curl "http://127.0.0.1:5000/build_dependency_set?name=python-module-zope.interface&branch=sisyphus" | jq
+    curl "http://127.0.0.1:5000/build_dependency_set?task=250679&arch=i586" | jq
