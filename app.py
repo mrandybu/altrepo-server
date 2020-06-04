@@ -2,9 +2,9 @@ from flask import Flask, request, json
 from logic_server import server
 import utils
 from utils import func_time, get_helper
-from deps_sorting import SortList
-from conflict_filter import ConflictFilter
-from package_deps import PackageDependencies
+from libs.deps_sorting import SortList
+from libs.conflict_filter import ConflictFilter
+from libs.package_deps import PackageDependencies
 
 app = Flask(__name__)
 logger = utils.get_logger(__name__)
