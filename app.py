@@ -1401,7 +1401,8 @@ def build_dependency_set():
         return check_params
 
     values = server.get_dict_values([
-        ('name', 's', 'pkg_name'), ('task', 'i'), ('branch', 's', 'repo_name')
+        ('name', 's', 'pkg_name'), ('task', 'i'),
+        ('branch', 's', 'repo_name'), ('arch', 's')
     ])
 
     if values['name'] and values['task']:
@@ -1450,16 +1451,27 @@ def build_dependency_set():
         hshs = utils.join_tuples(response)
 
     pkg_deps = PackageDependencies(pbranch)
+
+    if values['arch']:
+        pkg_deps.static_archs += [
+            arch for arch in values['arch'].split(',')
+            if arch not in pkg_deps.static_archs and len(arch) > 1
+        ]
+
     dep_list = pkg_deps.get_package_dep_set(pkgs=hshs)
 
-    server.request_line = "SELECT DISTINCT name FROM Package WHERE pkghash " \
-                          "IN ({})".format(tuple(dep_list))
+    server.request_line = \
+        "SELECT DISTINCT name, version, release, epoch, groupUniqArray(arch) " \
+        "FROM Package WHERE pkghash IN ({}) GROUP BY " \
+        "(name, version, release, epoch)".format(tuple(dep_list))
 
     status, response = server.send_request()
     if status is False:
         return response
 
-    return utils.convert_to_json(['name'], response)
+    return utils.convert_to_json(
+        ['name', 'version', 'release', 'epoch', 'arch'], response
+    )
 
 
 @app.teardown_request
