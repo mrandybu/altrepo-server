@@ -1394,6 +1394,23 @@ def find_pkgset():
 @app.route('/build_dependency_set')
 @func_time(logger)
 def build_dependency_set():
+    """
+    The function of compare two differences in the package base of specified
+    repositories.
+
+    Input GET params:
+        name * - package or list of packages
+        task ** - task id
+        branch (* - for name only) - name of repository
+        arch - architecture
+
+    Output structure:
+        name
+        version
+        release
+        epoch
+        archs
+    """
     server.url_logging()
 
     check_params = server.check_input_params()
