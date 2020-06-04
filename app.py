@@ -1400,18 +1400,57 @@ def build_dependency_set():
     if check_params is not True:
         return check_params
 
-    pname = server.get_one_value('name', 's', is_='pkg_name')
-    if not pname:
+    values = server.get_dict_values([
+        ('name', 's', 'pkg_name'), ('task', 'i'), ('branch', 's', 'repo_name')
+    ])
+
+    if values['name'] and values['task']:
+        return utils.json_str_error("One parameter only. ('name'/'task')")
+
+    if not values['name'] and not values['task']:
+        return utils.json_str_error("'name' or 'task' is require parameters.")
+
+    if values['name'] and not values['branch']:
         return get_helper(server.helper(request.path))
 
-    pbranch = server.get_one_value('branch', 's', is_='repo_name')
-    if not pbranch:
-        message = 'Branch is required parameter.'
-        logger.debug(message)
-        return utils.json_str_error(message)
+    if values['task']:
+        server.request_line = "SELECT branch FROM Tasks WHERE task_id = {}" \
+                              "".format(values['task'])
 
-    pkg_deps = PackageDependencies(pname, pbranch)
-    dep_list = pkg_deps.get_package_dep_set(first=True)
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pbranch = response[0][0]
+
+        server.request_line = (
+            "SELECT arrayJoin(pkgs) FROM Tasks WHERE task_id = %(task)d AND "
+            "(try, iteration) IN (SELECT max(try), argMax(iteration, try) "
+            "FROM Tasks WHERE task_id = %(task)d)", {'task': values['task']}
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        hshs = utils.join_tuples(response)
+    else:
+        pbranch = values['branch']
+
+        server.request_line = \
+            "SELECT pkg.pkghash FROM last_packages WHERE name = '{pkg}' AND " \
+            "assigment_name = '{branch}' AND sourcepackage = 1".format(
+                pkg=values['name'], branch=pbranch
+            )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        hshs = utils.join_tuples(response)
+
+    pkg_deps = PackageDependencies(pbranch)
+    dep_list = pkg_deps.get_package_dep_set(pkgs=hshs)
 
     server.request_line = "SELECT DISTINCT name FROM Package WHERE pkghash " \
                           "IN ({})".format(tuple(dep_list))

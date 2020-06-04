@@ -2,19 +2,12 @@ from logic_server import server
 
 
 class PackageDependencies:
-    def __init__(self, pkgname, pbranch):
-        self.pkgname = pkgname
+    def __init__(self, pbranch):
         self.pbranch = pbranch
         self.static_archs = ['x86_64', 'noarch']
         self.dep_list = []
 
-    def get_package_dep_set(self, first=False, pkgs=None):
-        if first is True:
-            pkgs = \
-                "SELECT pkg.pkghash FROM last_packages WHERE name = '{pkg}' " \
-                "AND assigment_name = '{branch}' AND sourcepackage = 1" \
-                "".format(pkg=self.pkgname, branch=self.pbranch)
-
+    def get_package_dep_set(self, pkgs=None):
         server.request_line = (
             "SELECT pkg.pkghash FROM last_packages WHERE pkg.pkghash IN ("
             "SELECT pkghash FROM Depends WHERE dpname IN (SELECT dpname FROM "
