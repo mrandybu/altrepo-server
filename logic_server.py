@@ -143,7 +143,9 @@ class LogicServer:
             '/build_dependency_set': {
                 '##### /build_dependency_set arguments #####': {
                     'name *': 'name of source package',
-                    'branch *': '',
+                    'task **': "task id (can't used with 'name')",
+                    'branch *': "require for 'name' only",
+                    'arch': '',
                 }
             },
         }
