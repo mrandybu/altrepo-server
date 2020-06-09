@@ -1399,7 +1399,7 @@ def build_dependency_set():
     repositories.
 
     Input GET params:
-        name * - package or list of packages
+        pkg_ls * - package or list of packages
         task ** - task id
         branch (* - for name only) - name of repository
         arch - architecture

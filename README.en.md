@@ -122,7 +122,7 @@ Return a list of all binary packages which use for build input package.
 
 Request parameters:
 
-* name * - package or list of packages
+* pkg_ls * - package or list of packages
 * task ** - task id
 * branch (* - for name only) - name of repository
 * arch
