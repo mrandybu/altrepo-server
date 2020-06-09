@@ -1475,20 +1475,14 @@ def build_dependency_set():
             if arch not in pkg_deps.static_archs and len(arch) > 1
         ]
 
-    dep_list = pkg_deps.get_package_dep_set(pkgs=hshs)
+    dep_hsh_list = pkg_deps.get_package_dep_set(pkgs=hshs, first=True)
 
-    server.request_line = \
-        "SELECT DISTINCT name, version, release, epoch, groupUniqArray(arch) " \
-        "FROM Package WHERE pkghash IN ({}) GROUP BY " \
-        "(name, version, release, epoch)".format(tuple(dep_list))
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    return utils.convert_to_json(
-        ['name', 'version', 'release', 'epoch', 'arch'], response
+    result_dict = pkg_deps.make_result_dict(
+        list(dep_hsh_list.keys()) + [hsh for val in dep_hsh_list.values() for hsh in val],
+        dep_hsh_list
     )
+
+    return json.dumps(result_dict, sort_keys=False)
 
 
 @app.teardown_request
