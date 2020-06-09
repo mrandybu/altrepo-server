@@ -1418,17 +1418,17 @@ def build_dependency_set():
         return check_params
 
     values = server.get_dict_values([
-        ('name', 's', 'pkg_name'), ('task', 'i'),
+        ('pkg_ls', 's', 'pkg_name'), ('task', 'i'),
         ('branch', 's', 'repo_name'), ('arch', 's')
     ])
 
-    if values['name'] and values['task']:
+    if values['pkg_ls'] and values['task']:
         return utils.json_str_error("One parameter only. ('name'/'task')")
 
-    if not values['name'] and not values['task']:
+    if not values['pkg_ls'] and not values['task']:
         return utils.json_str_error("'name' or 'task' is require parameters.")
 
-    if values['name'] and not values['branch']:
+    if values['pkg_ls'] and not values['branch']:
         return get_helper(server.helper(request.path))
 
     if values['task']:
@@ -1453,12 +1453,13 @@ def build_dependency_set():
 
         hshs = utils.join_tuples(response)
     else:
+        pkg_ls = tuple(values['pkg_ls'].split(','))
         pbranch = values['branch']
 
         server.request_line = \
-            "SELECT pkg.pkghash FROM last_packages WHERE name = '{pkg}' AND " \
+            "SELECT pkg.pkghash FROM last_packages WHERE name IN ({pkgs}) AND " \
             "assigment_name = '{branch}' AND sourcepackage = 1".format(
-                pkg=values['name'], branch=pbranch
+                pkgs=pkg_ls, branch=pbranch
             )
 
         status, response = server.send_request()
