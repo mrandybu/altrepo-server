@@ -11,7 +11,7 @@ class PackageDependencies:
     def get_package_dep_set(self, pkgs=None, first=False):
 
         server.request_line = \
-            "SELECT srchsh, groupUniqArray(pkghash) FROM (SELECT " \
+            "SELECT DISTINCT srchsh, groupUniqArray(pkghash) FROM (SELECT " \
             "pkghash AS srchsh, dpname FROM Depends WHERE pkghash IN " \
             "({pkgs}) AND dptype = 'require') INNER JOIN (SELECT pkghash, " \
             "dpname FROM last_depends WHERE dptype = 'provide' AND " \

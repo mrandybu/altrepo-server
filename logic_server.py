@@ -184,13 +184,13 @@ class LogicServer:
 
         if value:
             # fixed err when package name contains '+'
-            if is_ is 'pkg_name':
+            if is_ == 'pkg_name':
                 value = value.replace(' ', '+')
 
                 if param == 'file':
                     value = value.replace('*', '%')
 
-            if is_ is 'repo_name':
+            if is_ == 'repo_name':
                 value = value.lower()
                 if value == 'sisyphus':
                     value = 'Sisyphus'

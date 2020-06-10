@@ -1413,7 +1413,7 @@ def build_dependency_set():
     """
     server.url_logging()
 
-    check_params = server.check_input_params()
+    check_params = server.check_input_params(source=True)
     if check_params is not True:
         return check_params
 
