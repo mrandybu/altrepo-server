@@ -246,7 +246,8 @@ class LogicServer:
 
         # check package params
         pname = self.get_one_value('name', 's', 'pkg_name')
-        if pname:
+
+        def check_package():
             default_req = "SELECT name FROM last_packages"
             args = "name = %(name)s"
 
@@ -273,10 +274,22 @@ class LogicServer:
                 return response
 
             if not response:
-                message = "Package with input parameters is not in the " \
-                          "repository."
-                logger.debug(message)
-                return utils.json_str_error(message)
+                return False
+
+            return True
+
+        pkg_ls = self.get_one_value('pkg_ls', 's', 'pkg_name')
+
+        if pname:
+            pkg_ls = pname
+
+        if pname or pkg_ls:
+            for pname in pkg_ls.split(','):
+                if not check_package():
+                    message = "Package(s) with input parameters is not in the " \
+                              "repository."
+                    logger.debug(message)
+                    return utils.json_str_error(message)
 
         return True
 
