@@ -1468,6 +1468,9 @@ def build_dependency_set():
 
         hshs = utils.join_tuples(response)
 
+    if not hshs:
+        return json.dumps({})
+
     pkg_deps = PackageDependencies(pbranch)
 
     if values['arch']:
@@ -1479,7 +1482,8 @@ def build_dependency_set():
     dep_hsh_list = pkg_deps.get_package_dep_set(pkgs=hshs, first=True)
 
     result_dict = pkg_deps.make_result_dict(
-        list(dep_hsh_list.keys()) + [hsh for val in dep_hsh_list.values() for hsh in val],
+        list(dep_hsh_list.keys()) +
+        [hsh for val in dep_hsh_list.values() for hsh in val],
         dep_hsh_list
     )
 
