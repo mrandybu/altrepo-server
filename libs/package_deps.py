@@ -3,10 +3,17 @@ import utils
 
 
 class PackageDependencies:
+    """
+    In this class, temporary tables are used to record the results of queries.
+    This is necessary in order to avoid exceeding the limit count of input data
+    in clickhouse database.
+    """
+
     def __init__(self, pbranch):
         self.pbranch = pbranch
         self.static_archs = ['x86_64', 'noarch']
         self.dep_dict = {}
+        self._tmp_table = 'tmp_pkg_hshs'
 
     def get_package_dep_set(self, pkgs=None, first=False):
 
@@ -36,19 +43,57 @@ class PackageDependencies:
                         self.dep_dict[pkg] += tuple(uniq_hshs)
                         tmp_list += uniq_hshs
 
+        server.request_line = "DROP TABLE IF EXISTS {tmp_tbl}" \
+                              "".format(tmp_tbl=self._tmp_table)
+
+        status, response = server.send_request()
+        if status is False:
+            pass
+
+        server.request_line = "CREATE TEMPORARY TABLE {tmp_tbl} (hsh UInt64)" \
+                              "".format(tmp_tbl=self._tmp_table)
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        server.request_line = (
+            "INSERT INTO {tmp_tbl} (hsh) VALUES".format(tmp_tbl=self._tmp_table),
+            tuple([(hsh,) for hsh in tmp_list])
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
         if not tmp_list:
             return self.dep_dict
 
-        return self.get_package_dep_set(pkgs=tuple(tmp_list))
+        return self.get_package_dep_set(
+            pkgs="SELECT hsh FROM {}".format(self._tmp_table)
+        )
 
     @staticmethod
     def make_result_dict(hsh_list, hsh_dict):
         fields = ['name', 'version', 'release', 'epoch', 'archs']
 
+        server.request_line = "CREATE TEMPORARY TABLE all_hshs (hsh UInt64)"
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        server.request_line = ("INSERT INTO all_hshs (hsh) VALUES",
+                               tuple([(hsh,) for hsh in hsh_list]))
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
         server.request_line = \
             "SELECT pkghash, name, version, release, epoch, " \
-            "groupUniqArray(arch) FROM Package WHERE pkghash IN ({}) " \
-            "GROUP BY (pkghash, name, version, release, epoch)" \
+            "groupUniqArray(arch) FROM Package WHERE pkghash IN (SELECT hsh " \
+            "FROM all_hshs) GROUP BY (pkghash, name, version, release, epoch)" \
             "".format(tuple(hsh_list))
 
         status, response = server.send_request()

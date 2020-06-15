@@ -1442,9 +1442,10 @@ def build_dependency_set():
         pbranch = response[0][0]
 
         server.request_line = (
-            "SELECT arrayJoin(pkgs) FROM Tasks WHERE task_id = %(task)d AND "
-            "(try, iteration) IN (SELECT max(try), argMax(iteration, try) "
-            "FROM Tasks WHERE task_id = %(task)d)", {'task': values['task']}
+            "SELECT DISTINCT sourcepkg_hash FROM Tasks WHERE "
+            "task_id = %(task)d AND (try, iteration) IN (SELECT max(try), "
+            "argMax(iteration, try) FROM Tasks WHERE task_id = %(task)d)",
+            {'task': values['task']}
         )
 
         status, response = server.send_request()
