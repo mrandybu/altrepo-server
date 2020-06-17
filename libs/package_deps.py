@@ -31,6 +31,7 @@ class PackageDependencies:
         if status is False:
             return response
 
+        # FIXME needed optimization
         tmp_list = []
         for key, val in response:
             if first:
@@ -102,6 +103,7 @@ class PackageDependencies:
 
         dict_info = utils.tuplelist_to_dict(response, 5)
 
+        # FIXME needed optimization (archs)
         result_dict = {}
         for pkg, hshs in hsh_dict.items():
 

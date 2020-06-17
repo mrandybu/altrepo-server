@@ -832,6 +832,7 @@ def what_depends_build():
     if status is False:
         return response
 
+    # FIXME use package_deps module
     # base query - first iteration, build requires depth 1
     server.request_line = (
         "INSERT INTO {tmp_table} SELECT DISTINCT name FROM Package WHERE "
