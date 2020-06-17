@@ -783,6 +783,8 @@ def what_depends_build():
 
         # branch from task
         pbranch = response[0][0]
+        if pbranch.lower() == 'sisyphus':
+            pbranch = 'Sisyphus'
 
         # get the packages hashes from Task
         server.request_line = (
