@@ -199,9 +199,9 @@ class LogicServer:
             if type_ == 'b':
                 b_value = value.lower()
                 if b_value not in ['true', 'false'] or b_value == 'false':
-                    value = False
+                    value = 0
                 else:
-                    value = True
+                    value = 1
             # type for using pattern in /package_by_file
             if type_ == 'r':
                 value = [el for el in value.split("'") if el][0]
@@ -297,7 +297,7 @@ class LogicServer:
 
             action = input_params[param].get('action')
 
-            if value or action:
+            if value is not None or action:
                 if values_only:
                     params_list[param] = value
                 else:
@@ -310,9 +310,9 @@ class LogicServer:
                         if type_ == 'i':
                             arg = "{} {}"
                         if type_ == 'b':
-                            if value.lower() == 'true':
+                            if value == 1:
                                 arg = "{} = 1"
-                            elif value.lower() == 'false':
+                            elif value == 0:
                                 arg = "{} = 0"
                         if type_ == 't':
                             arg = "{} = {}"
