@@ -63,17 +63,18 @@ class LogicServer:
         helper = {
             '/package_info': {
                 '##### /package_info arguments #####': {
-                    'name': '',
-                    'version': '',
-                    'release': '',
-                    'disttag': '',
-                    'buildtime': '><=',
-                    'source': 'show source packages (true, false)',
-                    'arch': '',
-                    'branch': '',
-                    'packager': '',
-                    'sha1': '',
-                    'full': 'full package info',
+                    'name': 'search by name of the package',
+                    'version': 'search by version',
+                    'release': 'search by release',
+                    'disttag': 'search by disttag',
+                    'buildtime': 'time in integer UNIX time format',
+                    'source': 'enable source packages (true, false)',
+                    'arch': 'search by arch',
+                    'branch': 'search by branch',
+                    'packager': 'search by packager name',
+                    'packager_email': 'search by packager name',
+                    'sha1': 'search by sha1 of the package',
+                    'full': 'full package info (true,default:false)',
                 }
             },
             '/misconflict_packages': {

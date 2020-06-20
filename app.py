@@ -113,6 +113,12 @@ def package_info():
             'action': None,
             'notempty': False,
         },
+        'packager_email': {
+            'rname': 'packager_email',
+            'type': 's',
+            'action': None,
+            'notempty': False,
+        },
     }
 
     params_values = server.get_values_by_params(input_params)
