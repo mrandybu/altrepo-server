@@ -365,7 +365,7 @@ FROM (SELECT pkghash,
                         WHERE assigment_name = %(branch)s
                           AND sourcepackage = 0
                           AND arch IN %(arch)s
-                          AND pkghash NOT IN %(hshs)s))
+                          AND pkghash NOT IN %(hshs)s)) AS LeftPkg
          LEFT JOIN (SELECT pkghash,
                            hashname
                     FROM File
