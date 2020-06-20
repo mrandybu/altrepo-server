@@ -160,7 +160,7 @@ def package_info():
         utils.convert_to_json(['pkghash'] + output_params, response)
     )
 
-    if full:
+    if full and len(response) > 0:
 
         pkghashs = utils.join_tuples(response)
 
