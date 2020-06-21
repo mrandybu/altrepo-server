@@ -224,7 +224,7 @@ def package_info():
 
 @app.route('/misconflict_packages')
 @func_time(logger)
-def conflict_packages():
+def misconflict_packages():
     """
     The function of searching for conflicting files in packages that do not have
     a conflict.
