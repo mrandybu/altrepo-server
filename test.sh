@@ -19,3 +19,10 @@ runtest "package_info?name=startup&branch=sisyphus&source=false&arch=x86_64&full
 runtest "package_info?packager_email=ldv@altlinux.org"
 # package by sha1
 runtest "package_info?sha1=53ddac04bd35f566a818e020d59b1bcb2e58bbe9"
+
+
+# misconflict_packages
+# syslinux has unresolved file conflict with syslinux1
+runtest "misconflict_packages?pkg_ls=glibc,syslinux&branch=sisyphus"
+# big task
+runtest "misconflict_packages?task=247371"

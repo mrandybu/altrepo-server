@@ -292,10 +292,18 @@ def conflict_packages():
 
         pbranch = response[0][0]
 
-        # get packages of task (hashes)
-        server.request_line = (
-            "SELECT pkgs FROM Tasks WHERE task_id = %(task)d",
-            {'task': values['task']}
+        # get packages of task for last build iteration (hashes)
+        server.request_line = ("""
+      SELECT arrayJoin(*)
+      FROM (
+            select groupArray(arrayJoin(pkgs))
+            from Tasks
+            where task_id = %(task)d
+            AND notEmpty(pkgs)
+            GROUP by try
+            order by try DESC
+            LIMIT 1)""",
+        {'task': values['task']}
         )
 
         status, response = server.send_request()
@@ -310,9 +318,8 @@ def conflict_packages():
 
         # joining tuples from response list
         input_pkg_hshs = []
-        for block in response:
-            for hsh in block[0]:
-                input_pkg_hshs.append(hsh)
+        for hsh in response:
+            input_pkg_hshs.append(hsh[0])
 
     # package list without task
     else:
