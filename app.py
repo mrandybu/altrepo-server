@@ -430,7 +430,7 @@ WHERE foundpkgname != inpkgname
     filter_ls_names = []
     for hsh in filter_ls:
         inp_pkg = hsh_name_dict[hsh[1]]
-        if inp_pkg not in input_packages:
+        if hsh[1] not in input_pkg_hshs:
             if hsh[0] in hsh_name_dict:
                 inp_pkg = hsh_name_dict[hsh[0]]
                 filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]]))
