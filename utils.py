@@ -90,6 +90,8 @@ def tuplelist_to_dict(tuplelist, num):
         if isinstance(count, tuple):
             for elem in count:
                 result_dict[tuple_[0]].append(elem)
+        elif isinstance(count, list):
+            result_dict[tuple_[0]] += count
         else:
             result_dict[tuple_[0]].append(count)
 
