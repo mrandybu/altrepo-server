@@ -1,0 +1,7 @@
+#!/usr/bin/env python3
+# This file need for start altrepo-server project.
+
+from run_app import start
+
+if __name__ == '__main__':
+    start()

@@ -2,8 +2,9 @@ from flask import Flask, request, json
 from logic_server import server
 import utils
 from utils import func_time, get_helper
-from deps_sorting import SortList
-from conflict_filter import ConflictFilter
+from libs.deps_sorting import SortList
+from libs.conflict_filter import ConflictFilter
+from libs.package_deps import PackageDependencies
 
 app = Flask(__name__)
 logger = utils.get_logger(__name__)
@@ -357,6 +358,9 @@ WHERE name IN %(pkgs)s
         # form a list of package hashes
         input_pkg_hshs = [pkg[0] for pkg in response]
 
+    if not input_pkg_hshs:
+        return json.dumps({})
+
     # get list of (input package | conflict package | conflict files)
     server.request_line = ("""SELECT InPkg.pkghash, pkghash, groupUniqArray(filename)
 FROM (SELECT pkghash,
@@ -402,12 +406,7 @@ GROUP BY (InPkg.pkghash, pkghash)""", {
     # check for the presence of the specified conflict each pair
     # if the conflict between the packages in the pair is specified,
     # then add the pair to the list
-    filter_ls = []
-    for tp_hsh in in_confl_hshs:
-        confl_ls = c_filter.detect_conflict(tp_hsh[0], tp_hsh[1])
-        for confl in confl_ls:
-            if confl not in filter_ls:
-                filter_ls.append(confl)
+    filter_ls = c_filter.detect_conflict(in_confl_hshs)
 
     # get a list of hashes of packages to form a dict of hash-name
     pkg_hshs = utils.remove_duplicate(
@@ -415,13 +414,9 @@ GROUP BY (InPkg.pkghash, pkghash)""", {
     )
 
     # get package names by hashes
-    server.request_line = ("""SELECT pkghash, name
-FROM last_packages
-WHERE pkghash IN %(pkgs)s
-  AND assigment_name = %(branch)s
-  AND sourcepackage = 0
-  AND arch IN
-      %(arch)s""", {
+    server.request_line = (
+        "SELECT DISTINCT pkghash, name FROM Package WHERE pkghash IN %(pkgs)s "
+        "AND sourcepackage = 0 AND arch IN %(arch)s", {
             'pkgs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
         }
                            )
@@ -845,6 +840,8 @@ def what_depends_build():
 
         # branch from task
         pbranch = response[0][0]
+        if pbranch.lower() == 'sisyphus':
+            pbranch = 'Sisyphus'
 
         # get the packages hashes from Task
         server.request_line = (
@@ -863,12 +860,10 @@ def what_depends_build():
 
         # src packages from task
         server.request_line = (
-            """SELECT DISTINCT name
-FROM Package
-WHERE filename IN (SELECT DISTINCT sourcerpm
-                   FROM Package
-                   WHERE pkghash IN %(pkghshs)s)
-            """, {'pkghshs': pkgs_hsh}
+            "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
+            "DISTINCT sourcerpm FROM Package WHERE pkghash IN (SELECT "
+            "arrayJoin(pkgs) FROM Tasks WHERE task_id = %(id)s))",
+            {'id': task_id}
         )
 
         status, response = server.send_request()
@@ -897,6 +892,7 @@ WHERE filename IN (SELECT DISTINCT sourcerpm
     if status is False:
         return response
 
+    # FIXME use package_deps module
     # base query - first iteration, build requires depth 1
     server.request_line = (
         """INSERT INTO {tmp_table}
@@ -1629,6 +1625,106 @@ ORDER BY pkgset_date DESC """, {
     return utils.convert_to_json(param_ls, response)
 
 
+@app.route('/build_dependency_set')
+@func_time(logger)
+def build_dependency_set():
+    """
+    The function of compare two differences in the package base of specified
+    repositories.
+
+    Input GET params:
+        pkg_ls * - package or list of packages
+        task ** - task id
+        branch (* - for name only) - name of repository
+        arch - architecture
+
+    Output structure:
+        name
+        version
+        release
+        epoch
+        archs
+    """
+    server.url_logging()
+
+    check_params = server.check_input_params(source=True)
+    if check_params is not True:
+        return check_params
+
+    values = server.get_dict_values([
+        ('pkg_ls', 's', 'pkg_name'), ('task', 'i'),
+        ('branch', 's', 'repo_name'), ('arch', 's')
+    ])
+
+    if values['pkg_ls'] and values['task']:
+        return utils.json_str_error("One parameter only. ('name'/'task')")
+
+    if not values['pkg_ls'] and not values['task']:
+        return utils.json_str_error("'name' or 'task' is require parameters.")
+
+    if values['pkg_ls'] and not values['branch']:
+        return get_helper(server.helper(request.path))
+
+    if values['task']:
+        server.request_line = "SELECT branch FROM Tasks WHERE task_id = {}" \
+                              "".format(values['task'])
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        pbranch = response[0][0]
+
+        server.request_line = (
+            "SELECT DISTINCT sourcepkg_hash FROM Tasks WHERE "
+            "task_id = %(task)d AND (try, iteration) IN (SELECT max(try), "
+            "argMax(iteration, try) FROM Tasks WHERE task_id = %(task)d)",
+            {'task': values['task']}
+        )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        hshs = utils.join_tuples(response)
+    else:
+        pkg_ls = tuple(values['pkg_ls'].split(','))
+        pbranch = values['branch']
+
+        server.request_line = \
+            "SELECT pkg.pkghash FROM last_packages WHERE name IN ({pkgs}) AND " \
+            "assigment_name = '{branch}' AND sourcepackage = 1".format(
+                pkgs=pkg_ls, branch=pbranch
+            )
+
+        status, response = server.send_request()
+        if status is False:
+            return response
+
+        hshs = utils.join_tuples(response)
+
+    if not hshs:
+        return json.dumps({})
+
+    pkg_deps = PackageDependencies(pbranch)
+
+    if values['arch']:
+        pkg_deps.static_archs += [
+            arch for arch in values['arch'].split(',')
+            if arch not in pkg_deps.static_archs and len(arch) > 1
+        ]
+
+    dep_hsh_list = pkg_deps.get_package_dep_set(pkgs=hshs, first=True)
+
+    result_dict = pkg_deps.make_result_dict(
+        list(dep_hsh_list.keys()) +
+        [hsh for val in dep_hsh_list.values() for hsh in val],
+        dep_hsh_list
+    )
+
+    return json.dumps(result_dict, sort_keys=False)
+
+
 @app.teardown_request
 def drop_connection(connection):
     server.drop_connection()
@@ -1651,8 +1747,9 @@ def page_404(error):
             '/unpackaged_dirs': 'list of unpacked directories',
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
-            '/find_pkgset': 'find repositories containing binary packages'
-                            ' built from a given source package',
+            '/find_pkgset': 'list of binary packages for the given source',
+            'build_dependency_set': 'list of all binary packages which use '
+                                    'for build input package',
         }
     }
     return json.dumps(helper, sort_keys=False)
