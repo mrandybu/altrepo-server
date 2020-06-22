@@ -17,13 +17,19 @@ class PackageDependencies:
 
     def get_package_dep_set(self, pkgs=None, first=False):
 
-        server.request_line = \
-            "SELECT DISTINCT srchsh, groupUniqArray(pkghash) FROM (SELECT " \
-            "pkghash AS srchsh, dpname FROM Depends WHERE pkghash IN " \
-            "({pkgs}) AND dptype = 'require') INNER JOIN (SELECT pkghash, " \
-            "dpname FROM last_depends WHERE dptype = 'provide' AND " \
-            "assigment_name = '{branch}' AND sourcepackage = 0 AND arch IN " \
-            "({archs})) USING dpname GROUP BY srchsh".format(
+        server.request_line = """SELECT DISTINCT srchsh, groupUniqArray(pkghash) FROM 
+(SELECT pkghash AS srchsh,
+        dpname
+FROM Depends
+WHERE pkghash IN ({pkgs}) AND dptype = 'require') AS sourceDep
+    INNER JOIN 
+    (SELECT pkghash, dpname
+        FROM last_depends
+    WHERE dptype = 'provide'
+      AND assigment_name = '{branch}'
+      AND sourcepackage = 0
+      AND arch IN ({archs})) AS binaryDeps
+        USING dpname GROUP BY srchsh""".format(
                 pkgs=pkgs, branch=self.pbranch, archs=tuple(self.static_archs)
             )
 
@@ -91,11 +97,17 @@ class PackageDependencies:
         if status is False:
             return response
 
-        server.request_line = \
-            "SELECT pkghash, name, version, release, epoch, " \
-            "groupUniqArray(arch) FROM Package WHERE pkghash IN (SELECT hsh " \
-            "FROM all_hshs) GROUP BY (pkghash, name, version, release, epoch)" \
-            "".format(tuple(hsh_list))
+        server.request_line = """SELECT pkghash,
+       name,
+       version,
+       release,
+       epoch,
+       groupUniqArray(arch)
+FROM Package
+WHERE pkghash IN (SELECT hsh
+                  FROM all_hshs)
+GROUP BY (pkghash, name, version, release, epoch)
+            """.format(tuple(hsh_list))
 
         status, response = server.send_request()
         if status is False:
