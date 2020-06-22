@@ -129,7 +129,7 @@ GROUP BY (pkghash, name, version, release, epoch)
                     second = dict_info[hh]
 
                     if first[:3] == second[:3]:
-                        archs += second[4]
+                        archs += tuple(second[4])
 
                 dict_info[hsh][4] = tuple(set(archs))
 
