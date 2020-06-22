@@ -420,45 +420,27 @@ WHERE foundpkgname != inpkgname
     pkg_hshs = utils.remove_duplicate(
         [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
     )
-
-    # get package names by hashes
-    server.request_line = (
-        "SELECT DISTINCT pkghash, name FROM Package WHERE pkghash IN %(pkgs)s "
-        "AND sourcepackage = 0 AND arch IN %(arch)s", {
-            'pkgs': tuple(pkg_hshs), 'branch': pbranch, 'arch': allowed_archs
-        }
-                           )
-
-    status, response = server.send_request()
-    if status is False:
-        return response
-
-    hsh_name_dict = utils.tuplelist_to_dict(response, 1)
-
-    # get names of input packages
-    input_packages = []
-    for hsh, name in hsh_name_dict.items():
-        if hsh in input_pkg_hshs:
-            input_packages.append(name)
-
-    input_packages = utils.remove_duplicate(utils.join_tuples(input_packages))
-
+    # create dict with package names by hashes
+    hsh_name_dict = {}
+    for line in response:
+        hsh_name_dict.update({line[0]:line[4]})
+        hsh_name_dict.update({line[1]:line[3]})
     # convert the hashes into names, put in the first place in the pair
     # the name of the input package, if it is not
     filter_ls_names = []
     for hsh in filter_ls:
-        inp_pkg = hsh_name_dict[hsh[1]][0]
+        inp_pkg = hsh_name_dict[hsh[1]]
         if inp_pkg not in input_packages:
             if hsh[0] in hsh_name_dict:
-                inp_pkg = hsh_name_dict[hsh[0]][0]
-                filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]][0]))
+                inp_pkg = hsh_name_dict[hsh[0]]
+                filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]]))
         else:
-            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]][0]))
+            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]]))
 
     # form the list of tuples (input package | conflict package | conflict files)
     result_list = []
     for pkg in hshs_files:
-        pkg = (hsh_name_dict[pkg[0]][0], hsh_name_dict[pkg[1]][0], pkg[2])
+        pkg = (hsh_name_dict[pkg[0]], hsh_name_dict[pkg[1]], pkg[2])
         if pkg not in result_list:
             result_list.append(pkg)
 
