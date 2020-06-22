@@ -26,3 +26,8 @@ runtest "package_info?sha1=53ddac04bd35f566a818e020d59b1bcb2e58bbe9"
 runtest "misconflict_packages?pkg_ls=glibc,syslinux&branch=sisyphus"
 # big task
 runtest "misconflict_packages?task=247371"
+runtest "misconflict_packages?task=239398"
+
+# package by file
+runtest "package_by_file?file='/usr/bin/firefox'&branch=sisyphus"
+runtest "package_by_file?file='/usr/bin/firefox-*'&branch=sisyphus"

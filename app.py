@@ -581,11 +581,9 @@ WHERE pkghash IN ({pkghash})
        release,
        disttag,
        arch,
-       assigment_name
-FROM last_packages
-WHERE sourcepackage = 0
-  AND pkghash IN %(hashs)s
-  AND assigment_name = %(branch)s""",
+       %(branch)s
+FROM Package
+WHERE pkghash IN %(hashs)s""",
                            {'hashs': pkghashs, 'branch': pbranch}
                            )
 
