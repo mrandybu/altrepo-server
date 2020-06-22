@@ -31,3 +31,9 @@ runtest "misconflict_packages?task=239398"
 # package by file
 runtest "package_by_file?file='/usr/bin/firefox'&branch=sisyphus"
 runtest "package_by_file?file='/usr/bin/firefox-*'&branch=sisyphus"
+runtest "package_by_file?md5=a3de87766009c22b59399e6a25573973&branch=p9"
+
+# dependend_packages
+runtest "dependent_packages?name=grub-pc&branch=sisyphus"
+runtest "dependent_packages?name=ocaml&branch=sisyphus"
+runtest "dependent_packages?name=python3&branch=sisyphus"
