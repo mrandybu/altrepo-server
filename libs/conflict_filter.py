@@ -197,9 +197,10 @@ class ConflictFilter:
 
         v1[rpm.RPMTAG_VERSION] = vv1[1]
         v2[rpm.RPMTAG_VERSION] = vv2[1]
-
-        v1[rpm.RPMTAG_RELEASE] = vv1[2]
-        v2[rpm.RPMTAG_RELEASE] = vv2[2]
+        if vv1[2]:
+            v1[rpm.RPMTAG_RELEASE] = vv1[2]
+        if vv2[2]:
+            v2[rpm.RPMTAG_RELEASE] = vv2[2]
 
         # check disttag, if true, add it
         if vv1[3] != '' and vv2[3]:
