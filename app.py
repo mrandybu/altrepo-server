@@ -301,8 +301,8 @@ def misconflict_packages():
             from Tasks
             where task_id = %(task)d
             AND notEmpty(pkgs)
-            GROUP by try
-            order by try DESC
+            GROUP by try,iteration
+            order by try DESC,iteration DESC
             LIMIT 1)""",
         {'task': values['task']}
         )
@@ -362,7 +362,8 @@ WHERE name IN %(pkgs)s
         return json.dumps({})
 
     # get list of (input package | conflict package | conflict files)
-    server.request_line = ("""SELECT InPkg.pkghash, pkghash, groupUniqArray(filename)
+    server.request_line = ("""SELECT * FROM (SELECT InPkg.pkghash,pkghash,files, foundpkgname FROM (
+SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) as files
 FROM (SELECT pkghash,
              filename,
              hashname
@@ -372,17 +373,24 @@ FROM (SELECT pkghash,
                          WHERE pkghash IN %(hshs)s
                            AND fileclass != 'directory')
         AND pkghash IN (SELECT pkghash
-                        FROM last_packages
-                        WHERE assigment_name = %(branch)s
-                          AND sourcepackage = 0
-                          AND arch IN %(arch)s
-                          AND pkghash NOT IN %(hshs)s)) AS LeftPkg
+                        FROM Package WHERE pkghash IN (
+                            SELECT pkghash from last_assigments WHERE
+                            assigment_name= %(branch)s
+                            AND pkghash NOT IN %(hshs)s
+                        ) AND sourcepackage = 0
+                          AND arch IN %(arch)s)) AS LeftPkg
          LEFT JOIN (SELECT pkghash,
                            hashname
                     FROM File
                     WHERE pkghash IN %(hshs)s) AS InPkg USING
     hashname
-GROUP BY (InPkg.pkghash, pkghash)""", {
+GROUP BY (InPkg.pkghash, pkghash)) AS Sel1
+LEFT JOIN (SELECT name as foundpkgname,pkghash from Package) AS pkgCom
+ ON Sel1.pkghash = pkgCom.pkghash) as Sel2
+LEFT JOIN (SELECT name as inpkgname,pkghash from Package) AS pkgIn
+ ON pkgIn.pkghash = InPkg.pkghash
+WHERE foundpkgname != inpkgname
+""", {
             'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
             'arch': allowed_archs
         }
@@ -441,8 +449,9 @@ GROUP BY (InPkg.pkghash, pkghash)""", {
     for hsh in filter_ls:
         inp_pkg = hsh_name_dict[hsh[1]][0]
         if inp_pkg not in input_packages:
-            inp_pkg = hsh_name_dict[hsh[0]][0]
-            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]][0]))
+            if hsh[0] in hsh_name_dict:
+                inp_pkg = hsh_name_dict[hsh[0]][0]
+                filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]][0]))
         else:
             filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]][0]))
 
