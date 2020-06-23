@@ -1541,7 +1541,7 @@ def find_pkgset():
     repositories.
 
     Input GET params:
-        name - package name or list of packages
+        name - source package name or list of packages
         task - number of task
 
     Output structure:
