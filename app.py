@@ -1488,7 +1488,7 @@ FROM (SELECT name, version, release
         AND name IN (SELECT name
                      FROM last_packages
                      WHERE assigment_name = %(pkgset2)s
-                       AND sourcepackage = 1))
+                       AND sourcepackage = 1)) as PkgSet2
          INNER JOIN
      (SELECT name, version, release
       FROM last_packages
