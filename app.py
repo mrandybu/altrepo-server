@@ -1546,7 +1546,8 @@ def find_pkgset():
 
     Output structure:
         branch
-        data
+        sourcepkgname
+        date
         packages
         version
         disttag
@@ -1589,6 +1590,7 @@ WHERE filename IN (SELECT DISTINCT sourcerpm
         pkg_ls = utils.join_tuples(response)
 
     server.request_line = ("""SELECT DISTINCT assigment_name,
+                sourcepkgname,
                 toString(any(assigment_date)) AS pkgset_date,
                 groupUniqArray(name)          AS pkgnames,
                 version,
@@ -1600,7 +1602,7 @@ WHERE filename IN (SELECT DISTINCT sourcerpm
 FROM last_packages_with_source
 WHERE (sourcepkgname IN %(pkgs)s)
   AND (name NOT LIKE '%%-debuginfo')
-GROUP BY assigment_name, version, release
+GROUP BY assigment_name, sourcepkgname, version, release
 ORDER BY pkgset_date DESC """, {
             'pkgs': tuple(pkg_ls)
         }
@@ -1611,6 +1613,7 @@ ORDER BY pkgset_date DESC """, {
         return response
 
     param_ls = ['branch',
+                'sourcepkgname',
                 'pkgset_datetime',
                 'packages',
                 'version',
