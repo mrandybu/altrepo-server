@@ -1549,8 +1549,11 @@ def find_pkgset():
         data
         packages
         version
+        disttag
+        packager_email
+        buildtime
         archs
-    """
+     """
     server.url_logging()
 
     check_params = server.check_input_params()
@@ -1590,6 +1593,9 @@ WHERE filename IN (SELECT DISTINCT sourcerpm
                 groupUniqArray(name)          AS pkgnames,
                 version,
                 release,
+                any(disttag),
+                any(packager_email),
+                toString(toDateTime(any(buildtime))) AS buildtime,
                 groupUniqArray(arch)
 FROM last_packages_with_source
 WHERE (sourcepkgname IN %(pkgs)s)
@@ -1609,6 +1615,9 @@ ORDER BY pkgset_date DESC """, {
                 'packages',
                 'version',
                 'release',
+                'disttag',
+                'packager_email',
+                'buildtime',
                 'archs']
 
     return utils.convert_to_json(param_ls, response)
