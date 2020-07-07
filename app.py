@@ -378,6 +378,7 @@ FROM (SELECT pkghash,
                             assigment_name= %(branch)s
                             AND pkghash NOT IN %(hshs)s
                         ) AND sourcepackage = 0
+                          AND name NOT LIKE '%%-debuginfo'
                           AND arch IN %(arch)s)) AS LeftPkg
          LEFT JOIN (SELECT pkghash,
                            hashname
