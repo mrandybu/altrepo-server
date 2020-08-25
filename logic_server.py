@@ -164,6 +164,13 @@ class LogicServer:
 
     @func_time(logger)
     def send_request(self, trace=False):
+        rl = self.request_line
+        if isinstance(rl, tuple):
+            rl = rl[0]
+
+        if bool(rl) is False:
+            return False, 'SQL query not found in query manager.'
+
         status = self.db_connection.connection_status
         if not status:
             for try_ in range(namespace.TRY_CONNECTION_NUMBER):
