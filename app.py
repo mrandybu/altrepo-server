@@ -6,11 +6,14 @@ from utils import func_time, get_helper
 from libs.deps_sorting import SortList
 from libs.conflict_filter import ConflictFilter
 from libs.package_deps import PackageDependencies
+from querymgr import query_manager as QM
 
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
 
 logger = utils.get_logger(__name__)
+
+QM.init_manager(logger)
 
 
 @app.route('/package_info')
@@ -297,17 +300,8 @@ def misconflict_packages():
         pbranch = response[0][0]
 
         # get packages of task for last build iteration (hashes)
-        server.request_line = ("""
-      SELECT arrayJoin(*)
-      FROM (
-            select groupArray(arrayJoin(pkgs))
-            from Tasks
-            where task_id = %(task)d
-            AND notEmpty(pkgs)
-            GROUP by try,iteration
-            order by try DESC,iteration DESC
-            LIMIT 1)""",
-        {'task': values['task']}
+        server.request_line = (
+            QM.misconflict_pkgs_get_pkgs_of_task, {'task': values['task']}
         )
 
         status, response = server.send_request()
@@ -331,16 +325,9 @@ def misconflict_packages():
         pbranch = values['branch']
 
         # get hash for package names
-        server.request_line = ("""SELECT pkghash, name
-FROM last_packages
-WHERE name IN %(pkgs)s
-  AND assigment_name = %(branch)s
-  AND sourcepackage = 0
-  AND arch
-    IN %(arch)s""", {
-                'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs
-            }
-                               )
+        server.request_line = (QM.misconflict_pkgs_get_hshs_by_pkgs, {
+            'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs
+        })
 
         status, response = server.send_request()
         if status is False:
@@ -365,40 +352,10 @@ WHERE name IN %(pkgs)s
         return json.dumps({})
 
     # get list of (input package | conflict package | conflict files)
-    server.request_line = ("""SELECT * FROM (SELECT InPkg.pkghash,pkghash,files, foundpkgname FROM (
-SELECT InPkg.pkghash, pkghash, groupUniqArray(filename) as files
-FROM (SELECT pkghash,
-             filename,
-             hashname
-      FROM File
-      WHERE hashname IN (SELECT hashname
-                         FROM File
-                         WHERE pkghash IN %(hshs)s
-                           AND fileclass != 'directory')
-        AND pkghash IN (SELECT pkghash
-                        FROM Package WHERE pkghash IN (
-                            SELECT pkghash from last_assigments WHERE
-                            assigment_name= %(branch)s
-                            AND pkghash NOT IN %(hshs)s
-                        ) AND sourcepackage = 0
-                          AND name NOT LIKE '%%-debuginfo'
-                          AND arch IN %(arch)s)) AS LeftPkg
-         LEFT JOIN (SELECT pkghash,
-                           hashname
-                    FROM File
-                    WHERE pkghash IN %(hshs)s) AS InPkg USING
-    hashname
-GROUP BY (InPkg.pkghash, pkghash)) AS Sel1
-LEFT JOIN (SELECT name as foundpkgname,pkghash from Package) AS pkgCom
- ON Sel1.pkghash = pkgCom.pkghash) as Sel2
-LEFT JOIN (SELECT name as inpkgname,pkghash from Package) AS pkgIn
- ON pkgIn.pkghash = InPkg.pkghash
-WHERE foundpkgname != inpkgname
-""", {
-            'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
-            'arch': allowed_archs
-        }
-                           )
+    server.request_line = (QM.misconflict_pkgs_get_pkg_with_conflict, {
+        'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
+        'arch': allowed_archs
+    })
 
     status, response = server.send_request()
     if status is False:
@@ -450,13 +407,9 @@ WHERE foundpkgname != inpkgname
             result_list.append(pkg)
 
     # get architectures of found packages
-    server.request_line = '''
-SELECT name,
-       groupUniqArray(arch)
-FROM Package
-WHERE pkghash IN {hshs}
-GROUP BY name
-            '''.format(hshs=tuple(output_pkgs))
+    server.request_line = QM.misconflict_pkgs_get_pkg_archs.format(
+        hshs=tuple(output_pkgs)
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -483,17 +436,11 @@ GROUP BY name
     confl_pkgs = utils.remove_duplicate([pkg[1] for pkg in result_list_cleanup])
 
     # get main information of packages by package hashes
-    server.request_line = ("""
-SELECT name, version, release, epoch, groupUniqArray(arch)
-FROM last_packages
-WHERE name IN %(pkgs)s
-  AND assigment_name = %(branch)s
-  AND sourcepackage = 0
-  AND arch IN %(arch)s
-GROUP BY (name, version, release, epoch)""", {
-        'pkgs': tuple(confl_pkgs), 'branch': pbranch, 'arch': allowed_archs
-    }
-                           )
+    server.request_line = (QM.misconflict_pkgs_get_meta_by_hshs, {
+        'pkgs': tuple(confl_pkgs),
+        'branch': pbranch,
+        'arch': allowed_archs
+    })
 
     status, response = server.send_request()
     if status is False:
@@ -568,15 +515,9 @@ def package_by_file():
     else:
         arch = server.known_archs
 
-    pkghash = """SELECT pkg.pkghash
-FROM last_packages
-WHERE assigment_name = %(branch)s
-  AND arch IN %(arch)s"""
-
-    base_query = """SELECT pkghash{in_}
-FROM File
-WHERE pkghash IN ({pkghash})
-  AND {param}""".format(in_='{}', pkghash=pkghash, param='{}')
+    base_query = QM.package_by_file_get_hshs_by_files.format(
+        in_='{}', pkghash=QM.package_by_file_get_pkg_hashs, param='{}'
+    )
 
     if file:
         elem, query = file, "filename LIKE %(elem)s"
@@ -599,19 +540,10 @@ WHERE pkghash IN ({pkghash})
 
     pkghashs = tuple([key for key in ids_filename_dict.keys()])
 
-    server.request_line = ("""
-    SELECT pkghash,
-       pkgcs,
-       name,
-       version,
-       release,
-       disttag,
-       arch,
-       %(branch)s
-FROM Package
-WHERE pkghash IN %(hashs)s""",
-                           {'hashs': pkghashs, 'branch': pbranch}
-                           )
+    server.request_line = (
+        QM.package_by_file_get_meta_by_hshs, {
+            'hashs': pkghashs, 'branch': pbranch
+        })
 
     status, response = server.send_request()
     if status is False:
@@ -710,37 +642,9 @@ def dependent_packages():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    server.request_line = (
-        """SELECT DISTINCT name,
-                version,
-                release,
-                epoch,
-                serial_,
-                filename AS sourcerpm,
-                assigment_name,
-                groupUniqArray(binary_arch)
-FROM last_packages
-         INNER JOIN (SELECT sourcerpm, arch AS binary_arch
-                     FROM last_packages
-                     WHERE name IN (SELECT DISTINCT pkgname
-                                    FROM last_depends
-                                    WHERE dpname IN (SELECT dpname
-                                                     FROM last_depends
-                                                     WHERE pkgname = %(name)s
-                                                       AND dptype = 'provide'
-                                                       AND assigment_name = %(branch)s
-                                                       AND sourcepackage = 0)
-                                      AND assigment_name = %(branch)s
-                                      AND sourcepackage = 0)
-                       AND assigment_name = %(branch)s
-                       AND sourcepackage = 0) as SrcPkg
-                    USING sourcerpm
-WHERE assigment_name = %(branch)s
-  AND sourcepackage = 1
-GROUP BY (name, version, release, epoch, serial_,
-          filename AS sourcerpm, assigment_name)""",
-        {'name': pname, 'branch': pbranch}
-    )
+    server.request_line = (QM.dependent_packages_get_dependent_pkgs, {
+        'name': pname, 'branch': pbranch
+    })
 
     status, response = server.send_request()
     if status is False:
@@ -874,12 +778,7 @@ def what_depends_build():
                 pkgs_hsh += (package,)
 
         # src packages from task
-        server.request_line = (
-            "SELECT DISTINCT name FROM Package WHERE filename IN (SELECT "
-            "DISTINCT sourcerpm FROM Package WHERE pkghash IN (SELECT "
-            "arrayJoin(pkgs) FROM Tasks WHERE task_id = %(id)s))",
-            {'id': task_id}
-        )
+        server.request_line = (QM.wds_get_src_from_task, {'id': task_id})
 
         status, response = server.send_request()
         if status is False:
@@ -910,37 +809,10 @@ def what_depends_build():
     # FIXME use package_deps module
     # base query - first iteration, build requires depth 1
     server.request_line = (
-        """INSERT INTO {tmp_table}
-SELECT DISTINCT name
-FROM Package
-WHERE (filename IN (SELECT DISTINCT if(sourcepackage = 1, filename,
-                                       sourcerpm) AS sourcerpm
-                    from Package
-                    WHERE pkghash IN (SELECT DISTINCT pkghash
-                                      FROM last_depends
-                                      WHERE dpname IN (SELECT dpname
-                                                       FROM Depends
-                                                       WHERE pkghash IN
-                                                             (SELECT pkghash
-                                                              FROM last_packages_with_source
-                                                              WHERE sourcepkgname
-                                                                  IN %(pkgs)s
-                                                                AND assigment_name = %(branch)s
-                                                                AND arch IN
-                                                                    ('x86_64', 'noarch')
-                                                                AND name NOT LIKE '%%-debuginfo')
-                                                         AND dptype =
-                                                             'provide')
-                                        AND assigment_name = %(branch)s
-                                        AND sourcepackage IN %(sfilter)s
-                                        AND dptype = 'require'
-                                        AND pkgname NOT LIKE '%%-debuginfo'
-                    )))
-  AND sourcepackage = 1
-UNION ALL
-SELECT arrayJoin(%(union)s)
-        """.format(tmp_table=tmp_table_name), {
-            'sfilter': sourcef, 'pkgs': input_pkgs, 'branch': pbranch,
+        QM.wds_insert_build_req_deep_1.format(tmp_table=tmp_table_name), {
+            'sfilter': sourcef,
+            'pkgs': input_pkgs,
+            'branch': pbranch,
             'union': list(input_pkgs)
         }
     )
@@ -958,56 +830,22 @@ SELECT arrayJoin(%(union)s)
             )
 
         # sql wrapper for increase depth
-        deep_wrapper = \
-            """SELECT pkghash
-FROM last_depends
-WHERE dpname IN (SELECT dpname
-                 FROM Depends
-                 WHERE pkghash IN (SELECT pkghash
-                                   FROM last_packages_with_source
-                                   WHERE sourcepkgname IN (SELECT *
-                                                           FROM {tmp_table})
-                                     AND assigment_name = %(branch)s
-                                     AND arch IN ('x86_64',
-                                                  'noarch')
-                                     AND name NOT LIKE '%%-debuginfo')
-                   AND dptype = 'provide')
-  AND assigment_name = %(branch)s
-  AND dptype = 'require'
-  AND sourcepackage IN %(sfilter)s""".format(tmp_table=tmp_table_name)
+        deep_wrapper = QM.wds_increase_depth_wrap.format(
+            tmp_table=tmp_table_name
+        )
 
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
-            server.request_line = (
-                """INSERT INTO {tmp_table} (pkgname)
-SELECT DISTINCT *
-FROM (
-      SELECT name
-      FROM Package
-      WHERE (filename IN
-             (SELECT DISTINCT if(sourcepackage = 1, filename, sourcerpm) AS sourcerpm
-              from Package
-              WHERE pkghash IN ({wrapper})))
-        AND sourcepackage = 1
-      UNION ALL
-      (SELECT * FROM {tmp_table}))""".format(
-                    wrapper=deep_wrapper, tmp_table=tmp_table_name
-                ), {'sfilter': sourcef, 'branch': pbranch}
-            )
+            server.request_line = (QM.wds_insert_result_for_depth_level.format(
+                wrapper=deep_wrapper, tmp_table=tmp_table_name
+            ), {'sfilter': sourcef, 'branch': pbranch})
 
             status, response = server.send_request()
             if status is False:
                 return response
 
-    server.request_line = (
-        """SELECT DISTINCT acl_for, groupUniqArray(acl_list)
-FROM last_acl
-WHERE acl_for IN (SELECT pkgname FROM {tmp_table})
-  AND acl_branch = %(branch)s
-GROUP BY acl_for""".format(tmp_table=tmp_table_name), {
-            'branch': pbranch.lower()
-        }
-    )
+    server.request_line = (QM.wds_get_acl.format(tmp_table=tmp_table_name),
+                           {'branch': pbranch.lower()})
 
     status, response = server.send_request()
     if status is False:
@@ -1036,39 +874,11 @@ GROUP BY acl_for""".format(tmp_table=tmp_table_name), {
     if depends_type in ['source', 'both']:
         # populate the temporary table with package names and their source
         # dependencies
-        server.request_line = ("""INSERT INTO {tmp_deps} (pkgname, reqname)
-SELECT DISTINCT BinDeps.pkgname,
-                sourcepkgname
-FROM (SELECT DISTINCT BinDeps.pkgname,
-                      name AS pkgname,
-                      sourcepkgname
-      FROM last_packages_with_source
-               INNER JOIN (SELECT DISTINCT BinDeps.pkgname, pkgname
-                           FROM (SELECT DISTINCT BinDeps.pkgname,
-                                                 pkgname,
-                                                 dpname
-                                 FROM last_depends
-                                          INNER JOIN
-                                      (SELECT DISTINCT pkgname, dpname
-                                       FROM last_depends
-                                       WHERE pkgname IN
-                                             (SELECT '' UNION ALL SELECT * FROM {tmp_table})
-                                         AND assigment_name = %(branch)s
-                                         AND dptype = 'require'
-                                         AND sourcepackage = 1) AS BinDeps
-                                      USING dpname
-                                 WHERE assigment_name =
-                                           %(branch)s AND dptype = 'provide'
-                                            AND sourcepackage = 0 AND arch 
-                                       IN ('x86_64', 'noarch'))) as pkgs
-                          USING pkgname
-      WHERE assigment_name = %(branch)s
-      ORDER BY sourcepkgname ASC
-      UNION ALL
-      SELECT arrayJoin(%(pkgs)s), '', '')""".format(
-            tmp_deps=tmp_table_pkg_dep, tmp_table=tmp_table_name), {
-                                   'branch': pbranch, 'pkgs': list(input_pkgs)
-                               }
+        server.request_line = (
+            QM.wds_insert_src_deps.format(
+                tmp_deps=tmp_table_pkg_dep, tmp_table=tmp_table_name), {
+                'branch': pbranch, 'pkgs': list(input_pkgs)
+            }
         )
 
         status, response = server.send_request()
@@ -1079,63 +889,16 @@ FROM (SELECT DISTINCT BinDeps.pkgname,
     if depends_type in ['binary', 'both']:
         # populate the temporary table with package names and their binary
         # dependencies
-        server.request_line = ("""INSERT INTO {tmp_req} (pkgname, reqname)
-SELECT sourcepkgname, Bin.sourcepkgname
-FROM (SELECT sourcepkgname, name AS pkgname, Bin.sourcepkgname
-      FROM last_packages_with_source
-               INNER JOIN (
-          SELECT pkgname, sourcepkgname
-          FROM (SELECT DISTINCT pkgname,
-                                Prv.pkgname AS dpname,
-                                Src.sourcepkgname
-                FROM (SELECT pkgname,
-                             dpname,
-                             Prv.pkgname
-                      FROM (SELECT DISTINCT pkgname, dpname
-                            FROM last_depends
-                            WHERE pkgname IN (SELECT DISTINCT name
-                                              FROM last_packages_with_source
-                                              WHERE sourcepkgname IN
-                                               (SELECT * FROM {tmp_table})
-                                                AND assigment_name = %(branch)s
-                                                AND arch IN %(archs)s
-                                                AND name NOT LIKE '%%-debuginfo')
-                              AND dptype = 'require'
-                              AND assigment_name = %(branch)s
-                              AND arch IN %(archs)s
-                              AND sourcepackage
-                                = 0) as BinPkgDeps
-                               INNER JOIN (SELECT dpname, pkgname
-                                           FROM last_depends
-                                           WHERE dptype = 'provide'
-                                             AND assigment_name = %(branch)s
-                                             AND sourcepackage
-                                               = 0
-                                             AND arch IN %(archs)s) AS Prv
-                                          USING dpname) as BinPkgProvDeps
-                         INNER JOIN (SELECT name as dpname,
-                                            sourcepkgname
-                                     FROM last_packages_with_source
-                                     WHERE assigment_name = %(branch)s
-                                       AND arch IN %(archs)s) Src USING dpname
-                   )) AS Bin USING pkgname
-      WHERE assigment_name = %(branch)s
-        AND arch
-          IN %(archs)s)""".format(
+        server.request_line = (QM.wds_insert_binary_deps.format(
             tmp_table=tmp_table_name, tmp_req=tmp_table_pkg_dep
-        ), {'branch': pbranch, 'archs': tuple(arch)}
-        )
+        ), {'branch': pbranch, 'archs': tuple(arch)})
 
         status, response = server.send_request()
         if status is False:
             return response
 
     # select all filtered package with dependencies
-    server.request_line = \
-        "SELECT DISTINCT pkgname, arrayFilter(x -> (x != pkgname AND " \
-        "notEmpty(x)), groupUniqArray(reqname)) AS arr FROM package_dependency " \
-        "WHERE reqname IN (SELECT '' UNION ALL SELECT pkgname FROM " \
-        "package_dependency) GROUP BY pkgname ORDER BY arr"
+    server.request_line = QM.wds_get_all_filtred_pkgs_with_deps
 
     status, response = server.send_request()
     if status is False:
@@ -1214,36 +977,10 @@ FROM (SELECT sourcepkgname, name AS pkgname, Bin.sourcepkgname
     sorted_pkgs = tuple(result_dict.keys())
 
     # get output data for sorted package list
-    server.request_line = ("""SELECT DISTINCT SrcPkg.name,
-                SrcPkg.version,
-                SrcPkg.release,
-                SrcPkg.epoch,
-                SrcPkg.serial_,
-                sourcerpm AS filename,
-                assigment_name,
-                groupUniqArray(arch),
-                CAST(toDateTime(any(SrcPkg.buildtime)), 'String') 
-                    AS buildtime_str
-FROM last_packages
-         INNER JOIN (SELECT name,
-                            version,
-                            release,
-                            epoch,
-                            serial_,
-                            filename,
-                            assigment_name,
-                            buildtime
-                     FROM last_packages
-                     WHERE name IN (SELECT * FROM {tmp_table})
-                       AND assigment_name = %(branch)s
-                       AND sourcepackage = 1) AS SrcPkg
-             USING filename
-WHERE assigment_name = %(branch)s
-  AND sourcepackage = 0
-GROUP BY (SrcPkg.name, SrcPkg.version, SrcPkg.release, SrcPkg.epoch,
-          SrcPkg.serial_, filename, assigment_name)
-        """.format(tmp_table=tmp_table_name), {'branch': pbranch}
-                           )
+    server.request_line = (
+        QM.wds_get_output_data.format(tmp_table=tmp_table_name),
+        {'branch': pbranch}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -1279,16 +1016,10 @@ GROUP BY (SrcPkg.name, SrcPkg.version, SrcPkg.release, SrcPkg.epoch,
         if reqfilter['reqfilter']:
             reqfilter_binpkgs = tuple(reqfilter['reqfilter'].split(','))
         else:
-            server.request_line = ("""SELECT DISTINCT name
-FROM last_packages_with_source
-WHERE sourcepkgname = %(srcpkg)s
-  AND assigment_name = %(branch)s
-  AND arch IN ('x86_64', 'noarch')
-  AND name NOT LIKE '%%debuginfo'""",
-                                   {
-                    'srcpkg': reqfilter['reqfilterbysrc'], 'branch': pbranch
-                }
-                                   )
+            server.request_line = (QM.wds_req_filter_by_src, {
+                'srcpkg': reqfilter['reqfilterbysrc'],
+                'branch': pbranch
+            })
 
             status, response = server.send_request()
             if status is False:
@@ -1296,33 +1027,9 @@ WHERE sourcepkgname = %(srcpkg)s
 
             reqfilter_binpkgs = utils.join_tuples(response)
 
-        base_query = """SELECT DISTINCT pkgname
-FROM last_depends
-WHERE dpname IN (
-    SELECT dpname
-    FROM last_depends
-    WHERE pkgname = '{pkg}'
-      AND dptype = 'provide'
-      AND assigment_name = %(branch)s
-      AND sourcepackage = 0
-      AND arch IN %(archs)s)
-  AND dptype = 'require'
-  AND assigment_name = %(branch)s
-  AND sourcepackage IN (0, 1)
-  AND pkgname IN (SELECT DISTINCT name
-                  FROM (SELECT DISTINCT name
-                        FROM last_packages_with_source
-                        WHERE sourcepkgname IN (SELECT *
-                                                FROM {tmp_table})
-                          AND assigment_name = %(branch)s
-                          AND sourcepackage = 0
-                          AND arch IN %(archs)s
-                          AND name NOT LIKE '%%-debuginfo'
-                        UNION ALL
-                        SELECT name
-                        FROM Package
-                        WHERE name IN (SELECT * FROM {tmp_table})))
-            """.format(pkg="{pkg}", tmp_table=tmp_table_name)
+        base_query = QM.wds_req_filter_by_binary.format(
+            pkg="{pkg}", tmp_table=tmp_table_name
+        )
 
         if len(reqfilter_binpkgs) == 1:
             base_query = base_query.format(pkg=reqfilter_binpkgs[0])
@@ -1337,15 +1044,11 @@ WHERE dpname IN (
 
             base_query = last_query
 
-        server.request_line = ("""SELECT DISTINCT sourcepkgname
-FROM last_packages_with_source
-WHERE name IN (SELECT DISTINCT * FROM ({base_query}))
-  AND assigment_name = %(branch)s
-  AND arch IN %(archs)s
-            """.format(base_query=base_query), {
+        server.request_line = (
+            QM.wds_get_filter_pkgs.format(base_query=base_query), {
                 'branch': pbranch, 'archs': tuple(arch)
             }
-                               )
+        )
 
         status, response = server.send_request()
         if status is False:
@@ -1414,52 +1117,11 @@ def unpackaged_dirs():
         if 'noarch' not in parch:
             parch.append('noarch')
 
-    server.request_line = ("""SELECT DISTINCT Pkg.pkgname,
-                extract(filename, '^(.+)/([^/]+)$') AS dir,
-                Pkg.version,
-                Pkg.release,
-                Pkg.epoch,
-                Pkg.packager,
-                Pkg.packager_email,
-                groupUniqArray(Pkg.arch)
-FROM File
-         LEFT JOIN (
-    SELECT pkghash,
-           name as pkgname,
-           version,
-           release,
-           epoch,
-           disttag,
-           packager_email,
-           packager,
-           arch
-    FROM Package) AS Pkg USING pkghash
-WHERE empty(fileclass)
-  AND (pkghash IN (SELECT pkghash
-                   FROM last_packages
-                   WHERE (assigment_name = %(branch)s)
-                     AND packager_email
-                       LIKE %(email)s
-                     AND (sourcepackage = 0)
-                     AND (arch IN %(archs)s)))
-  AND (hashdir NOT IN (SELECT hashname
-                       FROM File
-                       WHERE (fileclass =
-                              'directory')
-                         AND (pkghash IN (SELECT pkghash
-                                          FROM last_packages
-                                          WHERE (assigment_name = %(branch)s)
-                                            AND (sourcepackage = 0)
-                                            AND (arch IN
-                                                 %(archs)s)))))
-GROUP BY (Pkg.pkgname, dir, Pkg.version, Pkg.release,
-          Pkg.epoch, Pkg.packager, Pkg.packager_email)
-ORDER BY packager_email""",
-                           {
-            'branch': values['pkgset'], 'email': '{}@%'.format(values['pkgr']),
-            'archs': tuple(parch)
-        }
-                           )
+    server.request_line = (QM.unpackaged_dirs_get_pkg_dirs, {
+        'branch': values['pkgset'],
+        'email': '{}@%'.format(values['pkgr']),
+        'archs': tuple(parch)
+    })
 
     status, response = server.send_request()
     if status is False:
@@ -1500,40 +1162,11 @@ def repo_compare():
     if not values['pkgset1'] or not values['pkgset2']:
         return get_helper(server.helper(request.path))
 
-    server.request_line = ("""SELECT 
-    name, version, release, Df.name, Df.version, Df.release
-FROM (SELECT name, version, release
-      FROM last_packages
-      WHERE assigment_name = %(pkgset1)s
-        AND sourcepackage = 1
-        AND (name,
-             version, release) NOT IN (SELECT name, version, release
-                                       FROM last_packages
-                                       WHERE assigment_name = %(pkgset2)s
-                                         AND sourcepackage = 1)
-        AND name IN (SELECT name
-                     FROM last_packages
-                     WHERE assigment_name = %(pkgset2)s
-                       AND sourcepackage = 1)) as PkgSet2
-         INNER JOIN
-     (SELECT name, version, release
-      FROM last_packages
-      WHERE assigment_name = %(pkgset2)s
-        AND sourcepackage = 1) AS Df USING name
-UNION ALL
-SELECT name, version, release, '', '', ''
-FROM last_packages
-WHERE assigment_name = %(pkgset1)s
-  AND sourcepackage = 1
-  AND name
-    NOT IN (SELECT name
-            FROM last_packages
-            WHERE assigment_name =
-                  %(pkgset2)s
-              AND sourcepackage = 1)""", {
+    server.request_line = (
+        QM.repo_compare_get_compare_info, {
             'pkgset1': values['pkgset1'], 'pkgset2': values['pkgset2']
         }
-                           )
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -1596,18 +1229,9 @@ def find_pkgset():
     if values['name']:
         pkg_ls = values['name'].split(',')
     else:
-        server.request_line = ("""SELECT DISTINCT name
-FROM Package
-WHERE filename IN (SELECT DISTINCT sourcerpm
-                   FROM Package
-                   WHERE pkghash IN (SELECT arrayJoin(pkgs)
-                                     FROM Tasks
-                                     WHERE task_id = %(task_id)s)
-                     AND name
-                       NOT LIKE '%%-debuginfo')""", {
-                'task_id': values['task']
-            }
-                               )
+        server.request_line = (
+            QM.find_pkgset_get_package_names, {'task_id': values['task']}
+        )
 
         status, response = server.send_request()
         if status is False:
@@ -1615,24 +1239,9 @@ WHERE filename IN (SELECT DISTINCT sourcerpm
 
         pkg_ls = utils.join_tuples(response)
 
-    server.request_line = ("""SELECT DISTINCT assigment_name,
-                sourcepkgname,
-                toString(any(assigment_date)) AS pkgset_date,
-                groupUniqArray(name)          AS pkgnames,
-                version,
-                release,
-                any(disttag),
-                any(packager_email),
-                toString(toDateTime(any(buildtime))) AS buildtime,
-                groupUniqArray(arch)
-FROM last_packages_with_source
-WHERE (sourcepkgname IN %(pkgs)s)
-  AND (name NOT LIKE '%%-debuginfo')
-GROUP BY assigment_name, sourcepkgname, version, release
-ORDER BY pkgset_date DESC """, {
-            'pkgs': tuple(pkg_ls)
-        }
-                           )
+    server.request_line = (
+        QM.find_pkgset_get_branch_with_pkgs, {'pkgs': tuple(pkg_ls)}
+    )
 
     status, response = server.send_request()
     if status is False:
@@ -1703,10 +1312,7 @@ def build_dependency_set():
         pbranch = response[0][0]
 
         server.request_line = (
-            "SELECT DISTINCT sourcepkg_hash FROM Tasks WHERE "
-            "task_id = %(task)d AND (try, iteration) IN (SELECT max(try), "
-            "argMax(iteration, try) FROM Tasks WHERE task_id = %(task)d)",
-            {'task': values['task']}
+            QM.build_dep_set_get_src_hsh_by_task, {'task': values['task']}
         )
 
         status, response = server.send_request()
@@ -1718,11 +1324,9 @@ def build_dependency_set():
         pkg_ls = tuple(values['pkg_ls'].split(','))
         pbranch = values['branch']
 
-        server.request_line = \
-            "SELECT pkg.pkghash FROM last_packages WHERE name IN ({pkgs}) AND " \
-            "assigment_name = '{branch}' AND sourcepackage = 1".format(
-                pkgs=pkg_ls, branch=pbranch
-            )
+        server.request_line = QM.build_dep_set_get_pkg_hshs.format(
+            pkgs=pkg_ls, branch=pbranch
+        )
 
         status, response = server.send_request()
         if status is False:
@@ -1804,36 +1408,10 @@ def repository_packages():
 
     sourcef = pkgs_type_to_sql[pkgs_type]
 
-    server.request_line = '''
-SELECT name,
-       version,
-       release,
-       summary,
-       groupUniqArray(packager_email) AS packagers,
-       url,
-       license,
-       group_,
-       groupUniqArray(arch),
-       acl_list
-FROM last_packages
-LEFT JOIN
-  (SELECT acl_for AS name,
-          acl_list
-   FROM last_acl
-   WHERE acl_branch = '{branch_l}') AS Acl USING name
-WHERE assigment_name = '{branch}'
-  AND sourcepackage IN {src}
-  AND arch IN {archs}
-GROUP BY name,
-         version,
-         release,
-         summary,
-         url,
-         license,
-         group_,
-         acl_list
-'''.format(branch=values['pkgset'], branch_l=values['pkgset'].lower(),
-           archs=archs, src=sourcef)
+    server.request_line = QM.packages_get_repo_packages.format(
+        branch=values['pkgset'], branch_l=values['pkgset'].lower(),
+        archs=archs, src=sourcef
+    )
 
     status, response = server.send_request()
     if status is False:
