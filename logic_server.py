@@ -74,14 +74,14 @@ class LogicServer:
                     'packager': 'search by packager name',
                     'packager_email': 'search by packager name',
                     'sha1': 'search by sha1 of the package',
-                    'full': 'full package info (true,default:false)',
+                    'full': 'full package info (true, default:false)',
                 }
             },
             '/misconflict_packages': {
-                '##### /misconflict_packages argunents #####': {
+                '##### /misconflict_packages arguments #####': {
                     'pkg_ls *': 'name or list of binary packages',
-                    'task **': "task id (not use with 'pkg_ls')",
-                    'branch *': "require for 'pkg_ls' only",
+                    'task **': 'task id (not use with `pkg_ls`)',
+                    'branch *': 'require for `pkg_ls` only',
                     'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
@@ -89,9 +89,9 @@ class LogicServer:
                 '##### /package_by_file arguments #####': {
                     'file *': "file name, can be set as a file name mask "
                               "(ex. file='/usr/bin/*')",
-                    'md5 **': "file md5 (without 'file' only)",
-                    'arch': '',
-                    'branch *': '',
+                    'md5 **': 'file md5 (without `file` only)',
+                    'branch *': 'name of repository',
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
             '/package_files': {
@@ -102,15 +102,15 @@ class LogicServer:
             '/dependent_packages': {
                 '##### /dependent_packages arguments #####': {
                     'name *': 'name of binary package',
-                    'branch *': '',
+                    'branch *': 'name of repository',
                 }
             },
             '/what_depends_src': {
                 '##### /what_depends_src arguments #####': {
                     'name *': 'name of source package',
-                    'task **': "task id (can't used with 'name')",
-                    'branch *': "require for 'name' only",
-                    'arch': '',
+                    'task **': 'task id (can\'t used with `name`)',
+                    'branch *': 'require for `name` only',
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                     'leaf': 'show assembly dependency chain',
                     'deep': 'sets the sorting depth',
                     'dptype': 'type of package for sorting (source, binary, '
@@ -126,7 +126,7 @@ class LogicServer:
                 '##### /unpackaged_dirs arguments #####': {
                     'pkgr *': 'packager name',
                     'pkgset *': 'name of branch',
-                    'arch': '',
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 },
             },
             '/repo_compare': {
@@ -137,18 +137,18 @@ class LogicServer:
             },
             '/find_pkgset': {
                 '##### /find_pkgset arguments #####': {
-                    'name *': 'source package name. Multiple packages must'
-                              ' be comma separated. '
-                              'Example: name=curl,ocaml,php7 ',
+                    'name *': 'source package name. Multiple packages must '
+                              'be comma separated. '
+                              'Example: name=curl,ocaml,php7',
                     'task **': 'number of girar task, example: task=239070',
                 }
             },
             '/build_dependency_set': {
                 '##### /build_dependency_set arguments #####': {
                     'pkg_ls *': 'package or list of packages (source)',
-                    'task **': "task id (can't used with 'name')",
-                    'branch *': "require for 'name' only",
-                    'arch': '',
+                    'task **': 'task id (can\'t used with `name`)',
+                    'branch *': 'require for `name` only',
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
             '/packages': {

@@ -14,16 +14,17 @@ requested package.
 Request parameters:
 
 * name - package name
-* version
-* release
-* disttag
-* buildtime (><=)
-* source - show source packages (true, false)
-* arch
-* branch
-* packager
-* sha1
-* full (true, false)
+* version - package version
+* release - package release
+* disttag - package disttag
+* buildtime - package buildtime (><=)
+* source - show source packages only (true, false)
+* arch - package arch
+* branch - name of repository
+* packager - maintainer of package
+* packager_email - maintainer's email
+* sha1 - package sha1
+* full - show full package information (true, false)
 
 #### /misconflict_packages
 
@@ -34,8 +35,8 @@ Request parameters:
 
 * pkg_ls * - name or list of binary package
 * task ** - task id
-* branch * (* - only 'pkg_ls')
-* arch
+* branch (* - for pkg_ls only) - name of repository
+* arch - package architectures
 
 #### /package_by_file
 
@@ -47,8 +48,8 @@ Request parameters:
 * file * - file name, can be set as a file name mask
 (ex. file='/usr/bin/*')
 * md5 ** - file md5
-* arch
-* branch *
+* branch * - name of repository
+* arch - package architecture
 
 #### /package_files
 
@@ -66,21 +67,23 @@ given package.
 Request parameters:
 
 * name * - name of binary package
-* branch *
+* branch * - repository name
 
 #### /what_depends_src
 
-Returns a list of source packages whose binary packages build will fail
-after removal specified package from the repository.
+The function search build dependencies of package, list packages or
+packages from task. Also function can also use such parameters like as
+leaf, searching depth.
 
 Request parameters:
 
-* name * - name of source package
+* name * - package or list of packages
 * task ** - task id (can't used with 'name')
-* branch * (* - only 'name')
-* arch
+* branch (* - for pkg_ls only) - name of repository
+* arch - package architectures
 * leaf - show assembly dependency chain
 * deep - sets the sorting depth (ex.: deep=1 (also 2, 3))
+* dptype - type of package for sorting (source, binary, both)
 * reqfilter - package or packages (binary) for filter result by dependency
 * reqfilterbysrc - package or packages (source) for filter result by 
 dependency
@@ -113,7 +116,7 @@ Returns a list of binary packages for the given source package names.
 
 Request parameters:
 
-* srcpkg_ls * - package name or list of packages
+* name * - package name or list of packages
 * task ** - number of task
 
 #### /build_dependency_set
@@ -125,7 +128,17 @@ Request parameters:
 * pkg_ls * - package or list of packages
 * task ** - task id
 * branch (* - for name only) - name of repository
-* arch
+* arch - architecture
+
+#### /packages
+
+Returns a list of all packages of the repository in json format.
+
+Request parameters:
+
+* pkgset * - name of repository
+* pkgtype - type of package (source, binary, both)
+* arch - architecture(s) of packages
 
 \* - require parameters
 
@@ -154,6 +167,8 @@ input parameters
 specified number packages (used for test queries)
 * libs/* - special modules for working with mathematics, data,
 data structure are using in the application
+* querymgr.py - module for sql query manager
+* sql.d/* - dirs with .sql files for query manager
 
 ## Starting application
 

@@ -32,11 +32,12 @@ def package_info():
         buildtime - package buildtime
         source - show source packages only (true/false)
         packager - maintainer of package
-        branch - repository
+        packager_email - maintainer's email
+        branch - name of repository
         full - show full package information
 
     Output structure:
-        `not full option`
+        `without 'full' option`
         pkgcs
         packager
         packager_email
@@ -480,7 +481,7 @@ def package_by_file():
     Input GET params:
         file * - file name or pattern
         md5 ** - file md5
-        branch * - repository name
+        branch * - name of repository
         arch - package architecture
 
     Output structure:
@@ -564,7 +565,7 @@ def package_by_file():
 @func_time(logger)
 def package_files():
     """
-    The function of searching binary packages that contain the specified file.
+    The function which show list of files by given sha1 of package.
 
     Input GET params:
         sha1 - package sha1
@@ -1086,7 +1087,7 @@ def unpackaged_dirs():
     Input GET params:
         pkgr * - maintainer name
         pkgset * - repository name
-        arch - architecture
+        arch - architecture of packages
 
     Output structure:
         package
@@ -1196,12 +1197,12 @@ def repo_compare():
 @func_time(logger)
 def find_pkgset():
     """
-    The function of compare two differences in the package base of specified
-    repositories.
+    The function which returns a list of binary packages for the given source
+    package names.
 
     Input GET params:
-        name - source package name or list of packages
-        task - number of task
+        name * - source package name or list of packages
+        task ** - number of task
 
     Output structure:
         branch
@@ -1209,6 +1210,7 @@ def find_pkgset():
         date
         packages
         version
+        release
         disttag
         packager_email
         buildtime
@@ -1265,8 +1267,8 @@ def find_pkgset():
 @func_time(logger)
 def build_dependency_set():
     """
-    The function of compare two differences in the package base of specified
-    repositories.
+    The function return a list of all binary packages which use for build
+    input package.
 
     Input GET params:
         pkg_ls * - package or list of packages
