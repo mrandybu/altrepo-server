@@ -151,6 +151,13 @@ class LogicServer:
                     'arch': '',
                 }
             },
+            '/packages': {
+                '##### /packages arguments #####': {
+                    'pkgset *': 'branch name (require argument)',
+                    'pkgtype': 'type of packages (source, binary, both)',
+                    'arch': 'allowed set multiple archs (arch=x86_64,i586)',
+                }
+            },
         }
 
         return helper[query]

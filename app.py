@@ -1,4 +1,5 @@
-from flask import Flask, request, json
+from flask import Flask, request, json, jsonify
+from collections import namedtuple
 from logic_server import server
 import utils
 from utils import func_time, get_helper
@@ -7,6 +8,8 @@ from libs.conflict_filter import ConflictFilter
 from libs.package_deps import PackageDependencies
 
 app = Flask(__name__)
+app.config['JSON_SORT_KEYS'] = False
+
 logger = utils.get_logger(__name__)
 
 
@@ -1727,6 +1730,98 @@ def build_dependency_set():
     return json.dumps(result_dict, sort_keys=False)
 
 
+@app.route('/packages')
+@func_time(logger)
+def repository_packages():
+    """
+    The function returns a list of all packages of the repository in json
+    format according to the specified parameters.
+
+    Input GET params:
+        pkgset * - name of repository
+        pkgtype - type of package (source, binary, both)
+        arch - architecture(s) of packages
+
+    Output structure:
+        name
+        version
+        release
+        summary
+        maintainers
+        url
+        license
+        category
+        architectures
+    """
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    values = server.get_dict_values([
+        ('pkgset', 's', 'repo_name'), ('arch', 's'),
+    ])
+
+    if not values['pkgset']:
+        return get_helper(server.helper(request.path))
+
+    archs = values['arch'].split(',') if values['arch'] \
+        else tuple(server.default_archs)
+
+    # pkgtype option
+    pkgs_type_to_sql = {
+        'source': (1,),
+        'binary': (0,),
+        'all': (1, 0)
+    }
+
+    pkgs_type = server.get_one_value('pkgtype', 's')
+    if pkgs_type not in pkgs_type_to_sql:
+        pkgs_type = 'all'
+
+    sourcef = pkgs_type_to_sql[pkgs_type]
+
+    server.request_line = '''
+SELECT name,
+       version,
+       release,
+       summary,
+       groupUniqArray(packager_email) AS packagers,
+       url,
+       license,
+       group_,
+       groupUniqArray(arch),
+       acl_list
+FROM last_packages
+LEFT JOIN
+  (SELECT acl_for AS name,
+          acl_list
+   FROM last_acl
+   WHERE acl_branch = '{branch_l}') AS Acl USING name
+WHERE assigment_name = '{branch}'
+  AND sourcepackage IN {src}
+  AND arch IN {archs}
+GROUP BY name,
+         version,
+         release,
+         summary,
+         url,
+         license,
+         group_,
+         acl_list
+'''.format(branch=values['pkgset'], branch_l=values['pkgset'].lower(),
+           archs=archs, src=sourcef)
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    PkgMeta = namedtuple('PkgMeta', 'name version release summary maintainers '
+                                    'url license category architectures acl_list')
+    return jsonify([PkgMeta(*i)._asdict() for i in response])
+
+
 @app.teardown_request
 def drop_connection(connection):
     server.drop_connection()
@@ -1752,6 +1847,7 @@ def page_404(error):
             '/find_pkgset': 'list of binary packages for the given source',
             'build_dependency_set': 'list of all binary packages which use '
                                     'for build input package',
+            '/packages': 'dump of database in json-format by given parameters',
         }
     }
     return json.dumps(helper, sort_keys=False)
