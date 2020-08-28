@@ -105,28 +105,6 @@ def get_helper(helper):
     return json.dumps(helper, sort_keys=False)
 
 
-def remove_values_not_in_keys(dict_):
-    dict_cleanup = {}
-    for key, vals in dict_.items():
-        dict_cleanup[key] = []
-        for val in vals:
-            if val in dict_ and val != key:
-                dict_cleanup[key].append(val)
-
-    return dict_cleanup
-
-
-def join_dicts(dictA, dictB):
-    joined_dict = dictA
-    for key, val in dictB.items():
-        if key in dictA:
-            joined_dict[key] = remove_duplicate(joined_dict[key] + val)
-        else:
-            joined_dict[key] = val
-
-    return joined_dict
-
-
 def func_time(logger):
     def decorator(function):
         def wrapper(*args, **kwargs):
