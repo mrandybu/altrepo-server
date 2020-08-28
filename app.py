@@ -442,11 +442,27 @@ WHERE foundpkgname != inpkgname
             filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]]))
 
     # form the list of tuples (input package | conflict package | conflict files)
-    result_list = []
+    result_list, output_pkgs = [], set()
     for pkg in hshs_files:
+        [output_pkgs.add(i) for i in pkg[:2]]
         pkg = (hsh_name_dict[pkg[0]], hsh_name_dict[pkg[1]], pkg[2])
         if pkg not in result_list:
             result_list.append(pkg)
+
+    # get architectures of found packages
+    server.request_line = '''
+SELECT name,
+       groupUniqArray(arch)
+FROM Package
+WHERE pkghash IN {hshs}
+GROUP BY name
+            '''.format(hshs=tuple(output_pkgs))
+
+    status, response = server.send_request()
+    if status is False:
+        return response
+
+    pkg_archs_dict = utils.tuplelist_to_dict(response, 1)
 
     # look for duplicate pairs of packages in the list with different files
     # and join them
@@ -492,8 +508,14 @@ GROUP BY (name, version, release, epoch)""", {
     # and filter it
     result_list_info = []
     for pkg in result_list_cleanup:
-        if (pkg[0], pkg[1]) not in filter_ls_names:
-            pkg = (pkg[0], pkg[1]) + name_info_dict[pkg[1]] + (pkg[2],)
+        inp_pkg_archs = set(pkg_archs_dict[pkg[0]])
+        found_pkg_archs = set(pkg_archs_dict[pkg[1]])
+        intersect_pkg_archs = inp_pkg_archs.intersection(found_pkg_archs)
+
+        if (pkg[0], pkg[1]) not in filter_ls_names and intersect_pkg_archs:
+            pkg = (pkg[0], pkg[1]) + \
+                  name_info_dict[pkg[1]][:-1] + \
+                  (list(intersect_pkg_archs),) + (pkg[2],)
             result_list_info.append(pkg)
 
     return utils.convert_to_json(
