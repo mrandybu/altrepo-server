@@ -1,5 +1,5 @@
 from flask import Flask, request, json, jsonify
-from collections import namedtuple
+from collections import namedtuple, defaultdict
 from logic_server import server
 import utils
 from utils import func_time, get_helper
@@ -381,10 +381,10 @@ def misconflict_packages():
         [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
     )
     # create dict with package names by hashes
-    hsh_name_dict = {}
-    for line in response:
-        hsh_name_dict.update({line[0]:line[4]})
-        hsh_name_dict.update({line[1]:line[3]})
+    hsh_name_dict = defaultdict(dict)
+    for hsh_1, hsh_2, _, name_2, name_1, _ in response:
+        hsh_name_dict[hsh_1], hsh_name_dict[hsh_2] = name_1, name_2
+
     # convert the hashes into names, put in the first place in the pair
     # the name of the input package, if it is not
     filter_ls_names = []
@@ -418,21 +418,13 @@ def misconflict_packages():
 
     # look for duplicate pairs of packages in the list with different files
     # and join them
-    result_list_cleanup = []
+    result_dict_cleanup = defaultdict(list)
     for pkg in result_list:
-        files = list(pkg[2])
-        for pkg_next in result_list:
-            if (pkg[0], pkg[1]) == (pkg_next[0], pkg_next[1]):
-                for file in pkg_next[2]:
-                    files.append(file)
+        result_dict_cleanup[(pkg[0], pkg[1])] += pkg[2]
 
-        files = sorted(utils.remove_duplicate(files))
-
-        pkg = (pkg[0], pkg[1], files)
-        if pkg not in result_list_cleanup:
-            result_list_cleanup.append(pkg)
-
-    confl_pkgs = utils.remove_duplicate([pkg[1] for pkg in result_list_cleanup])
+    confl_pkgs = utils.remove_duplicate(
+        [pkg[1] for pkg in result_dict_cleanup.keys()]
+    )
 
     # get main information of packages by package hashes
     server.request_line = (QM.misconflict_pkgs_get_meta_by_hshs, {
@@ -453,7 +445,7 @@ def misconflict_packages():
     # form list of tuples (input pkg | conflict pkg | pkg info | conflict files)
     # and filter it
     result_list_info = []
-    for pkg in result_list_cleanup:
+    for pkg, files in result_dict_cleanup.items():
         inp_pkg_archs = set(pkg_archs_dict[pkg[0]])
         found_pkg_archs = set(pkg_archs_dict[pkg[1]])
         intersect_pkg_archs = inp_pkg_archs.intersection(found_pkg_archs)
@@ -461,7 +453,7 @@ def misconflict_packages():
         if (pkg[0], pkg[1]) not in filter_ls_names and intersect_pkg_archs:
             pkg = (pkg[0], pkg[1]) + \
                   name_info_dict[pkg[1]][:-1] + \
-                  (list(intersect_pkg_archs),) + (pkg[2],)
+                  (list(intersect_pkg_archs),) + (files,)
             result_list_info.append(pkg)
 
     return utils.convert_to_json(

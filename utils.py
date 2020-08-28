@@ -3,6 +3,7 @@ import configparser
 import json
 import time
 import datetime
+from collections import defaultdict
 from paths import namespace
 import argparse
 
@@ -77,15 +78,9 @@ def make_argument_parser(arg_list, desc=None):
 
 # convert tuple or list of tuples to dict by set keys
 def tuplelist_to_dict(tuplelist, num):
-    result_dict = {}
+    result_dict = defaultdict(list)
     for tuple_ in tuplelist:
-        if tuple_[0] not in result_dict.keys():
-            result_dict[tuple_[0]] = []
-
-        if num == 1:
-            count = tuple_[1]
-        else:
-            count = tuple_[1:num + 1]
+        count = tuple_[1] if num == 1 else tuple_[1:num + 1]
 
         if isinstance(count, tuple):
             result_dict[tuple_[0]] += [elem for elem in count]

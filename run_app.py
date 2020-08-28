@@ -1,4 +1,5 @@
 import sys
+from collections import defaultdict
 import utils
 from paths import namespace
 from gunicorn.app.wsgiapp import run
@@ -30,9 +31,8 @@ def start():
 
     if config:
 
-        args_dict = {}
+        args_dict = defaultdict(dict)
         for section in config.sections():
-            args_dict[section.lower()] = {}
             for option in config.options(section):
                 args_dict[section.lower()][option] = config.get(section, option)
 
