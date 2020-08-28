@@ -1,4 +1,7 @@
 import rpm
+from collections import defaultdict
+
+# inside imports
 import utils
 from logic_server import server
 
@@ -7,8 +10,8 @@ class ConflictFilter:
     """
     Class for conflicts filter.
 
-    Class contains method which finds conflicts between two packages and
-    its auxiliary methods.
+    Class contains method which finds conflicts and obsoletes between two
+    packages and its auxiliary methods.
 
     :param pbranch: name of package repository
     :param parch: packages archs
@@ -24,7 +27,7 @@ class ConflictFilter:
         server.request_line = (
             "SELECT DISTINCT pkghash, dptype, dpname, dpversion, flag FROM "
             "Depends WHERE pkghash IN %(hshs)s AND dptype IN "
-            "('conflict', 'provide')", {
+            "('conflict', 'provide', 'obsolete')", {
                 'hshs': tuple(hshs), 'branch': self.pbranch, 'arch': self.parch
             }
         )
@@ -33,19 +36,10 @@ class ConflictFilter:
         if status is False:
             return response
 
-        hsh_dpt_dict = {}
-        for pkg in response:
-            hsh = pkg[0]
-            if hsh not in hsh_dpt_dict:
-                hsh_dpt_dict[hsh] = {'conflict': [], 'provide': []}
-
-            for tpl in response:
-                if tpl[0] == hsh:
-                    dpt = tpl[1]
-
-                    dpt_tp = tuple(tpl[2:])
-                    if dpt_tp not in hsh_dpt_dict[hsh][dpt]:
-                        hsh_dpt_dict[hsh][dpt].append(dpt_tp)
+        hsh_dpt_dict = defaultdict(lambda: defaultdict(list))
+        for hsh, *args in response:
+            dptype = 'conflict' if args[0] == 'obsolete' else args[0]
+            hsh_dpt_dict[hsh][dptype] += [tuple(args[1:])]
 
         server.request_line = (
             "SELECT pkghash, epoch, version, release, disttag FROM "
