@@ -139,11 +139,8 @@ class SortList:
         # convert package names in name - deps dict in numbers
         num_name_reqs = {}
         for package, reqs in self.package_reqs.items():
-            num_reqs = []
-            for req in reqs:
-                num_reqs.append(num_to_name[req])
-
-            num_name_reqs[num_to_name[package]] = num_reqs
+            num_name_reqs[num_to_name[package]] = \
+                [num_to_name[req] for req in reqs]
 
         g = Graph(num_non_req + 1)
 
@@ -153,9 +150,7 @@ class SortList:
                 g.add_edge(key, vertex)
 
         # make back convert numbers to names in sorted list
-        sorted_list = []
-        for num in g.topological_sort():
-            if num != num_non_req:
-                sorted_list.append(name_to_num[num])
+        sorted_list = [name_to_num[num] for num in g.topological_sort()
+                       if num != num_non_req]
 
         return circle_deps, sorted_list

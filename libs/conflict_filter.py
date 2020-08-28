@@ -104,11 +104,7 @@ class ConflictFilter:
         """
 
         # get unique package hashes
-        uniq_hshs = []
-        for confl in confl_list:
-            for hsh in confl:
-                if hsh not in uniq_hshs:
-                    uniq_hshs.append(hsh)
+        uniq_hshs = list({hsh for confl in confl_list for hsh in confl})
 
         # get conflicts and provides for every unique package
         # also (epoch, version, release, disttag)

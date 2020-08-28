@@ -316,9 +316,7 @@ def misconflict_packages():
             )
 
         # joining tuples from response list
-        input_pkg_hshs = []
-        for hsh in response:
-            input_pkg_hshs.append(hsh[0])
+        input_pkg_hshs = [hsh[0] for hsh in response]
 
     # package list without task
     else:
