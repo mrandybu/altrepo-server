@@ -389,13 +389,11 @@ def misconflict_packages():
     # the name of the input package, if it is not
     filter_ls_names = []
     for hsh in filter_ls:
-        inp_pkg = hsh_name_dict[hsh[1]]
-        if hsh[1] not in input_pkg_hshs:
-            if hsh[0] in hsh_name_dict:
-                inp_pkg = hsh_name_dict[hsh[0]]
-                filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[1]]))
-        else:
-            filter_ls_names.append((inp_pkg, hsh_name_dict[hsh[0]]))
+        inp_pkg = hsh[0] if hsh[0] in input_pkg_hshs else hsh[1]
+        out_pkg = hsh[0] if hsh[0] != inp_pkg else hsh[1]
+        result_pair = (hsh_name_dict[inp_pkg], hsh_name_dict[out_pkg])
+        if result_pair not in filter_ls:
+            filter_ls_names.append(result_pair)
 
     # form the list of tuples (input package | conflict package | conflict files)
     result_list, output_pkgs = [], set()

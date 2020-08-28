@@ -57,12 +57,7 @@ def start():
         for section, items in params.items():
             for line in items:
                 value = args_dict.get(section)
-                if value:
-                    value = value.get(line[0])
-                else:
-                    value = line[1]
-
-                val_list.append(value)
+                val_list.append(value.get(line[0]) if value else line[1])
 
         for i in range(len(val_list)):
             if val_list[i]:
