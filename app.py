@@ -376,10 +376,6 @@ def misconflict_packages():
     # then add the pair to the list
     filter_ls = c_filter.detect_conflict(in_confl_hshs)
 
-    # get a list of hashes of packages to form a dict of hash-name
-    pkg_hshs = utils.remove_duplicate(
-        [hsh[0] for hsh in hshs_files] + [hsh[1] for hsh in hshs_files]
-    )
     # create dict with package names by hashes
     hsh_name_dict = defaultdict(dict)
     for hsh_1, hsh_2, _, name_2, name_1, _ in response:
