@@ -79,3 +79,7 @@ runtest "find_pkgset?task=239070"
 runtest "find_pkgset?name=curl"
 
 runtest "build_dependency_set?pkg_ls=curl&branch=sisyphus"
+
+runtest "packages?pkgset=p9&pkgtype=all"
+runtest "packages?pkgset=sisyphus&arch=i586,x86_64&pkgtype=binary"
+runtest "packages?pkgset=sisyphus&arch=noarch&pkgtype=source"
