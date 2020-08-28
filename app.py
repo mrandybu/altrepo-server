@@ -1480,7 +1480,7 @@ def repo_compare():
 
     Input GET params:
         pkgset1 * - first repository name for compare
-        pkgset2 * - lsat repository name for compare
+        pkgset2 * - last repository name for compare
 
     Output structure:
         name
