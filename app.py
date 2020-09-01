@@ -1,6 +1,6 @@
 from flask import Flask, request, json, jsonify
 from collections import namedtuple, defaultdict
-from logic_server import server
+from logic_server import server, Connection
 import utils
 from utils import func_time, get_helper
 from libs.deps_sorting import SortList
@@ -1408,9 +1408,14 @@ def repository_packages():
     return jsonify([PkgMeta(*i)._asdict() for i in response])
 
 
+@app.before_request
+def init_db_connection():
+    g.connection = Connection()
+
+
 @app.teardown_request
-def drop_connection(connection):
-    server.drop_connection()
+def drop_connection(exception):
+    g.connection.drop_connection()
 
 
 @app.errorhandler(404)
