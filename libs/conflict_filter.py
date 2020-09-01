@@ -1,4 +1,5 @@
 import rpm
+from flask import g
 from collections import defaultdict
 
 # inside imports
@@ -24,7 +25,7 @@ class ConflictFilter:
     def _get_dict_conflict_provide(self, hshs):
 
         # get conflicts and provides by hash
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT DISTINCT pkghash, dptype, dpname, dpversion, flag FROM "
             "Depends WHERE pkghash IN %(hshs)s AND dptype IN "
             "('conflict', 'provide', 'obsolete')", {
@@ -32,7 +33,7 @@ class ConflictFilter:
             }
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -41,12 +42,12 @@ class ConflictFilter:
             dptype = 'conflict' if args[0] == 'obsolete' else args[0]
             hsh_dpt_dict[hsh][dptype] += [tuple(args[1:])]
 
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT pkghash, epoch, version, release, disttag FROM "
             "Package WHERE pkghash IN %(hshs)s", {'hshs': tuple(hshs)}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 

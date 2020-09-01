@@ -1,4 +1,4 @@
-from flask import Flask, request, json, jsonify
+from flask import Flask, request, json, jsonify, g
 from collections import namedtuple, defaultdict
 from logic_server import server, Connection
 import utils
@@ -143,7 +143,7 @@ def package_info():
     if full:
         output_params = server.package_params
 
-    server.request_line = \
+    g.connection.request_line = \
         "SELECT pkg.pkghash, {p_params} FROM last_packages WHERE " \
         "{p_values} {branch}".format(
             p_params=", ".join(output_params),
@@ -152,15 +152,15 @@ def package_info():
         )
 
     if pbranch:
-        server.request_line = server.request_line.format(
+        g.connection.request_line = g.connection.request_line.format(
             "AND assigment_name = %(branch)s"
         )
     else:
-        server.request_line = server.request_line.format('')
+        g.connection.request_line = g.connection.request_line.format('')
 
-    server.request_line = (server.request_line, {'branch': pbranch})
+    g.connection.request_line = (g.connection.request_line, {'branch': pbranch})
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -173,12 +173,12 @@ def package_info():
         pkghashs = utils.join_tuples(response)
 
         # files
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT pkghash, groupUniqArray(filename) FROM File WHERE pkghash "
             "IN %(pkghshs)s GROUP BY pkghash", {'pkghshs': pkghashs}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -190,12 +190,12 @@ def package_info():
                 files_dict[hsh] = []
 
         # depends
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT pkghash, dptype, dpname FROM last_depends WHERE pkghash "
             "IN %(pkghshs)s", {'pkghshs': pkghashs}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -284,12 +284,12 @@ def misconflict_packages():
     # prepare packages list from Task
     if values['task']:
         # get branch of task
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(task)d",
             {'task': values['task']}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -301,11 +301,11 @@ def misconflict_packages():
         pbranch = response[0][0]
 
         # get packages of task for last build iteration (hashes)
-        server.request_line = (
+        g.connection.request_line = (
             QM.misconflict_pkgs_get_pkgs_of_task, {'task': values['task']}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -324,11 +324,11 @@ def misconflict_packages():
         pbranch = values['branch']
 
         # get hash for package names
-        server.request_line = (QM.misconflict_pkgs_get_hshs_by_pkgs, {
+        g.connection.request_line = (QM.misconflict_pkgs_get_hshs_by_pkgs, {
             'pkgs': tuple(pkg_ls), 'branch': pbranch, 'arch': allowed_archs
         })
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -351,12 +351,12 @@ def misconflict_packages():
         return json.dumps({})
 
     # get list of (input package | conflict package | conflict files)
-    server.request_line = (QM.misconflict_pkgs_get_pkg_with_conflict, {
+    g.connection.request_line = (QM.misconflict_pkgs_get_pkg_with_conflict, {
         'hshs': tuple(input_pkg_hshs), 'branch': pbranch,
         'arch': allowed_archs
     })
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -400,11 +400,11 @@ def misconflict_packages():
             result_list.append(pkg)
 
     # get architectures of found packages
-    server.request_line = QM.misconflict_pkgs_get_pkg_archs.format(
+    g.connection.request_line = QM.misconflict_pkgs_get_pkg_archs.format(
         hshs=tuple(output_pkgs)
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -421,13 +421,13 @@ def misconflict_packages():
     )
 
     # get main information of packages by package hashes
-    server.request_line = (QM.misconflict_pkgs_get_meta_by_hshs, {
+    g.connection.request_line = (QM.misconflict_pkgs_get_meta_by_hshs, {
         'pkgs': tuple(confl_pkgs),
         'branch': pbranch,
         'arch': allowed_archs
     })
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -509,12 +509,12 @@ def package_by_file():
     else:
         elem, query = md5, "filemd5 = %(elem)s"
 
-    server.request_line = (
+    g.connection.request_line = (
         base_query.format(', filename', query),
         {'branch': pbranch, 'arch': tuple(arch), 'elem': elem}
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -525,12 +525,12 @@ def package_by_file():
 
     pkghashs = tuple([key for key in ids_filename_dict.keys()])
 
-    server.request_line = (
+    g.connection.request_line = (
         QM.package_by_file_get_meta_by_hshs, {
             'hashs': pkghashs, 'branch': pbranch
         })
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -568,12 +568,12 @@ def package_files():
     if not sha1:
         return get_helper(server.helper(request.path))
 
-    server.request_line = (
+    g.connection.request_line = (
         "SELECT filename FROM File WHERE pkghash = murmurHash3_64(%(sha1)s)",
         {'sha1': sha1}
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -627,11 +627,11 @@ def dependent_packages():
         logger.debug(message)
         return utils.json_str_error(message)
 
-    server.request_line = (QM.dependent_packages_get_dependent_pkgs, {
+    g.connection.request_line = (QM.dependent_packages_get_dependent_pkgs, {
         'name': pname, 'branch': pbranch
     })
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -730,12 +730,12 @@ def what_depends_build():
     # process this query for task
     if task_id:
         # get the branch name from task
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT DISTINCT branch FROM Tasks WHERE task_id = %(id)s",
             {'id': task_id}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -748,11 +748,11 @@ def what_depends_build():
             pbranch = 'Sisyphus'
 
         # get the packages hashes from Task
-        server.request_line = (
+        g.connection.request_line = (
             "SELECT pkgs FROM Tasks WHERE task_id = %(id)s", {'id': task_id}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -763,9 +763,9 @@ def what_depends_build():
                 pkgs_hsh += (package,)
 
         # src packages from task
-        server.request_line = (QM.wds_get_src_from_task, {'id': task_id})
+        g.connection.request_line = (QM.wds_get_src_from_task, {'id': task_id})
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -783,17 +783,17 @@ def what_depends_build():
     tmp_table_name = 'tmp_pkg_ls'
 
     # create tmp table with list of packages
-    server.request_line = \
+    g.connection.request_line = \
         """CREATE TEMPORARY TABLE {tmp_table} (pkgname String) \
                               """.format(tmp_table=tmp_table_name)
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
     # FIXME use package_deps module
     # base query - first iteration, build requires depth 1
-    server.request_line = (
+    g.connection.request_line = (
         QM.wds_insert_build_req_deep_1.format(tmp_table=tmp_table_name), {
             'sfilter': sourcef,
             'pkgs': input_pkgs,
@@ -802,7 +802,7 @@ def what_depends_build():
         }
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -821,18 +821,18 @@ def what_depends_build():
 
         # process depth for every level and add results to pkg_ls
         for i in range(deep_level - 1):
-            server.request_line = (QM.wds_insert_result_for_depth_level.format(
+            g.connection.request_line = (QM.wds_insert_result_for_depth_level.format(
                 wrapper=deep_wrapper, tmp_table=tmp_table_name
             ), {'sfilter': sourcef, 'branch': pbranch})
 
-            status, response = server.send_request()
+            status, response = g.connection.send_request()
             if status is False:
                 return response
 
-    server.request_line = (QM.wds_get_acl.format(tmp_table=tmp_table_name),
+    g.connection.request_line = (QM.wds_get_acl.format(tmp_table=tmp_table_name),
                            {'branch': pbranch.lower()})
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -844,14 +844,14 @@ def what_depends_build():
     tmp_table_pkg_dep = 'package_dependency'
 
     # create tmp table package - dependency
-    server.request_line = \
+    g.connection.request_line = \
         """CREATE TEMPORARY TABLE {}
 (
     pkgname String,
     reqname String
 )""".format(tmp_table_pkg_dep)
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -859,14 +859,14 @@ def what_depends_build():
     if depends_type in ['source', 'both']:
         # populate the temporary table with package names and their source
         # dependencies
-        server.request_line = (
+        g.connection.request_line = (
             QM.wds_insert_src_deps.format(
                 tmp_deps=tmp_table_pkg_dep, tmp_table=tmp_table_name), {
                 'branch': pbranch, 'pkgs': list(input_pkgs)
             }
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -874,18 +874,18 @@ def what_depends_build():
     if depends_type in ['binary', 'both']:
         # populate the temporary table with package names and their binary
         # dependencies
-        server.request_line = (QM.wds_insert_binary_deps.format(
+        g.connection.request_line = (QM.wds_insert_binary_deps.format(
             tmp_table=tmp_table_name, tmp_req=tmp_table_pkg_dep
         ), {'branch': pbranch, 'archs': tuple(arch)})
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
     # select all filtered package with dependencies
-    server.request_line = QM.wds_get_all_filtred_pkgs_with_deps
+    g.connection.request_line = QM.wds_get_all_filtred_pkgs_with_deps
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -903,11 +903,11 @@ def what_depends_build():
                 if dep not in all_dependencies:
                     all_dependencies.append(dep)
 
-        server.request_line = \
+        g.connection.request_line = \
             ("SELECT pkgname FROM {} WHERE pkgname NOT IN %(pkgs)s"
              "".format(tmp_table_name), {'pkgs': tuple(all_dependencies)})
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -962,12 +962,12 @@ def what_depends_build():
     sorted_pkgs = tuple(result_dict.keys())
 
     # get output data for sorted package list
-    server.request_line = (
+    g.connection.request_line = (
         QM.wds_get_output_data.format(tmp_table=tmp_table_name),
         {'branch': pbranch}
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -1001,12 +1001,12 @@ def what_depends_build():
         if reqfilter['reqfilter']:
             reqfilter_binpkgs = tuple(reqfilter['reqfilter'].split(','))
         else:
-            server.request_line = (QM.wds_req_filter_by_src, {
+            g.connection.request_line = (QM.wds_req_filter_by_src, {
                 'srcpkg': reqfilter['reqfilterbysrc'],
                 'branch': pbranch
             })
 
-            status, response = server.send_request()
+            status, response = g.connection.send_request()
             if status is False:
                 return response
 
@@ -1029,13 +1029,13 @@ def what_depends_build():
 
             base_query = last_query
 
-        server.request_line = (
+        g.connection.request_line = (
             QM.wds_get_filter_pkgs.format(base_query=base_query), {
                 'branch': pbranch, 'archs': tuple(arch)
             }
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -1102,13 +1102,13 @@ def unpackaged_dirs():
         if 'noarch' not in parch:
             parch.append('noarch')
 
-    server.request_line = (QM.unpackaged_dirs_get_pkg_dirs, {
+    g.connection.request_line = (QM.unpackaged_dirs_get_pkg_dirs, {
         'branch': values['pkgset'],
         'email': '{}@%'.format(values['pkgr']),
         'archs': tuple(parch)
     })
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -1147,13 +1147,13 @@ def repo_compare():
     if not values['pkgset1'] or not values['pkgset2']:
         return get_helper(server.helper(request.path))
 
-    server.request_line = (
+    g.connection.request_line = (
         QM.repo_compare_get_compare_info, {
             'pkgset1': values['pkgset1'], 'pkgset2': values['pkgset2']
         }
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -1215,21 +1215,21 @@ def find_pkgset():
     if values['name']:
         pkg_ls = values['name'].split(',')
     else:
-        server.request_line = (
+        g.connection.request_line = (
             QM.find_pkgset_get_package_names, {'task_id': values['task']}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
         pkg_ls = utils.join_tuples(response)
 
-    server.request_line = (
+    g.connection.request_line = (
         QM.find_pkgset_get_branch_with_pkgs, {'pkgs': tuple(pkg_ls)}
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 
@@ -1288,20 +1288,20 @@ def build_dependency_set():
         return get_helper(server.helper(request.path))
 
     if values['task']:
-        server.request_line = "SELECT branch FROM Tasks WHERE task_id = {}" \
-                              "".format(values['task'])
+        g.connection.request_line = \
+            "SELECT branch FROM Tasks WHERE task_id = {}".format(values['task'])
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
         pbranch = response[0][0]
 
-        server.request_line = (
+        g.connection.request_line = (
             QM.build_dep_set_get_src_hsh_by_task, {'task': values['task']}
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -1310,11 +1310,11 @@ def build_dependency_set():
         pkg_ls = tuple(values['pkg_ls'].split(','))
         pbranch = values['branch']
 
-        server.request_line = QM.build_dep_set_get_pkg_hshs.format(
+        g.connection.request_line = QM.build_dep_set_get_pkg_hshs.format(
             pkgs=pkg_ls, branch=pbranch
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -1394,12 +1394,12 @@ def repository_packages():
 
     sourcef = pkgs_type_to_sql[pkgs_type]
 
-    server.request_line = QM.packages_get_repo_packages.format(
+    g.connection.request_line = QM.packages_get_repo_packages.format(
         branch=values['pkgset'], branch_l=values['pkgset'].lower(),
         archs=archs, src=sourcef
     )
 
-    status, response = server.send_request()
+    status, response = g.connection.send_request()
     if status is False:
         return response
 

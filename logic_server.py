@@ -1,5 +1,5 @@
 from urllib.parse import unquote
-from flask import request
+from flask import request, g
 import time
 from db_connection import DBConnection
 import utils
@@ -238,15 +238,15 @@ class LogicServer:
             if source in (0, 1):
                 args = "{} AND sourcepackage = %(source)d".format(args)
 
-            self.request_line = "{} WHERE {}".format(default_req, args)
+            g.connection.request_line = "{} WHERE {}".format(default_req, args)
 
-            self.request_line = (
-                self.request_line,
+            g.connection.request_line = (
+                g.connection.request_line,
                 {'name': pname, 'vers': pversion, 'branch': pbranch,
                  'source': source}
             )
 
-            status, response = self.send_request()
+            status, response = g.connection.send_request()
             if status is False:
                 return response
 

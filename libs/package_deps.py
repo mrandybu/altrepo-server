@@ -1,4 +1,5 @@
-from logic_server import server
+from flask import g
+
 from querymgr import query_manager as QM
 import utils
 
@@ -18,13 +19,13 @@ class PackageDependencies:
 
     def get_package_dep_set(self, pkgs=None, first=False):
 
-        server.request_line = QM.build_dep_set_get_srchsh_for_binary.format(
+        g.connection.request_line = QM.build_dep_set_get_srchsh_for_binary.format(
             pkgs=pkgs,
             branch=self.pbranch,
             archs=tuple(self.static_archs)
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -41,26 +42,28 @@ class PackageDependencies:
                         self.dep_dict[pkg] += tuple(uniq_hshs)
                         tmp_list += uniq_hshs
 
-        server.request_line = "DROP TABLE IF EXISTS {tmp_tbl}" \
-                              "".format(tmp_tbl=self._tmp_table)
+        g.connection.request_line = "DROP TABLE IF EXISTS {tmp_tbl}" \
+                                    "".format(tmp_tbl=self._tmp_table)
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             pass
 
-        server.request_line = "CREATE TEMPORARY TABLE {tmp_tbl} (hsh UInt64)" \
-                              "".format(tmp_tbl=self._tmp_table)
+        g.connection.request_line = \
+            "CREATE TEMPORARY TABLE {tmp_tbl} (hsh UInt64)".format(
+                tmp_tbl=self._tmp_table
+            )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
-        server.request_line = (
+        g.connection.request_line = (
             "INSERT INTO {tmp_tbl} (hsh) VALUES".format(tmp_tbl=self._tmp_table),
             tuple([(hsh,) for hsh in tmp_list])
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
@@ -75,24 +78,24 @@ class PackageDependencies:
     def make_result_dict(hsh_list, hsh_dict):
         fields = ['name', 'version', 'release', 'epoch', 'archs']
 
-        server.request_line = "CREATE TEMPORARY TABLE all_hshs (hsh UInt64)"
+        g.connection.request_line = "CREATE TEMPORARY TABLE all_hshs (hsh UInt64)"
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
-        server.request_line = ("INSERT INTO all_hshs (hsh) VALUES",
-                               tuple([(hsh,) for hsh in hsh_list]))
+        g.connection.request_line = ("INSERT INTO all_hshs (hsh) VALUES",
+                                     tuple([(hsh,) for hsh in hsh_list]))
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
-        server.request_line = QM.build_dep_set_get_meta_by_hshs.format(
+        g.connection.request_line = QM.build_dep_set_get_meta_by_hshs.format(
             tuple(hsh_list)
         )
 
-        status, response = server.send_request()
+        status, response = g.connection.send_request()
         if status is False:
             return response
 
