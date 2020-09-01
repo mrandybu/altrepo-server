@@ -2,9 +2,7 @@ import rpm
 from flask import g
 from collections import defaultdict
 
-# inside imports
 import utils
-from logic_server import server
 
 
 class ConflictFilter:

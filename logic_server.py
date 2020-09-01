@@ -1,10 +1,11 @@
-from urllib.parse import unquote
-from flask import request, g
 import time
-from db_connection import DBConnection
+from flask import request, g
+from urllib.parse import unquote
+
 import utils
 from utils import func_time
 from paths import namespace
+from db_connection import DBConnection
 
 logger = utils.get_logger(__name__)
 

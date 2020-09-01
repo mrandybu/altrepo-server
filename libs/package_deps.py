@@ -1,7 +1,7 @@
 from flask import g
 
-from querymgr import query_manager as QM
 import utils
+from querymgr import query_manager as QM
 
 
 class PackageDependencies:

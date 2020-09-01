@@ -1,8 +1,9 @@
 import sys
 from collections import defaultdict
+from gunicorn.app.wsgiapp import run
+
 import utils
 from paths import namespace
-from gunicorn.app.wsgiapp import run
 
 
 def start():

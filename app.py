@@ -1,8 +1,9 @@
-from flask import Flask, request, json, jsonify, g
 from collections import namedtuple, defaultdict
-from logic_server import server, Connection
+from flask import Flask, request, json, jsonify, g
+
 import utils
 from utils import func_time, get_helper
+from logic_server import server, Connection
 from libs.deps_sorting import SortList
 from libs.conflict_filter import ConflictFilter
 from libs.package_deps import PackageDependencies
@@ -830,7 +831,7 @@ def what_depends_build():
                 return response
 
     g.connection.request_line = (QM.wds_get_acl.format(tmp_table=tmp_table_name),
-                           {'branch': pbranch.lower()})
+                                 {'branch': pbranch.lower()})
 
     status, response = g.connection.send_request()
     if status is False:

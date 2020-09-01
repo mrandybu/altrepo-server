@@ -1,11 +1,12 @@
-import logging
-import configparser
 import json
 import time
+import logging
 import datetime
-from collections import defaultdict
-from paths import namespace
 import argparse
+import configparser
+from collections import defaultdict
+
+from paths import namespace
 
 
 def get_logger(name):
