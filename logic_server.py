@@ -35,13 +35,6 @@ class LogicServer:
             'payloadflags', 'platform',
         ]
 
-        # database parameters
-        self.request_line = request_line
-        self.db_connection = DBConnection(
-            namespace.DATABASE_HOST, namespace.DATABASE_NAME,
-            namespace.DATABASE_USER, namespace.DATABASE_PASS,
-        )
-
     # init method, starts before application starts
     @staticmethod
     def _init():
@@ -161,39 +154,6 @@ class LogicServer:
         }
 
         return helper[query]
-
-    @func_time(logger)
-    def send_request(self, trace=False):
-        rl = self.request_line
-        if isinstance(rl, tuple):
-            rl = rl[0]
-
-        if bool(rl) is False:
-            return False, 'SQL query not found in query manager.'
-
-        status = self.db_connection.connection_status
-        if not status:
-            for try_ in range(namespace.TRY_CONNECTION_NUMBER):
-                logger.debug(
-                    'Attempt to connect to the database #{}'.format(try_)
-                )
-
-                status = self.db_connection.make_connection()
-                if status:
-                    break
-
-                time.sleep(namespace.TRY_TIMEOUT)
-
-        if status:
-            self.db_connection.db_query = self.request_line
-            return self.db_connection.send_request(trace)
-        else:
-            return False, 'Database connection error.'
-
-    def drop_connection(self):
-        if self.db_connection:
-            self.db_connection.disconnect()
-            logger.debug('Connection closed.')
 
     @staticmethod
     def get_one_value(param, type_, is_=None):
@@ -370,3 +330,46 @@ class LogicServer:
 
 
 server = LogicServer()
+
+
+class Connection:
+
+    def __init__(self, request_line=None):
+        self.request_line = request_line
+        self.db_connection = DBConnection(
+            namespace.DATABASE_HOST, namespace.DATABASE_NAME,
+            namespace.DATABASE_USER, namespace.DATABASE_PASS
+        )
+
+    @func_time(logger)
+    def send_request(self, trace=False):
+        rl = self.request_line
+        if isinstance(rl, tuple):
+            rl = rl[0]
+
+        if bool(rl) is False:
+            return False, 'SQL query not found in query manager.'
+
+        status = self.db_connection.connection_status
+        if not status:
+            for try_ in range(namespace.TRY_CONNECTION_NUMBER):
+                logger.debug(
+                    'Attempt to connect to the database #{}'.format(try_)
+                )
+
+                status = self.db_connection.make_connection()
+                if status:
+                    break
+
+                time.sleep(namespace.TRY_TIMEOUT)
+
+        if status:
+            self.db_connection.db_query = self.request_line
+            return self.db_connection.send_request(trace)
+        else:
+            return False, 'Database connection error.'
+
+    def drop_connection(self):
+        if self.db_connection:
+            self.db_connection.disconnect()
+            logger.debug('Connection closed.')
