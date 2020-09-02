@@ -90,3 +90,7 @@ class TestUtils(unittest.TestCase):
         assert {1: [2, 3, 4], 3: []} == utils.tuplelist_to_dict(
             ((1,), (1, 2, 3, 4), (3,)), 6
         )
+
+
+if __name__ == '__main__':
+    unittest.main()
