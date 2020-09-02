@@ -1,7 +1,9 @@
+import os
 import getpass
 
 
 class BasePathNamespace:
+    PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
     # configuration parameters
     PROJECT_NAME = "altrepo_server"
     CONFIG_FILE = "/etc/{}/dbconfig.conf".format(PROJECT_NAME)
