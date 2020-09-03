@@ -11,7 +11,7 @@ logger = utils.get_logger(__name__)
 
 
 class LogicServer:
-    def __init__(self, request_line=None):
+    def __init__(self):
         # make configuration before app start
         self._init()
 
