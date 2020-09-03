@@ -147,28 +147,28 @@ Request parameters:
 ## Dependencies
 
 * python3-module-flask
-* python3-module-numpy
 * python3-module-clickhouse-driver
 * python3-module-rpm
+* python3-module-numpy
 * python3-module-gunicorn
 
 ## Components
 
-* altrepo-server - executable file to run the project
-* app.py - main module of application, processes requests
-* logic_server.py - contains the base class of the server (backend for app)
-* db_connection.py - module of database connection
-* utils.py - contains auxiliary functions used by the main module
-* paths.py - provides of namespace for using in application
-* run_app.py - module for launching the application and processing
-input parameters
-* tests/* - tests of project
-* tests/fake_mirror.py - creates a repository structure and fills it with a
-specified number packages (used for test queries)
 * libs/* - special modules for working with mathematics, data,
 data structure are using in the application
-* querymgr.py - module for sql query manager
 * sql.d/* - dirs with .sql files for query manager
+* tests/* - tests of project
+* altrepo-server - executable file to run the project
+* app.py - main module of application, processes requests
+* db_connection.py - module of database connection
+* logic_server.py - contains the base class of the server (backend for app)
+* paths.py - provides of namespace for using in application
+* querymgr.py - module for sql query manager
+* run_app.py - module for launching the application and processing
+input parameters
+* run_test.py - parallel request tests
+* test_data - data for request test
+* utils.py - contains auxiliary functions used by the main module
 
 ## Starting application
 
@@ -176,8 +176,8 @@ Best to use a bunch of nginx and gunicorn servers to run.
 
 First step
 
-	git clone http://git.altlinux.org/people/mrdrew/private/altrepo_server.git
-	git checkout `last_tag`
+	git clone `git_project_repository`
+	git checkout `last_tag_or_master`
 
 ### Simple example of nginx setting
 
@@ -237,7 +237,7 @@ Configuration file usually contains next sections
     PROCESSES = 1       # number of worker processes
 
     [Other]
-    LOGFILE = /home/mrdrew/altrepo_server.log   # path to logfile
+    LOGFILE = /home/`user`/altrepo_server.log   # path to logfile
 
 Also you can set launch options use keys. For more information use -h.
 
