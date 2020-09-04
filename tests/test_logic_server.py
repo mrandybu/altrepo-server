@@ -119,7 +119,7 @@ class TestLogicServer(unittest.TestCase):
         }
 
         correct_response = [
-            "pkgcs = '137905963604748147'",
+            "pkgcs = '53ddac04bd35f566a818e020d59b1bcb2e58bbe9'",
             "AND name = 'fwbuilder-ipt'",
             'AND buildtime = 100000'
         ]
