@@ -1,0 +1,238 @@
+{
+  "0ad-data": {
+    "0ad": 8
+  },
+  "0ad": {
+    "0ad-data": 1
+  },
+  "tracker": {
+    "tracker-miners": 12
+  },
+  "ifplugd": {
+    "etcnet": 7
+  },
+  "chromaprint": {
+    "ffmpeg": 22
+  },
+  "perl-Alien-Build": {
+    "perl-Alien-Base-ModuleBuild": 1,
+    "perl-Alien-cmake3": 2
+  },
+  "perl-Alien-cmake3": {
+    "perl-Alien-Build": 4
+  },
+  "cups": {
+    "cups-filters": 4
+  },
+  "freeipa": {
+    "custodia": 2
+  },
+  "cve-manager-inner-knowledge": {
+    "cve-manager": 3
+  },
+  "polkit": {
+    "systemd": 8
+  },
+  "systemd": {
+    "dbus": 2,
+    "util-linux": 1,
+    "polkit": 4,
+    "cryptsetup": 5,
+    "lvm2": 6
+  },
+  "lvm2": {
+    "systemd": 8
+  },
+  "jsoncpp": {
+    "cmake": 6
+  },
+  "dbus": {
+    "systemd": 8
+  },
+  "opam": {
+    "dune": 1,
+    "ocaml-cmdliner": 2,
+    "ocaml-cppo": 2,
+    "ocaml-omd": 1,
+    "ocaml-jsonm": 3
+  },
+  "ocaml-cmdliner": {
+    "opam": 7
+  },
+  "ocaml-cppo": {
+    "opam": 7
+  },
+  "python3-module-reno": {
+    "python3-module-oslotest": 3
+  },
+  "libgudev": {
+    "libumockdev": 3
+  },
+  "cryptsetup": {
+    "systemd": 8
+  },
+  "cmake": {
+    "jsoncpp": 2,
+    "doxygen": 3
+  },
+  "kicad-doc": {
+    "kicad": 17
+  },
+  "kicad": {
+    "kicad-doc": 4
+  },
+  "librsvg": {
+    "libcairo": 4
+  },
+  "plymouth": {
+    "branding-xalt-kworkstation": 4,
+    "branding-alt-sisyphus": 4
+  },
+  "libva-intel-media-driver": {
+    "Mesa": 5
+  },
+  "libva-driver-intel": {
+    "Mesa": 5
+  },
+  "ffmpeg": {
+    "chromaprint": 3
+  },
+  "xorg-server": {
+    "xorg-drv-evdev": 2
+  },
+  "texlive": {
+    "texlive-texmf": 4
+  },
+  "tracker-miners": {
+    "tracker": 9
+  },
+  "libwebkitgtk3": {
+    "python-module-pygobject3": 8
+  },
+  "gnome-shell": {
+    "gdm": 11
+  },
+  "libumockdev": {
+    "libgudev": 3
+  },
+  "clutter": {
+    "mutter": 18
+  },
+  "python-module-pygobject3": {
+    "libwebkitgtk3": 10
+  },
+  "cups-filters": {
+    "cups": 5
+  },
+  "rsyslog": {
+    "postgresql12": 5
+  },
+  "libcairo": {
+    "librsvg": 3
+  },
+  "qt5-tools": {
+    "qt5-base": 15
+  },
+  "cve-manager": {
+    "cve-manager-inner-knowledge": 1
+  },
+  "rpm-build-nodejs": {
+    "npm": 4,
+    "node-gyp": 3,
+    "node": 4
+  },
+  "ocaml-jsonm": {
+    "opam": 7
+  },
+  "ocaml-omd": {
+    "opam": 7
+  },
+  "dune": {
+    "opam": 7
+  },
+  "libopencolorio": {
+    "libopenimageio": 14
+  },
+  "libopenimageio": {
+    "libopencolorio": 6
+  },
+  "etcnet": {
+    "ifplugd": 5
+  },
+  "python3-module-os-ken": {
+    "openstack-neutron": 10
+  },
+  "perl-Alien-Base-ModuleBuild": {
+    "perl-Alien-Build": 4
+  },
+  "qt5-base": {
+    "qt5-tools": 3
+  },
+  "texlive-texmf": {
+    "texlive": 4
+  },
+  "openstack-neutron": {
+    "python3-module-os-ken": 5
+  },
+  "python3-module-oslotest": {
+    "python3-module-reno": 2
+  },
+  "branding-xalt-kworkstation": {
+    "plymouth": 5
+  },
+  "branding-alt-sisyphus": {
+    "plymouth": 5
+  },
+  "audacious": {
+    "audacious-plugins": 9
+  },
+  "doxygen": {
+    "cmake": 6
+  },
+  "audacious-plugins": {
+    "audacious": 2
+  },
+  "kde5-okular": {
+    "kde5-set": 29
+  },
+  "kde5-set": {
+    "kde5-okular": 12
+  },
+  "node-gyp": {
+    "rpm-build-nodejs": 3
+  },
+  "npm": {
+    "rpm-build-nodejs": 3
+  },
+  "node": {
+    "rpm-build-nodejs": 3
+  },
+  "postgresql12": {
+    "rsyslog": 8
+  },
+  "util-linux": {
+    "systemd": 8
+  },
+  "custodia": {
+    "freeipa": 24
+  },
+  "Mesa": {
+    "libva-intel-media-driver": 4,
+    "libva-driver-intel": 3
+  },
+  "xfce4-screensaver": {
+    "xfce4": 8
+  },
+  "xfce4": {
+    "xfce4-screensaver": 6
+  },
+  "xorg-drv-evdev": {
+    "xorg-server": 8
+  },
+  "mutter": {
+    "clutter": 8
+  },
+  "gdm": {
+    "gnome-shell": 30
+  }
+}
