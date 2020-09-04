@@ -80,7 +80,7 @@ class AppRequestTest(threading.Thread):
             print(message)
 
         if self.args.chunk_time:
-            print('Chunk time is {}'.format(round(time.time() - s), 2))
+            print('Chunk time is {}'.format(round(time.time() - s, 2)))
 
 
 def create_threads():
