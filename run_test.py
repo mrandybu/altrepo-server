@@ -8,6 +8,8 @@ from http.client import RemoteDisconnected
 
 
 class AppRequestTest(threading.Thread):
+    global_lock = threading.Lock()
+
     def __init__(self, urls=None):
         super(AppRequestTest, self).__init__()
         self.urls = urls
@@ -30,6 +32,9 @@ class AppRequestTest(threading.Thread):
         )
         parser.add_argument(
             '--chunk-time', action='store_true', help='print time of chunks'
+        )
+        parser.add_argument(
+            '--to-file', type=str, help='write test results to file'
         )
 
         return parser.parse_args()
@@ -64,7 +69,15 @@ class AppRequestTest(threading.Thread):
             except RemoteDisconnected:
                 length = '`empty response`'
 
-            print("{} : length {}".format(url, length))
+            message = '{} : length {}'.format(url, length)
+
+            if self.args.to_file:
+                AppRequestTest.global_lock.acquire()
+                with open(self.args.to_file, 'a+') as fd:
+                    fd.write('{}\n'.format(message))
+                AppRequestTest.global_lock.release()
+
+            print(message)
 
         if self.args.chunk_time:
             print('Chunk time is {}'.format(round(time.time() - s), 2))
