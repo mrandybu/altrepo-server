@@ -1,68 +1,68 @@
 # base package info
-package_info?name=glibc
-package_info?name=glibc&branch=sisyphus
-package_info?name=glibc&branch=sisyphus&arch=x86_64
-package_info?name=glibc&branch=sisyphus&arch=x86_64&source=false
-package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true
-package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true
-package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true&full=true
+package_info_01 package_info?name=glibc
+package_info_02 package_info?name=glibc&branch=sisyphus
+package_info_03 package_info?name=glibc&branch=sisyphus&arch=x86_64
+package_info_04 package_info?name=glibc&branch=sisyphus&arch=x86_64&source=false
+package_info_05 package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true
+package_info_06 package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true
+package_info_07 package_info?name=glibc&branch=sisyphus&arch=x86_64&source=true&full=true
 # package was exists but not for x86_64
-package_info?name=startup&branch=sisyphus&source=false&arch=x86_64&full=true
+package_info_08 package_info?name=startup&branch=sisyphus&source=false&arch=x86_64&full=true
 # all packages by packager_email
-package_info?packager_email=ldv@altlinux.org
+package_info_09 package_info?packager_email=ldv@altlinux.org
 # package by sha1
-package_info?sha1=53ddac04bd35f566a818e020d59b1bcb2e58bbe9
+package_info_10 package_info?sha1=53ddac04bd35f566a818e020d59b1bcb2e58bbe9
 
 # misconflict_packages
 # syslinux has unresolved file conflict with syslinux1
-misconflict_packages?pkg_ls=glibc,syslinux&branch=sisyphus
+misconflict_packages_01 misconflict_packages?pkg_ls=glibc,syslinux&branch=sisyphus
 # big task
-misconflict_packages?task=247371
-misconflict_packages?task=239398
+misconflict_packages_02 misconflict_packages?task=247371
+misconflict_packages_03 misconflict_packages?task=239398
 
 # package by file
-package_by_file?file='/usr/bin/firefox'&branch=sisyphus
-package_by_file?file='/usr/bin/firefox-*'&branch=sisyphus
-package_by_file?md5=a3de87766009c22b59399e6a25573973&branch=p9
+package_by_file_01 package_by_file?file='/usr/bin/firefox'&branch=sisyphus
+package_by_file_02 package_by_file?file='/usr/bin/firefox-*'&branch=sisyphus
+package_by_file_03 package_by_file?md5=a3de87766009c22b59399e6a25573973&branch=p9
 
 # dependend_packages
-dependent_packages?name=grub-pc&branch=sisyphus
-dependent_packages?name=ocaml&branch=sisyphus
-dependent_packages?name=python3&branch=sisyphus
+dependent_packages_01 dependent_packages?name=grub-pc&branch=sisyphus
+dependent_packages_02 dependent_packages?name=ocaml&branch=sisyphus
+dependent_packages_03 dependent_packages?name=python3&branch=sisyphus
 
 # what_depends_src
-what_depends_src?task=239070
-what_depends_src?name=ocaml&branch=sisyphus
-what_depends_src?name=curl&branch=sisyphus&deep=2
-what_depends_src?name=curl&branch=sisyphus&deep=3
-what_depends_src?name=curl&branch=sisyphus&deep=4
-what_depends_src?name=curl&branch=sisyphus&deep=5
+what_depends_src_01 what_depends_src?task=239070
+what_depends_src_02 what_depends_src?name=ocaml&branch=sisyphus
+what_depends_src_03 what_depends_src?name=curl&branch=sisyphus&deep=2
+what_depends_src_04 what_depends_src?name=curl&branch=sisyphus&deep=3
+what_depends_src_05 what_depends_src?name=curl&branch=sisyphus&deep=4
+what_depends_src_06 what_depends_src?name=curl&branch=sisyphus&deep=5
 
-what_depends_src?name=curl&branch=sisyphus&deep=3&finitepkg=true
+what_depends_src_07 what_depends_src?name=curl&branch=sisyphus&deep=3&finitepkg=true
 
-what_depends_src?name=curl&branch=sisyphus&deep=1&leaf=opennebula
+what_depends_src_08 what_depends_src?name=curl&branch=sisyphus&deep=1&leaf=opennebula
 
-what_depends_src?name=curl&branch=sisyphus&dptype=binary
-what_depends_src?name=curl&branch=sisyphus&dptype=source
-what_depends_src?name=curl&branch=sisyphus&dptype=both
-what_depends_src?name=curl&branch=sisyphus&dptype=binary&leaf=darktable
-what_depends_src?name=curl&branch=sisyphus&dptype=binary&reqfilter=systemd
-what_depends_src?name=curl&branch=sisyphus&dptype=binary&reqfilter_source=python
+what_depends_src_09 what_depends_src?name=curl&branch=sisyphus&dptype=binary
+what_depends_src_10 what_depends_src?name=curl&branch=sisyphus&dptype=source
+what_depends_src_11 what_depends_src?name=curl&branch=sisyphus&dptype=both
+what_depends_src_12 what_depends_src?name=curl&branch=sisyphus&dptype=binary&leaf=darktable
+what_depends_src_13 what_depends_src?name=curl&branch=sisyphus&dptype=binary&reqfilter=systemd
+what_depends_src_14 what_depends_src?name=curl&branch=sisyphus&dptype=binary&reqfilter_source=python
 
 # unpackaged dirs
-unpackaged_dirs?pkgr=ldv&pkgset=sisyphus
-unpackaged_dirs?pkgr=ldv&pkgset=sisyphus&arch=i586
+unpackaged_dirs_01 unpackaged_dirs?pkgr=ldv&pkgset=sisyphus
+unpackaged_dirs_02 unpackaged_dirs?pkgr=ldv&pkgset=sisyphus&arch=i586
 
 # compare pkgset's
-repo_compare?pkgset1=p9&pkgset2=sisyphus
-repo_compare?pkgset1=p8&pkgset2=p9
+repo_compare_01 repo_compare?pkgset1=p9&pkgset2=sisyphus
+repo_compare_02 repo_compare?pkgset1=p8&pkgset2=p9
 
 # find package in pkgset's
-find_pkgset?task=239070
-find_pkgset?name=curl
+find_pkgset_01 find_pkgset?task=239070
+find_pkgset_02 find_pkgset?name=curl
 
-build_dependency_set?pkg_ls=curl&branch=sisyphus
+build_dependency_set_01 build_dependency_set?pkg_ls=curl&branch=sisyphus
 
-packages?pkgset=p9&pkgtype=all
-packages?pkgset=sisyphus&arch=i586,x86_64&pkgtype=binary
-packages?pkgset=sisyphus&arch=noarch&pkgtype=source
+packages_01 packages?pkgset=p9&pkgtype=all
+packages_02 packages?pkgset=sisyphus&arch=i586,x86_64&pkgtype=binary
+packages_03 packages?pkgset=sisyphus&arch=noarch&pkgtype=source
