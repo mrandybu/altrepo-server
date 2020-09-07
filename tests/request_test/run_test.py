@@ -34,6 +34,8 @@ class AppRequestTest(threading.Thread):
 
     def __parse_arguments(self):
         parser = argparse.ArgumentParser()
+        parser.add_argument('--datafile', type=str, default='test_data',
+                            help='path to file with testing data')
         parser.add_argument(
             'datafile', type=str, help='path to file with testing data'
         )
