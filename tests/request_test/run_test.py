@@ -5,6 +5,10 @@ import argparse
 import threading
 import urllib.request
 from http.client import RemoteDisconnected
+from configparser import NoSectionError, NoOptionError
+
+import utils
+from paths import namespace
 
 
 class AppRequestTest(threading.Thread):
@@ -16,16 +20,31 @@ class AppRequestTest(threading.Thread):
         self.args = self.__parse_arguments()
 
     @staticmethod
-    def __parse_arguments():
+    def __get_app_params():
+        config = utils.read_config(namespace.CONFIG_FILE)
+        if config:
+            try:
+                host = config.get('Application', 'Host')
+                port = config.get('Application', 'Port')
+                return host, port
+            except (NoSectionError, NoOptionError):
+                pass
+
+        return '127.0.0.1', 5000
+
+    def __parse_arguments(self):
         parser = argparse.ArgumentParser()
         parser.add_argument(
             'datafile', type=str, help='path to file with testing data'
         )
         parser.add_argument('-s', action='store_true', help='https connection')
-        parser.add_argument('--host', type=str, default='127.0.0.1',
-                            help='host where application started')
         parser.add_argument(
-            '--port', type=int, default=5000, help='application port'
+            '--host', type=str, default=self.__get_app_params()[0],
+            help='host where application started'
+        )
+        parser.add_argument(
+            '--port', type=int, default=self.__get_app_params()[1],
+            help='application port'
         )
         parser.add_argument(
             '--threads', type=int, default=12, help='number of threads'
