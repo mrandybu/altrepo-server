@@ -31,9 +31,6 @@ class AppRequestTest(threading.Thread):
             '--threads', type=int, default=12, help='number of threads'
         )
         parser.add_argument(
-            '--chunk-time', action='store_true', help='print time of chunks'
-        )
-        parser.add_argument(
             '--to-file', type=str, help='write test results to file'
         )
 
@@ -61,7 +58,6 @@ class AppRequestTest(threading.Thread):
             sys.exit(1)
 
     def run(self) -> None:
-        s = time.time()
         for url in self.urls:
             try:
                 response = urllib.request.urlopen(url)
@@ -78,9 +74,6 @@ class AppRequestTest(threading.Thread):
                 AppRequestTest.global_lock.release()
 
             print(message)
-
-        if self.args.chunk_time:
-            print('Chunk time is {}'.format(round(time.time() - s, 2)))
 
 
 def create_threads():
