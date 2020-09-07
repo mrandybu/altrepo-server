@@ -99,18 +99,18 @@ class AppRequestTest(threading.Thread):
 
     def run(self) -> None:
         for url in self.urls:
-            t_req_s = time.time()
+            query_time = None
             try:
+                start = time.time()
                 response = urllib.request.urlopen(url)
+                query_time = time.time() - start
                 length = len(ast.literal_eval(response.read().decode()))
             except RemoteDisconnected:
                 length = '`empty response`'
 
-            t_req_e = time.time() - t_req_s
-
             message = '{} : length {}'.format(url, length)
-            if self.args.threads == 1:
-                message += ' : time {}'.format(round(t_req_e, 2))
+            if self.args.threads == 1 and query_time:
+                message += ' : time {}'.format(round(query_time, 2))
 
             if self.args.to_file:
                 AppRequestTest.global_lock.acquire()
