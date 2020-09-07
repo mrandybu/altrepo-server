@@ -17,6 +17,7 @@ LEFT JOIN
 WHERE assigment_name = '{branch}'
   AND sourcepackage IN {src}
   AND arch IN {archs}
+  AND name NOT LIKE '%%-debuginfo'
 GROUP BY name,
          version,
          release,
