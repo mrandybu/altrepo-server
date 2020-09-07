@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 import ast
 import sys
 import time
@@ -8,6 +9,9 @@ import threading
 import urllib.request
 from http.client import RemoteDisconnected
 from configparser import NoSectionError, NoOptionError
+
+sys.path.append(os.path.dirname(os.path.realpath(__file__))
+                .replace('/tests/request_test', ''))
 
 import utils
 from paths import namespace
