@@ -37,7 +37,7 @@ class AppRequestTest(threading.Thread):
         parser.add_argument('--datafile', type=str, default='test_data',
                             help='path to file with testing data')
         parser.add_argument(
-            'datafile', type=str, help='path to file with testing data'
+            '--reqname', type=str, help='run a test with a specific request'
         )
         parser.add_argument('-s', action='store_true', help='https connection')
         parser.add_argument(
@@ -64,6 +64,19 @@ class AppRequestTest(threading.Thread):
         )
         return url
 
+    def get_one_value(self, url_name):
+        try:
+            with open(self.args.datafile, 'r') as fd:
+                for line in fd:
+                    if line.startswith(url_name):
+                        return self.__make_url(line.split()[1].strip())
+        except (FileNotFoundError, IsADirectoryError):
+            print("Error in input file. Check it and try again.")
+            sys.exit(1)
+
+        print("Query `{}` no in data file.".format(url_name))
+        sys.exit(1)
+
     def url_pool_generator(self):
         try:
             with open(self.args.datafile, 'r') as fd:
@@ -73,7 +86,7 @@ class AppRequestTest(threading.Thread):
                         break
                     line = line.strip()
                     if line and not line.startswith('#'):
-                        yield self.__make_url(line.strip())
+                        yield self.__make_url(line.split()[1].strip())
         except (FileNotFoundError, IsADirectoryError):
             print("Error in input file. Check it and try again.")
             sys.exit(1)
@@ -104,7 +117,9 @@ class AppRequestTest(threading.Thread):
 
 def create_threads():
     app_rt = AppRequestTest()
-    pool = [i for i in app_rt.url_pool_generator()]
+    pool = [app_rt.get_one_value(app_rt.args.reqname)] if app_rt.args.reqname \
+        else [i for i in app_rt.url_pool_generator()]
+
     n = round(len(pool) / app_rt.args.threads)
     chunks = [pool[i:i + n] for i in range(0, len(pool), n)]
 
