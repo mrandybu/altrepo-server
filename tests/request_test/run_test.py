@@ -49,7 +49,7 @@ class AppRequestTest(threading.Thread):
             help='application port'
         )
         parser.add_argument(
-            '--threads', type=int, default=12, help='number of threads'
+            '--threads', type=int, default=1, help='number of threads'
         )
         parser.add_argument(
             '--to-file', type=str, help='write test results to file'
