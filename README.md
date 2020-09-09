@@ -151,6 +151,7 @@ Request parameters:
 * python3-module-rpm
 * python3-module-numpy
 * python3-module-gunicorn
+* python3-module-flask-cors
 
 ## Components
 

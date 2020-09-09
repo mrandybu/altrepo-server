@@ -1,5 +1,6 @@
 from collections import namedtuple, defaultdict
 from flask import Flask, request, json, jsonify, g
+from flask_cors import CORS
 
 import utils
 from utils import func_time, get_helper
@@ -11,6 +12,9 @@ from querymgr import query_manager as QM
 
 app = Flask(__name__)
 app.config['JSON_SORT_KEYS'] = False
+
+# enable CORS
+CORS(app)
 
 logger = utils.get_logger(__name__)
 
