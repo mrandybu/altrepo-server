@@ -1436,6 +1436,9 @@ def task_info():
     if status is False:
         return response
 
+    if not response:
+        return utils.json_str_error("Non-existent job number!")
+
     branch, user_id = response[0][0], response[0][1]
 
     g.connection.request_line = QM.task_info_get_task_content.format(id=task_id)
