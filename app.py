@@ -1450,8 +1450,11 @@ def task_info():
                 for val in sublist]
 
     g.connection.request_line = """SELECT pkghash,
-                                          name
-                                   FROM PACKAGE
+                                          name,
+                                          version,
+                                          release,
+                                          arch
+                                   FROM Package
                                    WHERE pkghash IN {}
                                    """.format(tuple(pkg_hshs))
 
@@ -1459,20 +1462,23 @@ def task_info():
     if status is False:
         return response
 
-    name_hsh = utils.tuplelist_to_dict(response, 1)
+    name_hsh = utils.tuplelist_to_dict(response, 4)
 
     result_list = []
     for pkg in src_pkgs:
         result_list.append([
-            name_hsh[pkg[0]][0],
+            *name_hsh[pkg[0]][:-1],
             branch,
             user_id,
-            tuple(set([name_hsh[hsh][0] for hsh in pkg[1]]))
+            utils.tuplelist_to_dict(
+                [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[1]], 1
+            )
         ])
 
-    return utils.convert_to_json(
-        ['src_pkg', 'branch', 'user', 'task_content'], result_list
-    )
+    fields = ['src_pkg', 'version', 'release',
+              'branch', 'user', 'task_content']
+
+    return utils.convert_to_json(fields, result_list)
 
 
 @app.before_request
