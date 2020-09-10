@@ -1413,6 +1413,68 @@ def repository_packages():
     return jsonify([PkgMeta(*i)._asdict() for i in response])
 
 
+@app.route('/task_info')
+@func_time(logger)
+def task_info():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    task_id = server.get_one_value('task', type_='i')
+    if not task_id:
+        return get_helper(server.helper(request.path))
+
+    g.connection.request_line = """SELECT branch,
+                                          userid
+                                   FROM Tasks
+                                   WHERE task_id = {}
+                                   LIMIT 1""".format(task_id)
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    branch, user_id = response[0][0], response[0][1]
+
+    g.connection.request_line = QM.task_info_get_task_content.format(id=task_id)
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    src_pkgs = response
+
+    pkg_hshs = [val for sublist in [[i[0]] + i[1] for i in response]
+                for val in sublist]
+
+    g.connection.request_line = """SELECT pkghash,
+                                          name
+                                   FROM PACKAGE
+                                   WHERE pkghash IN {}
+                                   """.format(tuple(pkg_hshs))
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    name_hsh = utils.tuplelist_to_dict(response, 1)
+
+    result_list = []
+    for pkg in src_pkgs:
+        result_list.append([
+            name_hsh[pkg[0]][0],
+            branch,
+            user_id,
+            tuple(set([name_hsh[hsh][0] for hsh in pkg[1]]))
+        ])
+
+    return utils.convert_to_json(
+        ['src_pkg', 'branch', 'user', 'task_content'], result_list
+    )
+
+
 @app.before_request
 def init_db_connection():
     g.connection = Connection()
@@ -1444,6 +1506,7 @@ def page_404(error):
             '/build_dependency_set': 'list of all binary packages which use '
                                      'for build input package',
             '/packages': 'dump of database in json-format by given parameters',
+            '/task_id': 'information about task',
         }
     }
     return json.dumps(helper, sort_keys=False)

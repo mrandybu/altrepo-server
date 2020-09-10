@@ -152,6 +152,11 @@ class LogicServer:
                     'arch': 'allowed set multiple archs (arch=x86_64,i586)',
                 }
             },
+            '/task_info': {
+                '##### /task_info arguments #####': {
+                    'task *': 'task id',
+                }
+            },
         }
 
         return helper[query]
