@@ -1441,8 +1441,8 @@ def page_404(error):
             '/repo_compare': 'list of differences in the package base of '
                              'specified repositories',
             '/find_pkgset': 'list of binary packages for the given source',
-            'build_dependency_set': 'list of all binary packages which use '
-                                    'for build input package',
+            '/build_dependency_set': 'list of all binary packages which use '
+                                     'for build input package',
             '/packages': 'dump of database in json-format by given parameters',
         }
     }
