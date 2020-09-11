@@ -1437,7 +1437,7 @@ def task_info():
         return response
 
     if not response:
-        return utils.json_str_error("Non-existent job number!")
+        return utils.json_str_error("Non-existent task number!")
 
     branch, user_id = response[0][0], response[0][1]
 
