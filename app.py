@@ -1456,7 +1456,8 @@ def task_info():
                                           name,
                                           version,
                                           release,
-                                          arch
+                                          arch,
+                                          description
                                    FROM Package
                                    WHERE pkghash IN {}
                                    """.format(tuple(pkg_hshs))
@@ -1465,21 +1466,22 @@ def task_info():
     if status is False:
         return response
 
-    name_hsh = utils.tuplelist_to_dict(response, 4)
+    name_hsh = utils.tuplelist_to_dict(response, 5)
 
     result_list = []
     for pkg in src_pkgs:
         result_list.append([
-            *name_hsh[pkg[0]][:-1],
+            *name_hsh[pkg[0]][:-2],
             branch,
             user_id,
             utils.tuplelist_to_dict(
                 [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[1]], 1
-            )
+            ),
+            name_hsh[pkg[0]][-1]
         ])
 
-    fields = ['src_pkg', 'version', 'release',
-              'branch', 'user', 'task_content']
+    fields = ['src_pkg', 'version', 'release', 'branch',
+              'user', 'task_content', 'description']
 
     return utils.convert_to_json(fields, result_list)
 
