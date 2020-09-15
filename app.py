@@ -1,4 +1,5 @@
 from collections import namedtuple, defaultdict
+from operator import itemgetter
 from flask import Flask, request, json, jsonify, g
 from flask_cors import CORS
 
@@ -1491,7 +1492,7 @@ def task_info():
     fields = ['src_pkg', 'version', 'release', 'branch', 'user',
               'status', 'subtask', 'task_content', 'description']
 
-    return utils.convert_to_json(fields, result_list)
+    return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
 
 @app.before_request
