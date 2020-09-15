@@ -1,9 +1,11 @@
 SELECT sourcepkg_hash,
        status,
+       subtask,
        groupUniqArray(hshs)
 FROM
   (SELECT sourcepkg_hash,
           status,
+          subtask,
           arrayJoin(pkgs) AS hshs
    FROM Tasks
    WHERE task_id = {id})
@@ -19,4 +21,5 @@ WHERE hshs IN
         ORDER BY try DESC,iteration DESC
         LIMIT 1))
 GROUP BY sourcepkg_hash,
-         status
+         status,
+         subtask
