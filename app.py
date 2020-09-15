@@ -1,3 +1,4 @@
+import re
 import requests
 from collections import namedtuple, defaultdict
 from operator import itemgetter
@@ -1452,9 +1453,10 @@ def task_info():
     src_pkgs = response
 
     task_status = src_pkgs[0][1]
+    try_iteration = src_pkgs[0][3]
     pkg_subtask = {pkg[0]: pkg[2] for pkg in src_pkgs}
 
-    pkg_hshs = [val for sublist in [[i[0]] + i[3] for i in response]
+    pkg_hshs = [val for sublist in [[i[0]] + i[4] for i in response]
                 for val in sublist]
 
     g.connection.request_line = """SELECT pkghash,
@@ -1503,6 +1505,17 @@ def task_info():
     beehive_result = "" if beehive_result.status_code != 200 \
         else beehive_result.content.decode()
 
+    task_msg_req = requests.get(
+        'http://git.altlinux.org/tasks/{task}/logs/events.{ti}.log'
+        ''.format(task=task_id, ti=try_iteration)
+    )
+
+    task_msg = ''
+    if task_msg_req.status_code == 200:
+        message = re.findall(r'message:(.*)', task_msg_req.content.decode())
+        if message:
+            task_msg = message[0].strip()
+
     result_list = []
     for pkg in src_pkgs:
         pkg = [
@@ -1511,8 +1524,9 @@ def task_info():
             user_id,
             task_status,
             *pkg_subtask[pkg[0]],
+            task_msg,
             utils.tuplelist_to_dict(
-                [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[3]], 1
+                [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[4]], 1
             ),
             name_hsh[pkg[0]][-1],
             beehive_result
@@ -1521,9 +1535,9 @@ def task_info():
         if pkg not in result_list:
             result_list.append(pkg)
 
-    fields = ['src_pkg', 'version', 'release', 'branch', 'user',
-              'status', 'subtask', 'approve', 'disapprove',
-              'task_content', 'description', 'beehive_check']
+    fields = ['src_pkg', 'version', 'release', 'branch', 'user', 'status',
+              'subtask', 'approve', 'disapprove', 'task_msg', 'task_content',
+              'description', 'beehive_check']
 
     return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
