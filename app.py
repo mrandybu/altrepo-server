@@ -1472,6 +1472,28 @@ def task_info():
 
     name_hsh = utils.tuplelist_to_dict(response, 5)
 
+    http = utils.HtmlParser(
+        'a',
+        ['Name', 'Last modified', 'Size', 'Description', 'Parent Directory']
+    )
+
+    for hsh, subtask in pkg_subtask.items():
+        result_list = []
+        for i in ['approved', 'disapproved']:
+            url = "http://git.altlinux.org/tasks/{task}/acl/{act}/{subtask}/" \
+                  "".format(task=task_id, subtask=subtask, act=i)
+            result = http.parse_html(url)
+            if result:
+                result = result.split('::')
+                msg_format = [result[0].strip()] + \
+                             [k.strip() for k in result[1].split('\n')][:-1]
+            else:
+                msg_format = ''
+
+            result_list.append(msg_format or '')
+
+        pkg_subtask[hsh] = [pkg_subtask[hsh]] + result_list
+
     result_list = []
     for pkg in src_pkgs:
         pkg = [
@@ -1479,7 +1501,7 @@ def task_info():
             branch,
             user_id,
             task_status,
-            pkg_subtask[pkg[0]],
+            *pkg_subtask[pkg[0]],
             utils.tuplelist_to_dict(
                 [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[3]], 1
             ),
@@ -1489,8 +1511,8 @@ def task_info():
         if pkg not in result_list:
             result_list.append(pkg)
 
-    fields = ['src_pkg', 'version', 'release', 'branch', 'user',
-              'status', 'subtask', 'task_content', 'description']
+    fields = ['src_pkg', 'version', 'release', 'branch', 'user', 'status',
+              'subtask', 'approve', 'disapprove', 'task_content', 'description']
 
     return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
