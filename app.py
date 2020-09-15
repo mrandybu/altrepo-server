@@ -1,3 +1,4 @@
+import requests
 from collections import namedtuple, defaultdict
 from operator import itemgetter
 from flask import Flask, request, json, jsonify, g
@@ -1494,6 +1495,14 @@ def task_info():
 
         pkg_subtask[hsh] = [pkg_subtask[hsh]] + result_list
 
+    beehive_result = requests.get(
+        "http://bb.ipa.basealt.ru/RESULT/{}/check-beehive-result.log"
+        "".format(task_id)
+    )
+
+    beehive_result = "" if beehive_result.status_code != 200 \
+        else beehive_result.content.decode()
+
     result_list = []
     for pkg in src_pkgs:
         pkg = [
@@ -1505,14 +1514,16 @@ def task_info():
             utils.tuplelist_to_dict(
                 [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[3]], 1
             ),
-            name_hsh[pkg[0]][-1]
+            name_hsh[pkg[0]][-1],
+            beehive_result
         ]
 
         if pkg not in result_list:
             result_list.append(pkg)
 
-    fields = ['src_pkg', 'version', 'release', 'branch', 'user', 'status',
-              'subtask', 'approve', 'disapprove', 'task_content', 'description']
+    fields = ['src_pkg', 'version', 'release', 'branch', 'user',
+              'status', 'subtask', 'approve', 'disapprove',
+              'task_content', 'description', 'beehive_check']
 
     return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
