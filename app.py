@@ -1473,7 +1473,7 @@ def task_info():
 
     result_list = []
     for pkg in src_pkgs:
-        result_list.append([
+        pkg = [
             *name_hsh[pkg[0]][:-2],
             branch,
             user_id,
@@ -1483,7 +1483,10 @@ def task_info():
                 [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[3]], 1
             ),
             name_hsh[pkg[0]][-1]
-        ])
+        ]
+
+        if pkg not in result_list:
+            result_list.append(pkg)
 
     fields = ['src_pkg', 'version', 'release', 'branch', 'user',
               'status', 'subtask', 'task_content', 'description']
