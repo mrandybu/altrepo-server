@@ -1,9 +1,12 @@
+import os
 import json
 import time
 import logging
 import datetime
 import argparse
+import requests
 import configparser
+from bs4 import BeautifulSoup
 from collections import defaultdict
 
 from paths import namespace
@@ -115,3 +118,24 @@ def func_time(logger):
         return wrapper
 
     return decorator
+
+
+class HtmlParser:
+    def __init__(self, search_tag, bad_list):
+        self.search_tag = search_tag
+        self.bad_list = bad_list
+
+    def parse_html(self, url):
+        response = requests.get(url)
+        if response.status_code != 200:
+            return False
+
+        soup = BeautifulSoup(response.content, 'lxml')
+
+        for tag in soup.find_all(self.search_tag):
+            if tag.text not in self.bad_list:
+                response = requests.get(os.path.join(url, tag.text))
+                if response.status_code != 200:
+                    return False
+
+                return response.content.decode()
