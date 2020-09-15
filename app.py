@@ -1449,7 +1449,9 @@ def task_info():
 
     src_pkgs = response
 
-    pkg_hshs = [val for sublist in [[i[0]] + i[1] for i in response]
+    task_status = src_pkgs[0][1]
+
+    pkg_hshs = [val for sublist in [[i[0]] + i[2] for i in response]
                 for val in sublist]
 
     g.connection.request_line = """SELECT pkghash,
@@ -1474,14 +1476,15 @@ def task_info():
             *name_hsh[pkg[0]][:-2],
             branch,
             user_id,
+            task_status,
             utils.tuplelist_to_dict(
-                [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[1]], 1
+                [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[2]], 1
             ),
             name_hsh[pkg[0]][-1]
         ])
 
     fields = ['src_pkg', 'version', 'release', 'branch',
-              'user', 'task_content', 'description']
+              'user', 'status', 'task_content', 'description']
 
     return utils.convert_to_json(fields, result_list)
 
