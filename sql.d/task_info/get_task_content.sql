@@ -1,28 +1,16 @@
 SELECT sourcepkg_hash,
        status,
        subtask,
-       concat(toString(try), '.', toString(iteration)) as ti,
-       groupUniqArray(hshs)
-FROM
-  (SELECT sourcepkg_hash,
-          status,
-          subtask,
-          try,
-          iteration,
-          arrayJoin(pkgs) AS hshs
-   FROM Tasks
-   WHERE task_id = {id})
-WHERE hshs IN
-    (SELECT arrayJoin(*)
-     FROM
-       (SELECT groupArray(arrayJoin(pkgs))
-        FROM Tasks
-        WHERE task_id = {id}
-          AND notEmpty(pkgs)
-        GROUP BY try,
-                 iteration
-        ORDER BY try DESC,iteration DESC
-        LIMIT 1))
+       concat(toString(try), '.', toString(iteration)) AS ti,
+       groupUniqArray(arrayJoin(pkgs))
+FROM Tasks
+WHERE task_id = {id}
+  AND (try,
+       iteration) IN
+    (SELECT max(try),
+            argMax(iteration, try)
+     FROM Tasks
+     WHERE task_id = {id})
 GROUP BY sourcepkg_hash,
          status,
          subtask,
