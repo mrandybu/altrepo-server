@@ -1433,11 +1433,13 @@ def task_info():
     if try_iteration:
         try_iteration = tuple([int(i) for i in try_iteration.split('.')])
 
-    g.connection.request_line = """SELECT branch,
-                                          userid
-                                   FROM Tasks
-                                   WHERE task_id = {}
-                                   LIMIT 1""".format(task_id)
+    g.connection.request_line = """
+    SELECT DISTINCT concat(toString(try), '.', toString(iteration)),
+                branch,
+                userid
+    FROM Tasks
+    WHERE task_id = {}
+    """.format(task_id)
 
     status, response = g.connection.send_request()
     if status is False:
@@ -1446,7 +1448,8 @@ def task_info():
     if not response:
         return utils.json_str_error("Non-existent task number!")
 
-    branch, user_id = response[0][0], response[0][1]
+    branch, user_id = response[0][1], response[0][2]
+    all_rebuilds = [i[0] for i in response]
 
     g.connection.request_line = QM.task_info_get_task_content.format(id=task_id)
     if try_iteration:
@@ -1532,6 +1535,8 @@ def task_info():
             task_status,
             *pkg_subtask[pkg[0]],
             task_msg,
+            try_iteration,
+            sorted(all_rebuilds),
             utils.tuplelist_to_dict(
                 [(name_hsh[hsh][3], name_hsh[hsh][0]) for hsh in pkg[4]], 1
             ),
@@ -1543,8 +1548,8 @@ def task_info():
             result_list.append(pkg)
 
     fields = ['src_pkg', 'version', 'release', 'branch', 'user', 'status',
-              'subtask', 'approve', 'disapprove', 'task_msg', 'task_content',
-              'description', 'beehive_check']
+              'subtask', 'approve', 'disapprove', 'task_msg', 'current_rebuild',
+              'all_rebuilds', 'task_content', 'description', 'beehive_check']
 
     return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
