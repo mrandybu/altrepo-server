@@ -1429,6 +1429,10 @@ def task_info():
     if not task_id:
         return get_helper(server.helper(request.path))
 
+    try_iteration = server.get_one_value('rebuild', type_='s')
+    if try_iteration:
+        try_iteration = tuple([int(i) for i in try_iteration.split('.')])
+
     g.connection.request_line = """SELECT branch,
                                           userid
                                    FROM Tasks
@@ -1445,6 +1449,9 @@ def task_info():
     branch, user_id = response[0][0], response[0][1]
 
     g.connection.request_line = QM.task_info_get_task_content.format(id=task_id)
+    if try_iteration:
+        g.connection.request_line = QM.task_info_get_task_content_rebuild.format(
+            id=task_id, ti=try_iteration)
 
     status, response = g.connection.send_request()
     if status is False:
