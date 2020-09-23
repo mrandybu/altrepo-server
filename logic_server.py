@@ -157,6 +157,11 @@ class LogicServer:
                     'task *': 'task id',
                 }
             },
+            '/task_diff': {
+                '##### /task_diff arguments #####': {
+                    'task *': 'task id',
+                }
+            },
         }
 
         return helper[query]

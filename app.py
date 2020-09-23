@@ -1554,6 +1554,62 @@ def task_info():
     return utils.convert_to_json(fields, sorted(result_list, key=itemgetter(6)))
 
 
+@app.route('/task_diff')
+@func_time(logger)
+def task_diff():
+    server.url_logging()
+
+    check_params = server.check_input_params()
+    if check_params is not True:
+        return check_params
+
+    task_id = server.get_one_value('task', type_='i')
+    if not task_id:
+        return get_helper(server.helper(request.path))
+
+    g.connection.request_line = QM.task_diff_get_task_depends.format(
+        id=task_id)
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for i in response:
+        dt[i[0]][i[1]][i[2]] = i[3]
+        for j in ['x86_64', 'x86_64-i586', 'i586']:
+            if j not in dt[i[0]][i[1]]:
+                dt[i[0]][i[1]][j] = []
+
+    def get_diff(arch1, arch2):
+        if arch1 and arch2:
+            return ['-{}'.format(dep) for dep in arch1 - arch2] + \
+                   ['+{}'.format(dep) for dep in arch2 - arch1]
+        return []
+
+    res_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for type_ in ['provide', 'require', 'obsolete', 'conflict']:
+        for pkg, dp_type in dt.items():
+            x86_64 = set(dp_type[type_]['x86_64'])
+            x86_64_i586 = set(dp_type[type_]['x86_64-i586'])
+            i586 = set(dp_type[type_]['i586'])
+
+            res_dt[pkg][type_]['x86_64/x86_64-i586'] = get_diff(
+                x86_64, x86_64_i586
+            )
+            res_dt[pkg][type_]['x86_64/i586'] = get_diff(x86_64, i586)
+            res_dt[pkg][type_]['x86_64-i586/i586'] = get_diff(i586, x86_64_i586)
+
+    new_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for pkg, type_dict in res_dt.items():
+        for type_, arch_dict in type_dict.items():
+            for arch, value in arch_dict.items():
+                if value:
+                    new_dt[pkg][type_][arch] = value
+
+    return json.dumps(new_dt)
+
+
 @app.before_request
 def init_db_connection():
     g.connection = Connection()
@@ -1586,6 +1642,8 @@ def page_404(error):
                                      'for build input package',
             '/packages': 'dump of database in json-format by given parameters',
             '/task_id': 'information about task',
+            '/task_diff': 'comparison (requires, provides, e.t.c) between '
+                          'architectures',
         }
     }
     return json.dumps(helper, sort_keys=False)
