@@ -1585,6 +1585,9 @@ def task_diff():
     if status is False:
         return response
 
+    if not response:
+        return json.dumps({})
+
     repo_pkgs = utils.join_tuples(response)
 
     g.connection.request_line = (
