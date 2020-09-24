@@ -1637,7 +1637,7 @@ def task_diff():
                 if res_list:
                     result_dict[name][type_][arch] = res_list
 
-                return json.dumps(result_dict)
+    return json.dumps(result_dict)
 
 
 @app.before_request
