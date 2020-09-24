@@ -1567,47 +1567,76 @@ def task_diff():
     if not task_id:
         return get_helper(server.helper(request.path))
 
-    g.connection.request_line = QM.task_diff_get_task_depends.format(
+    g.connection.request_line = QM.task_diff_get_task_pkgs.format(
         id=task_id)
 
     status, response = g.connection.send_request()
     if status is False:
         return response
 
-    dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for i in response:
-        dt[i[0]][i[1]][i[2]] = i[3]
-        for j in ['x86_64', 'x86_64-i586', 'i586']:
-            if j not in dt[i[0]][i[1]]:
-                dt[i[0]][i[1]][j] = []
+    task_pkgs = utils.join_tuples(response)
 
-    def get_diff(arch1, arch2):
-        if arch1 and arch2:
-            return ['-{}'.format(dep) for dep in arch1 - arch2] + \
-                   ['+{}'.format(dep) for dep in arch2 - arch1]
-        return []
+    g.connection.request_line = (
+        QM.task_diff_get_repo_pkgs, {'hshs': task_pkgs}
+    )
 
-    res_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for type_ in ['provide', 'require', 'obsolete', 'conflict']:
-        for pkg, dp_type in dt.items():
-            x86_64 = set(dp_type[type_]['x86_64'])
-            x86_64_i586 = set(dp_type[type_]['x86_64-i586'])
-            i586 = set(dp_type[type_]['i586'])
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
 
-            res_dt[pkg][type_]['x86_64/x86_64-i586'] = get_diff(
-                x86_64, x86_64_i586
-            )
-            res_dt[pkg][type_]['x86_64/i586'] = get_diff(x86_64, i586)
-            res_dt[pkg][type_]['x86_64-i586/i586'] = get_diff(i586, x86_64_i586)
+    repo_pkgs = utils.join_tuples(response)
 
-    new_dt = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
-    for pkg, type_dict in res_dt.items():
+    g.connection.request_line = (
+        QM.task_diff_get_depends_by_hshs, {'hshs': task_pkgs}
+    )
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    task_deps = response
+
+    g.connection.request_line = (
+        QM.task_diff_get_depends_by_hshs, {'hshs': repo_pkgs}
+    )
+
+    status, response = g.connection.send_request()
+    if status is False:
+        return response
+
+    repo_deps = response
+
+    uniq_repo_pkgs = utils.remove_duplicate([i[0] for i in repo_deps])
+
+    base_struct = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for pkg in uniq_repo_pkgs:
+        for type_ in ['provide', 'require', 'obsolete', 'conflict']:
+            for arch in ['x86_64', 'x86_64-i586', 'i586']:
+                base_struct[pkg][type_][arch] = []
+
+    def create_struct(deps):
+        struct = base_struct.copy()
+        [struct[el[0]][el[1]][el[2]].__iadd__(el[3])
+         for el in deps if el[0] in base_struct]
+        return struct
+
+    task_struct = create_struct(task_deps)
+    repo_struct = create_struct(repo_deps)
+
+    result_dict = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
+    for name, type_dict in task_struct.items():
         for type_, arch_dict in type_dict.items():
             for arch, value in arch_dict.items():
-                if value:
-                    new_dt[pkg][type_][arch] = value
+                task_set = set(value)
+                repo_set = set(repo_struct[name][type_][arch])
 
-    return json.dumps(new_dt)
+                res_list = ['-{}'.format(dep) for dep in repo_set - task_set] + \
+                           ['+{}'.format(dep) for dep in task_set - repo_set]
+
+                if res_list:
+                    result_dict[name][type_][arch] = res_list
+
+                return json.dumps(result_dict)
 
 
 @app.before_request
