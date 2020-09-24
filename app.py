@@ -1578,7 +1578,7 @@ def task_diff():
     task_pkgs = utils.join_tuples(response)
 
     g.connection.request_line = (
-        QM.task_diff_get_repo_pkgs, {'hshs': task_pkgs}
+        QM.task_diff_get_repo_pkgs, {'hshs': task_pkgs, 'id': task_id}
     )
 
     status, response = g.connection.send_request()
