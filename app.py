@@ -1,4 +1,5 @@
 import re
+import copy
 import requests
 from collections import namedtuple, defaultdict
 from operator import itemgetter
@@ -1615,7 +1616,7 @@ def task_diff():
                 base_struct[pkg][type_][arch] = []
 
     def create_struct(deps):
-        struct = base_struct.copy()
+        struct = copy.deepcopy(base_struct)
         [struct[el[0]][el[1]][el[2]].__iadd__(el[3])
          for el in deps if el[0] in base_struct]
         return struct
